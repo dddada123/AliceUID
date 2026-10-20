@@ -16,7 +16,7 @@
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，提供本人账号绑定、个人资料、角色练度、皮肤图鉴、联盟会战、资源与保管箱查询，以及可选的社区日常任务。当前版本 **1.0.05**，默认使用 `nk` 前缀，也支持后台自定义。
 
-[版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
+[亮点功能](#亮点功能) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
 <p align="center">
   <img src="https://count.getloli.com/@AliceUID?theme=nixietube-1&amp;padding=7&amp;offset=0&amp;align=top&amp;scale=1&amp;pixelated=1&amp;darkmode=auto" alt="AliceUID 访问计数">
@@ -37,6 +37,26 @@
 | 管理与外观 | 群/用户四名单、角色别名管理、公共资料库更新、亮暗/随机主题、字体与毛玻璃强度 |
 
 支持日服、北美服、韩服、国际服、东南亚服。登录时必须明确选服；港澳台网页登录流程暂未支持。
+
+## 亮点功能
+
+### ⚔️ 会战血量与联盟成员出刀总览
+
+- **BOSS血量查询**：发送 `nk会战血量`，查看联盟会战阶段、BOSS血量与进度；休赛期可展示上一期记录，并注明赛季与数据状态。
+- **Day2出刀总览**：发送 `nk出刀速查 Day2`，集中查看联盟成员出刀情况、输出前三、击杀前三，以及尚未完成出刀的成员，方便掌握联盟整体进度。
+- **本人出刀详情**：发送 `nk出刀详情`，查看本人队伍、伤害与击杀记录；还可用 `nk出刀缺刀`、`nk出刀尾刀` 分别查看未完成名单与尾刀统计。
+
+### 📦 资源查询与满仓时间预估
+
+发送 `nk资源查询`，查看资源与保管箱容量，并根据本次查询快照预估到90%及回满的北京时间。保管箱提示条随占用比例变色，接近满仓时在查询图内呈现红色警戒色，方便一眼识别。
+
+这里的满仓时间是**预估值**；“提醒”仅指资源查询图片中保管箱提示条的颜色变化，**不会主动推送满仓消息，也不会自动领取资源**。
+
+### 🎨 个人名片、角色练度与亮暗主题
+
+`nk信息` 展示指挥官资料、主页队伍与完整主立绘；`nk爱丽丝练度` 等角色命令展示本人的装备、技能、词条、魔方、收藏品与好感。卡片支持亮色、暗色及随机主题，字体和毛玻璃强度可在后台调整。
+
+下方[效果预览](#效果预览)收录六张示例图，可直接查看名片、练度、资源预估及出刀总览的展示效果。
 
 ## 安装与升级
 
@@ -204,6 +224,90 @@ Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库�
 | 升级后仍像旧版 | 确认覆盖整个外壳并完整重启Core，未同时加载旧插件 |
 
 开发入口、缓存状态机、接口参数和验证方法见 [DEVELOPMENT.md](DEVELOPMENT.md)。本文件介绍当前功能与使用方式，历史变化集中在 [CHANGELOG.md](CHANGELOG.md)。
+
+## 效果预览
+
+**点击每张图片上方的标题或小三角，即可展开或收起图片。** 前五张默认展开，可按需折叠；Day2出刀总览较长，默认折叠。点击图片可查看高清原图。
+
+以下为功能展示示例，具体数据以实际查询为准；命令采用默认 `nk` 前缀。
+
+<details open>
+<summary><strong>图1 · 妮姬练度查询｜点击展开 / 收起</strong></summary>
+
+使用 `nk角色名练度`，例如 `nk爱丽丝练度`，查看本人角色的装备、技能与养成详情。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/20/aea2f6cd6ea2591242d1a07ee1a70f90.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/20/aea2f6cd6ea2591242d1a07ee1a70f90.png" width="660" alt="妮姬练度查询示例：角色立绘、装备与技能详情">
+  </a>
+</p>
+
+</details>
+
+<details open>
+<summary><strong>图2 · 个人名片｜点击展开 / 收起</strong></summary>
+
+使用 `nk信息` 或 `nk名片`，展示指挥官资料、主页队伍和角色立绘。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/20/64a52a67726a795a5bb2a1df6bbc85e5.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/20/64a52a67726a795a5bb2a1df6bbc85e5.png" width="720" alt="个人名片示例：指挥官资料、角色立绘与主页展示队伍">
+  </a>
+</p>
+
+</details>
+
+<details open>
+<summary><strong>图3 · 资源查询与预计满仓时间 · 暗色主题｜点击展开 / 收起</strong></summary>
+
+使用 `nk资源查询`，查看资源、保管箱容量与预计回满时间；时间预估基于本次查询快照。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/20/1b94addf6276f536bd6628aa8bd0c49e.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/20/1b94addf6276f536bd6628aa8bd0c49e.png" width="900" alt="暗色主题资源查询：资源与保管箱容量、预计满仓时间">
+  </a>
+</p>
+
+</details>
+
+<details open>
+<summary><strong>图4 · 保管箱接近满仓的颜色提示 · 亮色主题｜点击展开 / 收起</strong></summary>
+
+资源查询图中的保管箱提示条会随占用比例变色。此图展示接近满仓时的红色警戒色；这是查询图片内的状态提示，不是定时或主动推送提醒。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/20/a363a6f9c270f4fe24001417e8e0f7e3.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/20/a363a6f9c270f4fe24001417e8e0f7e3.png" width="900" alt="亮色主题资源查询：保管箱接近满仓时，提示条变为红色警戒色">
+  </a>
+</p>
+
+</details>
+
+<details open>
+<summary><strong>图5 · 个人出刀详情｜点击展开 / 收起</strong></summary>
+
+使用 `nk出刀详情`，查看本人会战队伍与对应的伤害、击杀记录。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/20/69d53dbc204a634d511d40c0e2cabb6d.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/20/69d53dbc204a634d511d40c0e2cabb6d.png" width="900" alt="个人出刀详情示例：本人会战队伍、伤害及击杀信息">
+  </a>
+</p>
+
+</details>
+
+<details>
+<summary><strong>图6 · Day2联盟成员出刀总览 · 长图默认折叠｜点击展开 / 收起</strong></summary>
+
+使用 `nk出刀速查 Day2`，查看成员出刀总览、输出前三、击杀前三，以及尚未完成出刀的成员。图片较长，可点击打开高清原图查看细节。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/20/c6214312dc66e19bf15358682e2ab903.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/20/c6214312dc66e19bf15358682e2ab903.png" width="900" alt="Day2联盟出刀总览长图：成员出刀情况、输出前三、击杀前三与未完成名单">
+  </a>
+</p>
+
+</details>
 
 ## 反馈与贡献
 
