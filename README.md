@@ -1,4 +1,10 @@
-# AliceUID
+<p align="center">
+  <a href="https://github.com/dddada123/AliceUID">
+    <img src="https://raw.githubusercontent.com/dddada123/AliceUID/main/ICON.png" width="256" alt="AliceUID">
+  </a>
+</p>
+
+<h1 align="center">AliceUID</h1>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，提供本人账号绑定、个人资料、角色练度、皮肤图鉴、联盟会战、资源与保管箱查询，以及可选的社区日常任务。当前版本 **1.0.05**，默认使用 `nk` 前缀，也支持后台自定义。
 
