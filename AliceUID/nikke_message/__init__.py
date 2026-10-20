@@ -1,4 +1,4 @@
-"""Opt-in forwarding, descriptive first nodes and NapCat delivery confirmation."""
+"""Standard title/image nodes, optional encoding and NapCat delivery confirmation."""
 from __future__ import annotations
 import asyncio
 from collections import OrderedDict
@@ -74,7 +74,7 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None):
         content = [
             MessageSegment.text(item) if isinstance(item, str) else
             MessageSegment.image(item) if isinstance(item, bytes) else item
-            for item in items
+            for item in items if getattr(item, 'type', None) not in ('at', 'at_all')
         ]
         if title:
             content.insert(0, MessageSegment.text(str(title)))
@@ -86,8 +86,15 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None):
                 logger.warning(f'[AliceUID] 转发图片准备失败，保留完整原图普通发送 error_type={type(exc).__name__}')
                 return await bot.send(message, at_sender=at_sender)
         node = MessageSegment.node(content)
+        kind = {'AliceUID_HelpForward': 'help', 'AliceUID_RosterForward': 'roster',
+                'AliceUID_UnionForward': 'union', 'AliceUID_LoginForward': 'login'}.get(config_key, 'other')
+        logger.info(f'[AliceUID] 转发发送 kind={kind} nodes={len(content)} '
+                    f'images={sum(getattr(item, "type", None) == "image" for item in content)} '
+                    f'strategy={"login_original" if kind == "login" else "classic_node"}')
         started = monotonic()
         try:
+            # Core Bot.send defaults at_sender=False: keep this a pure node
+            # frame, matching fix1. Only the ordinary fallback may mention.
             result = await bot.send(node, wait_recall=True) if napcat else await bot.send(node)
         except (TimeoutError, ConnectionError):
             if napcat:
@@ -97,6 +104,9 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None):
             logger.warning(f'[AliceUID] 转发发送失败，回退普通消息 error_type={type(exc).__name__}')
         else:
             if napcat:
+                elapsed = monotonic() - started
+                logger.info(f'[AliceUID] 转发回执 kind={kind} elapsed_ms={int(elapsed * 1000)} '
+                            f'confirmed={isinstance(result, list) and any(type(item) in (str, int) and str(item).strip() for item in result)}')
                 if isinstance(result, list) and any(
                     type(item) in (str, int) and str(item).strip() for item in result
                 ):

@@ -1,54 +1,50 @@
-# NapCat ↔ GsCore 转发通道说明
+# NapCat ↔ GsCore 标准转发说明
 
-适用于 AliceUID 1.0.07 紧急修订。**无需安装 NoneBot，也无需额外安装 AliceUID 前端插件。** 上次的 NoneBot 配套代码已移出正式插件并可恢复归档。
+## 1.0.08：只更新AliceUID
 
-## 当前设置
+2026-10-20，用户实机确认candidate3的nk卡片、nk帮助、nk出刀转发均成功。正式交付沿用该发送代码，不调整节点结构或重新编码默认值。以下阶段性待验收提示已由此三项成功结果更新，仍保留不同环境的实验性与失败回退。
 
-**转发为实验性功能。** fix2实机帮助转发仍未成功，自动回退/暂停已触发；1.0.07正式封包保留此已知限制，后续发送修复在1.0.08继续。失败或未确认时自动回退一次普通消息，并暂停本连接转发5分钟。
+当前主线按用户要求恢复fix1曾成功的标准方式：
 
-按用户最新授权，帮助、完整卡片、出刀及登录转发四个开关全部默认开启。如果开启后群内看不到消息，请关闭对应开关回到普通模式。升级保留已有值；旧配置为关闭时需要手动开启，默认值不覆盖已有选择。
+`卡片完整原图 → Core磁盘缓存/读回校验 → 标题文字节点＋图片节点 → 现有GScore适配器 → NapCat`
 
-转发首节点先展示文字标题，随后展示完整图片。帮助为 AliceUID帮助；图鉴为 AliceUID·游戏昵称·图鉴展示；出刀为 AliceUID·公会名-出刀统计。普通消息与错误/进度提示不额外添加标题。
+只替换Core的plugins/AliceUID并重启Core，保留data/AliceUID、数据库和密钥。无需安装新NapCat插件、修改插件ID、GScore适配器源码或全局packetBackend。原卡片本来就有cache/roster磁盘JPG缓存，发送时读取；这次不是第一次引入磁盘缓存。
 
-主题新默认 random，毛玻璃新默认 20%；已保存的主题与强度仍优先使用，不覆盖自定义。
+转发始终是纯node帧，不附外层at，输入中的at/at_all子段过滤；节点内保留标题text和完整image。普通消息或失败回退可@发起者。帮助标题与快速开始说明合成一个文字节点；图鉴标题为AliceUID·游戏昵称·图鉴展示，出刀为AliceUID·公会名-出刀统计。
 
-## 为什么后台有“发送”但群里没有消息
+帮助、卡片、出刀、登录四个开关默认开启，已有设置不覆盖，功能仍为实验性。登录/重新登录共用开关，二维码独立且不重新编码。短卡片、文字版帮助、进度和错误仍按原方式发送。
 
-用户实际链路为：
+## 原图与可选JPG转换
 
-`AliceUID → GsCore → xiowo/napcat-plugin-gscore-adapter → NapCat → QQ`
+“转发图片转换JPG”默认关闭：完整PNG/JPG/WEBP保持原字节、全部尺寸、DPI和元数据，不分页、不缩放。对照保存的1.0.07 fix1 ZIP，离线验证原/新代码经过真实Core和固定TS适配器后的最终send_msg参数一致。
 
-[适配器固定源码](https://github.com/xiowo/napcat-plugin-gscore-adapter/blob/df1859b396ffbd73bd2b72ce4a35147667281472/src/services/gscore-service.ts)参考版本 1.3.5：handleGsCoreMessage 将节点转换后调用 send_msg，并在适配器自身捕获错误。Core 默认的 bot.send 只等待消息入队/写入WebSocket，所以其返回None和“发送消息”日志不是 QQ 送达证明。这是此前没有触发回退的可复现缺口。
+需要转换时可手动开启，使用既有JPG编码流程；质量默认95、0–100整数，下次发送生效，100仍非无损。已有JPG直接发送，透明图保留PNG。关闭转换时质量设置仍保留但不参与编码。登录二维码和普通发送不编码。
 
-后续实机日志已确认：NapCat Highway TCP连接上传服务器8080超时，回退HTTP同样超时，随后报告转发资源上传失败。上传连接尚未建立，不能认定图片格式或体积本身有错；帮助/出刀PNG约2.63MB、成功卡片JPG约2.25MB，也不能单凭这一差距认定超出大小限制。参考[NapCat TCP上传源码](https://github.com/NapNeko/NapCatQQ/blob/450fb0429a064e3418e0c698b1b4d78324101929/packages/napcat-core/packet/highway/uploader/highwayTcpUploader.ts)与[HTTP回退源码](https://github.com/NapNeko/NapCatQQ/blob/450fb0429a064e3418e0c698b1b4d78324101929/packages/napcat-core/packet/highway/uploader/highwayHttpUploader.ts)。
+成品传输缓存位于data/AliceUID/cache/forward_outbox：原子写入、读取SHA256校验后发送，64MiB/32张、15分钟有效，后续写入清理。缓存失败整体普通回退，不形成自动重放队列。完整图片超过8MiB插件保护上限或像素/格式无效时整体普通发送原内容；该大小不是QQ官方限制。
 
-本次识别 napcat 或 napcat-* 的 OneBot 连接，请求 Core 的 wait_recall 消息ID回执。适配器成功返回ID后确认转发；没有确认时，回退一次同一图片或登录链接。不会重新取数、重绘、创建登录会话，原图像素、DPI和字体不变。旧Core没有回执能力或连接已判定不支持时，直接走普通模式。
+## 回执与自动回退
 
-参考Core等待上限为10秒。未确认后普通回退一次，并暂停本连接转发5分钟，后续请求走普通路径；不反复重试转发。超时可能意味着仍在上传，迟到成功可能产生一次重复。旧版适配器没有回执时建议关闭转发或更新适配器。取消任务不触发回退。其它非NapCat适配器的未知None/空回执仍不自动重发。
+实际链路为AliceUID → GsCore → xiowo/napcat-plugin-gscore-adapter → NapCat → QQ。[固定适配器源码](https://github.com/xiowo/napcat-plugin-gscore-adapter/blob/df1859b396ffbd73bd2b72ce4a35147667281472/src/services/gscore-service.ts)将node转换成OneBot节点并调用send_msg。默认bot.send只确认Core入队，不证明QQ送达。
 
-## JPG质量与完整分页
+保留fix1的wait_recall=True观察参数，由现有适配器回传消息ID；该参数不改变最终send_msg节点内容。取得ID才确认，未确认时普通发送原内容一次并暂停该连接转发300秒，不重新取数、重绘、创建登录会话或无限重试。普通回退不会递归转发。旧Core不支持回执、私聊、Core禁止转发或连接处于暂停期时直接普通发送。取消不回退，权限和发送前绑定核验照常执行。
 
-转发新编码图片默认JPG质量95，GsCore后台“转发图片JPG编码质量”可设0–100整数，下次转发生效。100仍是有损编码，不能把95理解为压缩到原文件95%。现有合规JPG直接发送以保留已成功的卡片路径；透明图保留PNG，登录二维码与普通发送不重编码。新编码JPG使用4:4:4，不缩放、保留DPI；高度超过4096像素或单页超过4MiB时按顺序完整分页，全部原始行保留。编码失败或完整输出超过保护上限时，整体普通发送原图。
+Core通常等待约10秒，不能据此判断NapCat已经终止上传；迟到成功仍可能与普通回退重复。缓存命中只说明Core本地有图，不证明QQ资源缓存命中或网络可达。
 
-该处理减小部分图片并缩短单页高度，属于兼容改善，不能保证更换编码后QQ网络上传必定成功。如仍报connect ETIMEDOUT，请在NapCat所在容器/主机排查日志指定服务器的出站TCP8080、路由/代理和防火墙；浏览器能上网或Core可渲染不足以证明该上传路径可达。不硬编码上传IP，也不无限重试。
+## 测试与日志
 
-## 头像和昵称设置在正确的位置
+1. 更新Core的AliceUID并重启；这会清空本插件内存暂停状态。四个转发开关旧值保留，需要测试的开关请确认开启，JPG转换先保持默认关闭。
+2. 测试nk卡片、nk帮助及nk出刀。正常应出现一个标题节点、一张完整图，不带@；日志为strategy=classic_original及strategy=classic_node。
+3. 成功以群中实际转发和Core消息ID确认判断。失败可见普通回退及300秒暂停；暂停期内后续普通图片不是开关失效。
+4. 失败时保留Core格式/尺寸/体积/回执日志与同期NapCat错误，隐藏登录链接和凭据。若NapCat仍报Highway connect ETIMEDOUT，恢复旧节点结构不能保证修复出站网络。不要仅凭Core“发送消息”或本地cache_ready判断成功。
 
-AliceUID 不再提供“使用当前QQ身份”开关，不发送自定义控制段，沿用适配器的转发身份。
+用户明确报告最初卡片以及fix1标题＋图片形式曾实机成功。该事实作为对照依据保留；后来完整卡片也失败，尚不能仅凭历史成功定位当前故障。离线协议一致不等于当前QQ上传成功。
 
-xiowo 适配器自身已经支持：
+## 头像昵称
 
-- customForwardInfo 关闭：使用适配器默认“小助手”身份。
-- customForwardInfo 开启，customForwardQQ / customForwardName 留空：分别读取 pluginState.selfId / selfNickname，即当前挂载机器人的QQ头像与实际昵称。
-- 填写自定义QQ或昵称：使用适配器的相应自定义值。
+AliceUID不添加身份控制段或独立头像QQ选项，沿用现有适配器。固定适配器支持customForwardInfo：关闭使用默认小助手；开启且customForwardQQ/customForwardName留空时读取当前机器人selfId/selfNickname；有自定义值则用相应值。这是NapCat端现有GScore适配器设置，影响其发送的其它转发，非本次必须修改的项目。[身份读取源码](https://github.com/xiowo/napcat-plugin-gscore-adapter/blob/df1859b396ffbd73bd2b72ce4a35147667281472/src/core/state.ts)。
 
-这些设置属于**NapCat中的GScore适配器**，不是GsCore的AliceUID设置；会影响该适配器发送的其它插件转发。不同版本UI入口可能不同，源码当前在自定义转发/彩蛋配置中。无需修改账号头像、填写AliceUID的头像QQ或安装NoneBot。如果不调整适配器，就继续保持“小助手”。
+## 可选的candidate2实验
 
-[身份读取源码](https://github.com/xiowo/napcat-plugin-gscore-adapter/blob/df1859b396ffbd73bd2b72ce4a35147667281472/src/core/state.ts)通过 get_login_info 获取自身资料；参考的[AstrBot千小妹插件](https://github.com/dddada123/astrbot_plugin_chisa_still_eating/blob/5d4c82a5192a7cfe3418ddc8b17ac6d2178615ef/main.py)也是通过当前机器人uin指定头像，但其示例使用标题作为节点名称，并不能直接当作GsCore的昵称接口使用。
+[原生转发配套](napcat-plugin-aliceuid-native-forward/README.md)仅留作可选实验，不是candidate3安装条件，也未自动启用。它需要用户主动另装NapCat插件，会在机器人自身会话产生准备消息，再原生合并到群；Core缓存到期不会删除QQ历史。
 
-## 实机检查
-
-1. 替换整个 plugins/AliceUID 后重启Core，检查四个独立转发开关；新配置默认开启，旧配置保留原值。
-2. 查看首节点标题与完整图片分页；确认成功时Core日志出现“已取得消息ID回执”，未确认则普通回退并暂停该连接转发300秒。暂停期内的普通发送不代表开关失效，可等待5分钟后再测试。
-3. 同时查看NapCat的GScore适配器日志。如有“发送回复消息失败”，提供错误码/原因并隐藏个人信息、登录链接及凭据。不要只用Core的“发送消息”行判断成功。
-4. JPG质量可先用95或100比较；若仍有Highway网络超时，关闭对应转发开关并排查上传网络。本修订不自动部署或推送GitHub。
+用户19:42测试只更新Core，未安装配套，故未进入该原生路径。现在优先验收标准fix1路线，不要求继续安装配套。此前若已安装，请禁用该配套并重启NapCat，才能对照当前标准路线；现有GScore适配器保持启用。

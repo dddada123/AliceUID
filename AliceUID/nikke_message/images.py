@@ -1,10 +1,4 @@
-"""Bounded forward image transport without changing source renders or caches.
-
-Opaque long PNG cards follow the successful roster JPEG route at configurable
-quality (default 95) / 4:4:4. Pages retain every original pixel row and column.
-Existing roster JPEGs within limits are sent byte-for-byte; QR login is excluded
-by the caller. Transparent images keep lossless PNG to preserve their appearance.
-"""
+"""Classic original-image nodes; JPEG conversion is explicitly optional."""
 from __future__ import annotations
 
 import base64
@@ -15,10 +9,7 @@ from PIL import Image
 
 MAX_INPUT_BYTES = 32 * 1024 * 1024
 MAX_PIXELS = 64_000_000
-MAX_HEIGHT = 4096
-MAX_PAGE_BYTES = 4 * 1024 * 1024
-MAX_TOTAL_BYTES = 24 * 1024 * 1024
-MAX_PAGES = 32
+MAX_OUTPUT_BYTES = 8 * 1024 * 1024
 JPEG_QUALITY = 95
 
 
@@ -37,7 +28,7 @@ def encode_forward_pages(data, quality=JPEG_QUALITY):
             raise ForwardImageError('forward image geometry out of bounds')
         if getattr(source, 'n_frames', 1) != 1:
             raise ForwardImageError('animated cards are unsupported')
-        if source.format == 'JPEG' and height <= MAX_HEIGHT and len(data) <= MAX_PAGE_BYTES:
+        if source.format == 'JPEG' and len(data) <= MAX_OUTPUT_BYTES:
             source.verify()
             return [data]
         source.load()
@@ -51,42 +42,29 @@ def encode_forward_pages(data, quality=JPEG_QUALITY):
         transparent = ('transparency' in source.info or
                        ('A' in source.getbands() and source.getchannel('A').getextrema()[0] < 255))
         image = source.convert('RGBA' if transparent else 'RGB')
-        pages = []
-        total = 0
-
-        def encode(top, bottom):
-            nonlocal total
-            page = image.crop((0, top, width, bottom))
-            output = BytesIO()
-            if transparent:
-                page.save(output, format='PNG', optimize=True, **metadata)
-            else:
-                page.save(output, format='JPEG', quality=quality, subsampling=0,
-                          optimize=True, progressive=False, **metadata)
-            encoded = output.getvalue()
-            if len(encoded) > MAX_PAGE_BYTES:
-                if bottom - top <= 1:
-                    raise ForwardImageError('one image row exceeds page limit')
-                middle = (top + bottom) // 2
-                encode(top, middle)
-                encode(middle, bottom)
-                return
-            total += len(encoded)
-            pages.append(encoded)
-            if len(pages) > MAX_PAGES or total > MAX_TOTAL_BYTES:
-                raise ForwardImageError('complete forward exceeds transport bounds')
-
-        for top in range(0, height, MAX_HEIGHT):
-            encode(top, min(top + MAX_HEIGHT, height))
-        return pages
+        output = BytesIO()
+        if transparent:
+            image.save(output, format='PNG', optimize=True, **metadata)
+        else:
+            if width > 65500 or height > 65500:
+                raise ForwardImageError('complete image exceeds JPEG dimensions')
+            image.save(output, format='JPEG', quality=quality, subsampling=0,
+                       optimize=True, progressive=False, **metadata)
+        encoded = output.getvalue()
+        if len(encoded) > MAX_OUTPUT_BYTES:
+            raise ForwardImageError('complete image exceeds transport bounds')
+        return [encoded]
 
 
 def prepare_forward_content(content):
-    """Only transform inline image bytes; never fetch URLs or touch cache files."""
+    """Snapshot inline cards before standard nodes; preserve original bytes by default."""
     from gsuid_core.segment import MessageSegment
     from gsuid_core.logger import logger
     from ..nikke_config.config import AliceUIDConfig
+    from ..nikke_config.config import CACHE_PATH
+    from .outbox import snapshot
     quality = AliceUIDConfig.get_config('AliceUID_ForwardJpegQuality').data
+    reencode = AliceUIDConfig.get_config('AliceUID_ForwardReencode').data is True
     result = []
     for item in content:
         data = getattr(item, 'data', None)
@@ -97,7 +75,29 @@ def prepare_forward_content(content):
         if len(data) > MAX_INPUT_BYTES * 4 // 3 + 32:
             raise ForwardImageError('inline image is too large')
         raw = base64.b64decode(data[9:], validate=True)
-        pages = encode_forward_pages(raw, quality=quality)
-        logger.info(f'[AliceUID] 转发图片处理 input_bytes={len(raw)} output_bytes={sum(map(len, pages))} pages={len(pages)}')
-        result.extend(MessageSegment.image(page) for page in pages)
-    return result
+        if reencode:
+            pages = encode_forward_pages(raw, quality=quality)
+        else:
+            # The old roster path read a cached JPG straight into image(data).
+            # Keep the exact bytes for PNG/JPEG/WEBP alike, including metadata.
+            if not raw or len(raw) > min(MAX_INPUT_BYTES, MAX_OUTPUT_BYTES):
+                raise ForwardImageError('original image size out of bounds')
+            with Image.open(BytesIO(raw)) as original:
+                if (original.format not in ('PNG', 'JPEG', 'WEBP')
+                        or original.width * original.height > MAX_PIXELS
+                        or getattr(original, 'n_frames', 1) != 1):
+                    raise ForwardImageError('original image geometry out of bounds')
+                original.verify()
+            pages = [raw]
+        with Image.open(BytesIO(raw)) as source, Image.open(BytesIO(pages[0])) as encoded:
+            strategy = 'jpeg_optional' if reencode else 'classic_original'
+            logger.info(f'[AliceUID] 转发图片 strategy={strategy} source_format={source.format} '
+                        f'output_format={encoded.format} width={encoded.width} height={encoded.height} '
+                        f'input_bytes={len(raw)} output_bytes={len(pages[0])}')
+        for page in pages:
+            cached, hit = snapshot(page, CACHE_PATH / 'forward_outbox')
+            logger.info(f'[AliceUID] 转发缓存 stage=cache_ready bytes={len(cached)} hit={hit}')
+            result.append(MessageSegment.image(cached))
+    texts = [str(item.data) for item in result if getattr(item, 'type', None) == 'text' and item.data]
+    remaining = [item for item in result if getattr(item, 'type', None) != 'text']
+    return ([MessageSegment.text('\n'.join(texts))] if texts else []) + remaining

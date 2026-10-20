@@ -1,6 +1,6 @@
 # AliceUID 开发文档
 
-适用版本：**1.0.07**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+适用版本：**1.0.08**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
 
 用户使用说明见 [README.md](README.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。路径以本文件所在的插件外壳为基准；`AliceUID/nikke_api/client.py` 指外壳下的内层代码。
 
@@ -56,7 +56,7 @@ flowchart TD
 |---|---|
 | `nikke_config` | `config_default.py` 默认配置；`config.py` 路径与ValidatedStringConfig |
 | `nikke_commands` | 前缀配置校验、启动快照、Core触发器重建、command_prefix提示映射 |
-| `nikke_message` | 默认开启的独立转发、标题首节点、JPG质量/分页、NapCat消息ID回执与普通消息回退 |
+| `nikke_message` | 默认开启的实验性转发、标题首节点、完整单图JPG、NapCat消息ID回执与普通消息回退 |
 | `nikke_permissions` | 四名单校验、Core Trigger包装、群管理命令；`policy.py/config.py/access.py` |
 | `nikke_user` | `AliceBind`、加密存储、加载本人客户端、绑定锁、受控后台解绑、主动面板刷新 |
 | `nikke_login` | 选服命令、一次性内存会话、密码/邮箱浏览器流程、验证码与HTTP路由 |
@@ -227,9 +227,27 @@ OneBot私聊与Core非「允许」策略直接普通发送。共享边界依连�
 
 发送仍经过原_LiveAccessBot.send权限包装。异常日志只记录类型，不记录URL、会话token或原始错误；不创建新的登录会话来重试发送。参考[鸣潮固定源码](https://github.com/Loping151/XutheringWavesUID/blob/4c1727580c613ef3034a391dc3156a1570cd5260/XutheringWavesUID/wutheringwaves_login/login.py)和[Core固定发送实现](https://github.com/Genshin-bots/gsuid_core/blob/1ce50ba381e0d9f48dc42385e35a7310dc5ed0f4/gsuid_core/bot.py)，验证文件为test_v106_forward.py。
 
-### 1.0.07 修订：转发标题与NapCat投递确认
+### 1.0.08 修订：复用卡片完整单图路线
 
-本版本正式封包将四类转发明确标为实验性，后台标题/提示与README同步。用户fix2实测帮助转发仍未成功，自动普通回退及300秒暂停已确认触发；不能把离线测试或回退成功写成转发问题已解决。后续投递修复在独立1.0.08目录进行，1.0.07冻结。
+2026-10-20，用户已确认candidate3的nk卡片、nk帮助、nk出刀三类群转发成功。正式交付冻结该发送实现，仅更新验收与发布文档；本节后续候选阶段的待验收说明不覆盖该结果。JPG转换和原生配套仍为可选路线，不能将三项标准路线成功当作这些可选方案的实机验收。
+
+当前candidate3以保存的1.0.07 fix1 ZIP为消息结构基线，恢复默认标准转发，无需安装NapCat配套。send_with_forward构造纯MessageSegment.node，首节点标题文字，下一节点完整原图；帮助附注并入标题。过滤输入中的at/at_all，不传at_sender=True给转发；Core默认False，普通回退仍可at。保留wait_recall，它是回执观察参数，不改变适配器最终send_msg节点内容。
+
+prepare_forward_content新增读取AliceUID_ForwardReencode，默认False，先校验完整图格式/像素和大小，再snapshot落盘读回，原图字节不变；PNG不再默认转JPG。显式True才进入现有encode_forward_pages编码器，ForwardJpegQuality默认95/0–100继续保留。格式为PNG/JPEG/WEBP、单帧、6400万像素及完整输出8MiB保护限制不放宽；不获取URL或借用他人图片。诊断默认strategy=classic_original，发送日志strategy=classic_node，可选转换为jpeg_optional。
+
+test_v108_classic.py直接从冻结fix1 ZIP载入原send_with_forward，旧/新实现分别经过固定Core和实际TS适配器，比较最终send_msg action及params完全一致；覆盖PNG/JPEG/WEBP原字节、真实长图尺寸、失败原图回退及转发无at。此验证不模拟QQ已成功。以下candidate2原生路线仅为可选实验，非当前安装前提；已安装者应禁用配套后对照标准路径。
+
+candidate2在保留完整单图的基础上增加两段准备流程。`nikke_message.outbox.snapshot(data,root)`先原子保存成品图并重新读取验证SHA256，`prepare_forward_content`仅使用校验后字节构造image段。路径为CACHE_PATH/forward_outbox，64MiB/32份，15分钟有效，在后续写入时清理；仅处理本模块命名的文件。登录二维码与链接排除，缓存失败在任何转发入队前整体普通回退；不形成自动重放队列。
+
+NapCat配套位于integrations/napcat-plugin-aliceuid-native-forward。它通过公开actions.get('send_msg')取得当前实例，包装该实例base_handle，按固定AliceUID标题及一张inline图片识别帮助/图鉴/出刀。其余消息调用原实现。被识别的单次调用使用Object.create(this)建立专用接收对象，分别提供原生节点准备函数；不更改全局packetStatus，不替换其它实例或适配器源码。原base_handle继续负责目标解析、最终短消息ID映射及返回格式，原OneBot action入口校验不变。
+
+原生准备通过obContext.apis.MsgApi.createSendElements将段准备到NapCat本地，再用sendMsgWithOb11UniqueId发到自身会话并取得raw msgId。每个节点都成功才调用core.apis.MsgApi.multiForwardMsg合并到原群；部分失败不发送仅标题转发。使用新peer对象避免SDK写guildId造成跨调用污染，总预算8秒、单实例一项在途；失败脱敏并交Core一次回退，不重试Packet。最终群发送已发起时不可强制取消，迟到可能与回退重复。卸载只在包装仍属于自身时恢复原方法；后装的其它包装不被覆盖。
+
+XWUID参考固定提交4c1727580c613ef3034a391dc3156a1570cd5260，登录转发采用MessageSegment.node并准备临时二维码；并未发现绕过本次NapCat Packet上传的插件专用接口。新增路线按实际NapCat 4.18.37原生SDK实现，需同时安装Core更新与NapCat配套；单独替换Core不会启用原生路线。详见[integrations](integrations/README.md)。
+
+以下为candidate1实现基础与其回执规则；该候选实机未通过，不作为投递已修复的证据。
+
+四类转发保持实验性。父版1.0.07已经正式封包冻结，实机帮助/出刀投递问题未解决。用户要求优先复用成功卡片的写法，因此本版取消转发图片自动分页，采用完整单图；帮助附注合并到标题文本，形成一条文字节点加一张完整图。分页是最初失败后引入的，不能确认其为全部失败的根因，也不能把离线测试或回退成功写成转发稳定。
 
 `nikke_message.send_with_forward(bot,ev,message,*,config_key,title=None)`由四类输出共用，四开关按最新授权默认True、已有值保留。HelpForward包装成功帮助图片与附注；RosterForward包装完整阵容图片；UnionForward包装出刀成功图片；LoginForward包含首次/重新/处理中原链接和二维码。只在转发时插入title文本首节点，普通路径保留原消息。图鉴标题取已核验绑定nickname，出刀标题取本次context.guild_name，缺失时用明确占位；不额外请求玩家资料。
 
@@ -239,9 +257,9 @@ OneBot私聊与Core非「允许」策略直接普通发送。共享边界依连�
 
 对bot_id=onebot且WS_BOT_ID为napcat或napcat-*，共享边界检查底层_Bot的_recall_waiters字典与_supports_recall。旧Core缺少能力、HTTP任务或能力已锁定False时直接普通；其余通过受权限包装bot.send(node,wait_recall=True)，由Core按echo匹配回执。取得非空消息ID列表则返回，未确认回退原内容一次并暂停该连接转发300秒，后续查询普通发送。连接暂停表仅存元数据，最多64项。参考Core等待上限10秒且finally清理Future；取消不回退。不修改Core等待常量；回执丢失、失败和仍在上传都可能返回空列表，迟到成功可能造成一次重复，普通回退不触发递归转发。
 
-`nikke_message.images.encode_forward_pages(data,quality=95)`为纯Pillow编码边界；`prepare_forward_content(content)`只处理inline base64图，读取AliceUID_ForwardJpegQuality，下次发送生效。配置保存接受严格整数0–100，非法磁盘值编码时安全回到95。符合尺寸/体积限制的现有JPEG验证后字节直通；其他不透明图使用JPEG指定质量、4:4:4、非渐进编码，透明图保留无损RGBA PNG。保留DPI、ICC和完整宽度/全部行；高度上限4096物理像素，超过单页4MiB递归按行分页，不降低质量或缩放。输入32MiB/6400万像素、单图完整输出24MiB/32页上限，超过即整体退回原消息，禁止部分截断发送；不读取文件引用或拉取URL。编码在线程中串行限并发，缓存/原渲染器不改，LoginForward不重编码二维码。质量100仍有损，也不能恢复原JPG已经丢失的细节。
+`nikke_message.images.encode_forward_pages(data,quality=95)`保留兼容入口，但现在只返回包含一张完整图片的列表，不再分页。`prepare_forward_content(content)`只处理inline base64图，读取AliceUID_ForwardJpegQuality，下次发送生效；将文本合并到首节点，保留非文本段顺序。配置保存接受严格整数0–100，非法磁盘值编码时安全回到95。现有JPEG验证后字节直通；不透明图使用指定质量的RGB JPEG、4:4:4、非渐进编码，真正透明图保留无损RGBA PNG。保留DPI、ICC和全部原始尺寸。输入32MiB/6400万像素、完整输出8MiB上限，JPEG尺寸每边上限65500；超出即整体普通发送原图，不降质量、缩放或截断。8MiB是插件保护上限，不能冒称QQ官方限制。不读取文件引用或拉取URL，编码在线程内串行限并发；源渲染器、缓存和LoginForward二维码不改。
 
-实机日志已定位NapCat Highway TCP连接上传服务器8080超时，HTTP回退也超时。连接尚未建立时不能据此断言PNG格式或文件体积是根因。JPG副本/分页是传输兼容处理，不能保证修复容器出站路由；定位范围与实机检查见[integrations](integrations/README.md)。
+历史实机日志出现NapCat Highway上传服务器8080连接超时及HTTP回退超时，最新一次只有Core未确认日志，不能据此认定每次都是同一原因。日志现在记录strategy=roster_single、输入/输出实际格式、尺寸、体积、kind、节点/图片数、回执耗时与确认状态；不输出图片Base64、标题、昵称、QQ号、登录链接或原异常内容。透明图实际输出PNG会如实记录，不能统称所有转发图片已变成JPG。完整单图路线仍需实机检验，不能保证修复上传网络。
 
 test_v107_forward.py使用Node24原生TypeScript类型擦除，执行固定适配器实际handleGsCoreMessage/convertGsCoreToOB11/extractMessageId/sendRecallReceipt，并与固定Core真实target_send/resolve_recall组合验证错误被吞、ID确认、普通原图回退和Future清理。Node只作为离线开发验证，不新增生产依赖。参考AstrBot插件确认“当前账号uin”路径，但其框架能力不移植到Core。更多通道说明见[integrations](integrations/README.md)。
 
