@@ -125,7 +125,7 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                         from ..nikke_community.schedule import valid_time
                         if not valid_time(value):
                             return False
-                    if key=='AliceUID_GlassStrength':
+                    if key in ('AliceUID_GlassStrength', 'AliceUID_ForwardJpegQuality'):
                         if type(value) is not int or not 0<=value<=100:
                             return False
                     if key == 'AliceUID_CardFont':

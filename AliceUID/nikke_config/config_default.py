@@ -25,7 +25,10 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         "每日签到时间（北京时间）", "24小时制HH:MM，精确到分钟，例如08:33；保存后更新每日自动任务。社区周期08:00刷新；仅执行已授权账号，手动签到不受定时时刻限制。", "08:33",
     ),
     "AliceUID_GlassStrength": GsIntConfig(
-        "全局毛玻璃强度（%）", "所有毛玻璃卡片共用0～100%，默认10%；0无模糊，100最强，只影响背景，文字和人物保持清晰。下次出图生效。", 10, 100,
+        "全局毛玻璃强度（%）", "所有毛玻璃卡片共用0～100%，默认20%；0无模糊，100最强，只影响背景，文字和人物保持清晰。下次出图生效，保留已有自定义值。", 20, 100,
+    ),
+    "AliceUID_ForwardJpegQuality": GsIntConfig(
+        "转发图片JPG编码质量（0–100）", "默认95，整数0～100，下次转发生效。数值越高通常越清晰、文件越大；100仍非无损。用于新编码的转发图片；符合限制的现有JPG直接发送，透明图保留PNG，登录二维码和普通发送保留原图。", 95, 100,
     ),
     "AliceUID_ResourceCacheSeconds": GsIntConfig(
         "资源查询刷新间隔（固定300秒）", "按用户独立限频5分钟；期间复用已渲染图片，显式刷新也不绕过。兼容旧配置键，实际固定300秒。", 300, 300,
@@ -61,9 +64,24 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         False,
     ),
     "AliceUID_LoginForward": GsBoolConfig(
-        "登录链接用转发消息",
-        "开启后，登录链接以合并转发消息发送（部分适配器可能不支持）",
-        False,
+        "登录链接用转发消息（实验性）",
+        "实验性功能，默认开启，首次登录/重新登录共用，二维码独立。NapCat未确认发送时自动回退一次普通消息，并暂停本连接转发5分钟。开启后若看不到消息，请关闭此功能回退普通模式。保留已有配置值。",
+        True,
+    ),
+    "AliceUID_HelpForward": GsBoolConfig(
+        "帮助图片用转发消息（实验性）",
+        "实验性功能，默认开启，帮助标题/图片/说明一起转发，长图采用高质量JPEG分页。NapCat未确认发送时自动回退一次普通消息，并暂停本连接转发5分钟。开启后若看不到消息，请关闭此功能回退普通模式。文字版和错误仍普通发送。",
+        True,
+    ),
+    "AliceUID_RosterForward": GsBoolConfig(
+        "完整卡片用转发消息（实验性）",
+        f"实验性功能，默认开启，{command_prefix()}卡片及别名长图转发，首节点展示指挥官与图鉴标题。NapCat未确认发送时自动回退一次普通消息，并暂停本连接转发5分钟。开启后若看不到消息，请关闭此功能回退普通模式。进度/错误仍普通发送。",
+        True,
+    ),
+    "AliceUID_UnionForward": GsBoolConfig(
+        "出刀图片用转发消息（实验性）",
+        "实验性功能，默认开启，出刀总览/速查/详情/缺刀/尾刀共用，长图采用高质量JPEG分页。NapCat未确认发送时自动回退一次普通消息，并暂停本连接转发5分钟。开启后若看不到消息，请关闭此功能回退普通模式。会战血量等短卡片不变。",
+        True,
     ),
     "AliceUID_DefaultArea": GsIntConfig(
         "默认区服（旧版兼容）",
@@ -124,7 +142,7 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         secret=True,
     ),
     "AliceUID_CardTheme": GsStrConfig(
-        "全局卡片主题", "dark暗色、light亮色、random随机；只在新渲染时随机，已有缓存图片直接复用", "dark", options=["dark", "light", "random"],
+        "全局卡片主题", "默认random随机亮暗；dark暗色、light亮色。只在新渲染时随机，已有缓存图片直接复用，保留已有自定义值", "random", options=["dark", "light", "random"],
     ),
     "AliceUID_CharacterCardStyle": GsStrConfig(
         "角色练度卡布局", "compact=紧凑分栏（portraits）；旧布局已备份移除，保留此接口供未来注册新布局", "compact", options=["compact"],

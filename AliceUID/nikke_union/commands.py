@@ -27,10 +27,15 @@ def set_before_send(callback):
     _before_send = callback
 
 
-async def _send(bot, ev, message):
+async def _send(bot, ev, message, *, title=None):
     if _before_send is not None and not await _before_send(bot, ev):
         return
-    await bot.send(message, at_sender=True)
+    if getattr(message, 'type', None) == 'image':
+        from ..nikke_message import send_with_forward
+        await send_with_forward(bot, ev, message, config_key='AliceUID_UnionForward',
+                                title=title or 'AliceUID·当前公会-出刀统计')
+    else:
+        await bot.send(message, at_sender=True)
 
 
 def parse_arguments(text):
@@ -60,6 +65,7 @@ async def nikke_union_cmd(bot, ev):
     client = None
     bind = None
     result = None
+    forward_title = None
     try:
         view, day, refresh = parse_arguments(ev.text)
         if not await get_policy().query_allowed(ev.group_id):
@@ -80,6 +86,8 @@ async def nikke_union_cmd(bot, ev):
                 context = await union_queries.query(client, bind, view=view, day=day, refresh=refresh,
                                                     static=static, character_map=character_map)
                 from .draw import draw_union
+                from ..nikke_message import display_name
+                forward_title = f'AliceUID·{display_name(context.get("guild_name"), "当前公会")}-出刀统计'
                 result = MessageSegment.image(await draw_union(context))
     except (UnionDataError, UnionCooldown) as exc:
         result = str(exc)
@@ -101,9 +109,9 @@ async def nikke_union_cmd(bot, ev):
                 logger.error(f'[AliceUID] union stage=close error_type={type(exc).__name__}')
     if result is not None:
         if bind is None or client is None:
-            await _send(bot, ev, result)
+            await _send(bot, ev, result, title=forward_title)
         else:
             async with binding_lock(ev.user_id, ev.bot_id):
                 current=await AliceBind.get_bind(ev.user_id,ev.bot_id)
                 if current is not None and union_queries.cache_key(current)==union_queries.cache_key(bind):
-                    await _send(bot,ev,result)
+                    await _send(bot,ev,result,title=forward_title)

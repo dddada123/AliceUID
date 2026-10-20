@@ -15,7 +15,7 @@ def _configured(key: str, allowed: tuple[str, ...], default: str) -> str:
     return value if value in allowed else default
 
 
-def get_card_theme(theme: str | None = None, default: str = 'dark') -> str:
+def get_card_theme(theme: str | None = None, default: str = 'random') -> str:
     if theme in ('light', 'dark'):
         return theme
     selected = theme if theme == 'random' else get_card_theme_mode(default)
@@ -25,9 +25,9 @@ def get_card_theme(theme: str | None = None, default: str = 'dark') -> str:
     return selected
 
 
-def get_card_theme_mode(default='dark'):
+def get_card_theme_mode(default='random'):
     """Stable cache identity; choose a random concrete palette only on render."""
-    return _configured('AliceUID_CardTheme', ('light', 'dark', 'random'), default if default in ('light','dark') else 'dark')
+    return _configured('AliceUID_CardTheme', ('light', 'dark', 'random'), default if default in ('light','dark','random') else 'random')
 
 
 def get_card_style(style: str | None = None) -> str:

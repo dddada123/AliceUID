@@ -1,6 +1,6 @@
 # AliceUID 开发文档
 
-适用版本：**1.0.05**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+适用版本：**1.0.07**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
 
 用户使用说明见 [README.md](README.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。路径以本文件所在的插件外壳为基准；`AliceUID/nikke_api/client.py` 指外壳下的内层代码。
 
@@ -56,6 +56,7 @@ flowchart TD
 |---|---|
 | `nikke_config` | `config_default.py` 默认配置；`config.py` 路径与ValidatedStringConfig |
 | `nikke_commands` | 前缀配置校验、启动快照、Core触发器重建、command_prefix提示映射 |
+| `nikke_message` | 默认开启的独立转发、标题首节点、JPG质量/分页、NapCat消息ID回执与普通消息回退 |
 | `nikke_permissions` | 四名单校验、Core Trigger包装、群管理命令；`policy.py/config.py/access.py` |
 | `nikke_user` | `AliceBind`、加密存储、加载本人客户端、绑定锁、受控后台解绑、主动面板刷新 |
 | `nikke_login` | 选服命令、一次性内存会话、密码/邮箱浏览器流程、验证码与HTTP路由 |
@@ -218,6 +219,32 @@ url = character_resource_url("portraits", rid, selection.skin_index)
 
 保存绑定经过 [save_login](AliceUID/nikke_user/service.py)：先持有本人绑定锁，核验已有绑定、revision和账号/区服；Cookie加密后落库，再重新读取确认提交结果。重新登录使用比较并交换更新，不通过删行重建账号，也不静默换人换服。
 
+### 登录链接消息发送
+
+`nikke_login.commands._send_login_link(bot,text,url,*,ev=None)`由首次登录和重新登录共用，显式传入当前Event；省略时可读取bot.ev。LoginQRCode控制二维码生成，构造显式text/image消息段，避免URL字符串被node构造器误识别为图片。LoginForward开启时以 `bot.send(MessageSegment.node(content))` 发送，不附外层at_sender。
+
+OneBot私聊与Core非「允许」策略直接普通发送。共享边界依连接区分：NapCat适配器请求消息ID回执并在未确认时回退一次；其它适配器沿用异常/False回退、None/空列表不重发的兼容规则。二维码与原链接复用，普通群消息可at，取消向上传播。
+
+发送仍经过原_LiveAccessBot.send权限包装。异常日志只记录类型，不记录URL、会话token或原始错误；不创建新的登录会话来重试发送。参考[鸣潮固定源码](https://github.com/Loping151/XutheringWavesUID/blob/4c1727580c613ef3034a391dc3156a1570cd5260/XutheringWavesUID/wutheringwaves_login/login.py)和[Core固定发送实现](https://github.com/Genshin-bots/gsuid_core/blob/1ce50ba381e0d9f48dc42385e35a7310dc5ed0f4/gsuid_core/bot.py)，验证文件为test_v106_forward.py。
+
+### 1.0.07 修订：转发标题与NapCat投递确认
+
+本版本正式封包将四类转发明确标为实验性，后台标题/提示与README同步。用户fix2实测帮助转发仍未成功，自动普通回退及300秒暂停已确认触发；不能把离线测试或回退成功写成转发问题已解决。后续投递修复在独立1.0.08目录进行，1.0.07冻结。
+
+`nikke_message.send_with_forward(bot,ev,message,*,config_key,title=None)`由四类输出共用，四开关按最新授权默认True、已有值保留。HelpForward包装成功帮助图片与附注；RosterForward包装完整阵容图片；UnionForward包装出刀成功图片；LoginForward包含首次/重新/处理中原链接和二维码。只在转发时插入title文本首节点，普通路径保留原消息。图鉴标题取已核验绑定nickname，出刀标题取本次context.guild_name，缺失时用明确占位；不额外请求玩家资料。
+
+仅发送标准text/image子段的纯node，不附外层at，不再发送任何身份控制段。ForwardUseBotIdentity配置和上次NoneBot适配已移除。Core和实际适配器都不改，头像昵称沿用适配器设置。
+
+用户实际链路是[napcat-plugin-gscore-adapter @ df1859b](https://github.com/xiowo/napcat-plugin-gscore-adapter/blob/df1859b396ffbd73bd2b72ce4a35147667281472/src/services/gscore-service.ts)。handleGsCoreMessage调用send_msg，并在自身catch错误；Core的bot.send默认只确认WS入队，无法感知这次错误。适配器在MessageSend.echo存在时，无论成功/失败都会回传recall_message_id，成功带消息ID，失败为null。
+
+对bot_id=onebot且WS_BOT_ID为napcat或napcat-*，共享边界检查底层_Bot的_recall_waiters字典与_supports_recall。旧Core缺少能力、HTTP任务或能力已锁定False时直接普通；其余通过受权限包装bot.send(node,wait_recall=True)，由Core按echo匹配回执。取得非空消息ID列表则返回，未确认回退原内容一次并暂停该连接转发300秒，后续查询普通发送。连接暂停表仅存元数据，最多64项。参考Core等待上限10秒且finally清理Future；取消不回退。不修改Core等待常量；回执丢失、失败和仍在上传都可能返回空列表，迟到成功可能造成一次重复，普通回退不触发递归转发。
+
+`nikke_message.images.encode_forward_pages(data,quality=95)`为纯Pillow编码边界；`prepare_forward_content(content)`只处理inline base64图，读取AliceUID_ForwardJpegQuality，下次发送生效。配置保存接受严格整数0–100，非法磁盘值编码时安全回到95。符合尺寸/体积限制的现有JPEG验证后字节直通；其他不透明图使用JPEG指定质量、4:4:4、非渐进编码，透明图保留无损RGBA PNG。保留DPI、ICC和完整宽度/全部行；高度上限4096物理像素，超过单页4MiB递归按行分页，不降低质量或缩放。输入32MiB/6400万像素、单图完整输出24MiB/32页上限，超过即整体退回原消息，禁止部分截断发送；不读取文件引用或拉取URL。编码在线程中串行限并发，缓存/原渲染器不改，LoginForward不重编码二维码。质量100仍有损，也不能恢复原JPG已经丢失的细节。
+
+实机日志已定位NapCat Highway TCP连接上传服务器8080超时，HTTP回退也超时。连接尚未建立时不能据此断言PNG格式或文件体积是根因。JPG副本/分页是传输兼容处理，不能保证修复容器出站路由；定位范围与实机检查见[integrations](integrations/README.md)。
+
+test_v107_forward.py使用Node24原生TypeScript类型擦除，执行固定适配器实际handleGsCoreMessage/convertGsCoreToOB11/extractMessageId/sendRecallReceipt，并与固定Core真实target_send/resolve_recall组合验证错误被吞、ID确认、普通原图回退和Future清理。Node只作为离线开发验证，不新增生产依赖。参考AstrBot插件确认“当前账号uin”路径，但其框架能力不移植到Core。更多通道说明见[integrations](integrations/README.md)。
+
 ### Core后台绑定管理
 
 [admin.py](AliceUID/nikke_user/admin.py) 在Core提供兼容管理接口时注册AliceBind摘要；`/api/database/table/<table>` 读取/导出做脱敏，通用新增/编辑/导入/删除被拒绝。
@@ -371,7 +398,7 @@ CookieCipher使用独立secret.key进行加密。备份运行环境时保留密�
 | 图鉴 | 1400；十列128px头像+32px姓名；强制96DPI后检查完整尺寸，JPEG编码 |
 | 状态、会战、帮助 | 常用1000；以各draw调用root_width为准 |
 
-图鉴197名高3560、203名高3728；encode_complete拒绝尺寸不完整的图，不能通过截断末行适配文件大小。字体优先从formts读取AaZongYiYuan-2.ttf，无法使用时走显式兜底。毛玻璃0～100%只作用背景，默认10%；拍照背景只铺底层，子模块使用半透明主题色。
+图鉴197名高3560、203名高3728；encode_complete拒绝尺寸不完整的图，不能通过截断末行适配文件大小。字体优先从formts读取AaZongYiYuan-2.ttf，无法使用时走显式兜底。毛玻璃0～100%只作用背景，新默认20%；主题新默认random，已有自定义值保留。拍照背景只铺底层，子模块使用半透明主题色。
 
 修改可见布局、元信息、资源选择或渲染参数时同步检查缓存fingerprint/render_version，防止发送旧模板图。信息卡目前每次命令绘制，不是独立的持久成图缓存服务。
 
@@ -394,7 +421,7 @@ CookieCipher使用独立secret.key进行加密。备份运行环境时保留密�
 
 | 配置键 | 类型 | 默认值 | 用途标题 |
 |---|---|---|---|
-| `AliceUID_GlassStrength` | GsIntConfig | `10` | 全局毛玻璃强度（%） |
+| `AliceUID_GlassStrength` | GsIntConfig | `20` | 全局毛玻璃强度（%） |
 | `AliceUID_ResourceCacheSeconds` | GsIntConfig | `300` | 资源查询刷新间隔（固定300秒） |
 | `AliceUID_UnionCacheSeconds` | GsIntConfig | `180` | 联盟查询缓存秒数 |
 | `AliceUID_CardLanguage` | GsStrConfig | `zh-CN` | 卡片文字语言 |
@@ -406,7 +433,11 @@ CookieCipher使用独立secret.key进行加密。备份运行环境时保留密�
 | `AliceUID_MasterQQ` | GsListStrConfig | `[]` | Bot 主 QQ |
 | `AliceUID_LoginUrl` | GsStrConfig | `` | 登录页外网地址 |
 | `AliceUID_LoginQRCode` | GsBoolConfig | `false` | 登录链接转二维码 |
-| `AliceUID_LoginForward` | GsBoolConfig | `false` | 登录链接用转发消息 |
+| `AliceUID_LoginForward` | GsBoolConfig | `true` | 登录/重新登录链接用转发消息，保留已有配置 |
+| `AliceUID_HelpForward` | GsBoolConfig | `true` | 帮助图片用转发消息 |
+| `AliceUID_RosterForward` | GsBoolConfig | `true` | 完整卡片用转发消息 |
+| `AliceUID_UnionForward` | GsBoolConfig | `true` | 出刀图片用转发消息 |
+| `AliceUID_ForwardJpegQuality` | GsIntConfig | `95` | 新编码转发图片JPG质量，严格整数0–100，100非无损 |
 | `AliceUID_DefaultArea` | GsIntConfig | `81` | 默认区服（旧版兼容） |
 | `AliceUID_LoginMode` | GsStrConfig | `browser` | 登录方式 |
 | `AliceUID_BrowserChannel` | GsStrConfig | `auto` | 浏览器通道 |
@@ -417,7 +448,7 @@ CookieCipher使用独立secret.key进行加密。备份运行环境时保留密�
 | `AliceUID_RemoteRenderEnable` | GsBoolConfig | `false` | 外置渲染开关 |
 | `AliceUID_RemoteRenderUrl` | GsStrConfig | `http://127.0.0.1:3000/render` | 外置渲染地址 |
 | `AliceUID_RemoteRenderToken` | GsStrConfig | `` | 外置渲染 Token |
-| `AliceUID_CardTheme` | GsStrConfig | `dark` | 全局卡片主题 |
+| `AliceUID_CardTheme` | GsStrConfig | `random` | 全局卡片主题，已有自定义保留 |
 | `AliceUID_CharacterCardStyle` | GsStrConfig | `compact` | 角色练度卡布局 |
 | `AliceUID_RenderDpi` | GsIntConfig | `144` | 渲染分辨率 DPI |
 | `AliceUID_RenderTimeout` | GsIntConfig | `60` | 外置渲染超时（秒） |

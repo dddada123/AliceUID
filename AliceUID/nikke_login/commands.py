@@ -60,7 +60,7 @@ def _make_qr_png(url: str) -> bytes | None:
         img.save(buf, format="PNG")
         return buf.getvalue()
     except Exception as exc:  # noqa: BLE001
-        logger.warning(f"[AliceUID] 生成二维码失败: {exc}")
+        logger.warning(f"[AliceUID] 生成二维码失败 error_type={type(exc).__name__}")
         return None
 
 
@@ -85,10 +85,10 @@ async def nikke_login_cmd(bot: Bot, ev: Event):
     active = sessions.active(ev.user_id, ev.bot_id)
     if active is not None:
         url = f"{get_base_url()}/nikke/i/{active.token}"
-        await bot.send(
+        await _send_login_link(bot,
             f"已有「{REGIONS[active.area_id].label}」登录正在处理，请继续原链接完成验证：\n{url}\n"
             "本次未更换区服；完成或超时后再重新选择。",
-            at_sender=True,
+            url, ev=ev,
         )
         return
     ttl = int(AliceUIDConfig.get_config("AliceUID_LoginTTL").data or 600)
@@ -104,7 +104,7 @@ async def nikke_login_cmd(bot: Bot, ev: Event):
         "如果页面出现拼图，按提示拖动即可。\n" + expiry_notice()
     )
 
-    await _send_login_link(bot, text, url)
+    await _send_login_link(bot, text, url, ev=ev)
     asyncio.create_task(_notify_login(bot, ev, session.token))
 
 
@@ -120,7 +120,8 @@ async def nikke_relogin_cmd(bot: Bot, ev: Event):
         return
     active = sessions.active(ev.user_id, ev.bot_id)
     if active is not None:
-        await bot.send(f"已有登录正在处理，请继续原链接：\n{get_base_url()}/nikke/i/{active.token}", at_sender=True)
+        url = f"{get_base_url()}/nikke/i/{active.token}"
+        await _send_login_link(bot, f"已有登录正在处理，请继续原链接：\n{url}", url, ev=ev)
         return
     ttl = int(AliceUIDConfig.get_config("AliceUID_LoginTTL").data or 600)
     session = sessions.create(ev.user_id, ev.bot_id, ev.group_id, area_id=bind.area_id, ttl=ttl)
@@ -130,31 +131,19 @@ async def nikke_relogin_cmd(bot: Bot, ev: Event):
     text = (f"NIKKE 重新登录 · {REGIONS[bind.area_id].label}\n请在{ttl // 60}分钟内打开链接，{method}：\n{url}\n"
             "仅更新本人同账号同区服的Cookie；失败保留原绑定。链接仅供本人使用，请勿转发。\n"
             "更新后自动社区授权需重新开启，每日预算不会重置。\n" + expiry_notice(bind.cookie_expire))
-    await _send_login_link(bot, text, url)
+    await _send_login_link(bot, text, url, ev=ev)
     asyncio.create_task(_notify_login(bot, ev, session.token))
 
 
-async def _send_login_link(bot, text, url):
+async def _send_login_link(bot, text, url, *, ev=None):
+    from ..nikke_message import send_with_forward
     qr_enabled = bool(AliceUIDConfig.get_config("AliceUID_LoginQRCode").data)
-    forward_enabled = bool(AliceUIDConfig.get_config("AliceUID_LoginForward").data)
     qr_png = _make_qr_png(url) if qr_enabled else None
-
-    if forward_enabled:
-        try:
-            await bot.send(
-                MessageSegment.node([MessageSegment.text(text)]),
-                at_sender=True,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"[AliceUID] 转发消息发送失败，回退普通消息: {exc}")
-            await bot.send(text, at_sender=True)
-    elif qr_png:
-        await bot.send(
-            [text, MessageSegment.image(qr_png)],
-            at_sender=True,
-        )
-    else:
-        await bot.send(text, at_sender=True)
+    content = [MessageSegment.text(text)]
+    if qr_png:
+        content.append(MessageSegment.image(qr_png))
+    return await send_with_forward(bot, ev, content if qr_png else text,
+                                   config_key='AliceUID_LoginForward')
 
 async def _notify_login(bot: Bot, ev: Event, token: str):
     """后台等结果，成功/失败都回一条消息。"""

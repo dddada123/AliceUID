@@ -1,6 +1,6 @@
 """One CSS-pixel background blur setting, shared by all card renderers."""
 KEY='AliceUID_GlassStrength'
-DEFAULT=10
+DEFAULT=20
 VERSION='glass-v101-1'
 
 

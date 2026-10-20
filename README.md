@@ -9,12 +9,12 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.05-ff69b4?style=flat-square" alt="Version: 1.0.05"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.07-ff69b4?style=flat-square" alt="Version: 1.0.07"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
-适用于 GsCore 的《胜利女神：NIKKE》插件，提供本人账号绑定、个人资料、角色练度、皮肤图鉴、联盟会战、资源与保管箱查询，以及可选的社区日常任务。当前版本 **1.0.05**，默认使用 `nk` 前缀，也支持后台自定义。
+适用于 GsCore 的《胜利女神：NIKKE》插件，提供本人账号绑定、个人资料、角色练度、皮肤图鉴、联盟会战、资源与保管箱查询，以及可选的社区日常任务。当前版本 **1.0.07**，默认使用 `nk` 前缀，也支持后台自定义。
 
 [亮点功能](#亮点功能) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -63,7 +63,7 @@
 插件依赖 GsCore 的命令、数据库、WebUI、调度器和原生渲染服务，不能作为独立 Bot 运行。项目声明 Python ≥3.10，具体依赖见 [requirements.txt](requirements.txt) 和 [pyproject.toml](pyproject.toml)。
 
 1. 首次安装或升级前备份原插件及其运行数据。解压安装包，把整个外壳放入 `plugins/AliceUID/`。
-2. 保留以下嵌套结构，不要只拷内层包，也不要将开发目录 `AliceUID_1.0.05` 当成插件目录。
+2. 保留以下嵌套结构，不要只拷内层包，也不要将开发目录 `AliceUID_1.0.07` 当成插件目录。
 3. 在运行 GsCore 的 Python 环境安装插件依赖。使用网页登录或官网日历时，准备 Playwright Chromium。
 4. 完整重启 GsCore，在 WebUI 的 AliceUID 配置中检查登录地址、访问名单和主题，再发送 `nk帮助`。
 
@@ -108,6 +108,20 @@ nk资源查询
 私人查询会识别已知过期、HTTP401和业务登录失效，并提示重新登录；已知失效凭据不会继续使用旧图缓存。普通网络、403权限拒绝和429限流不会统一误报为Cookie过期。
 
 打开本人命令返回的登录链接完成验证；Cookie 失效时用 `nk重新登录` 更新同账号同区服凭据。换号或换服先 `nk解绑`，再重新选择。
+
+「登录链接用转发消息」为**实验性功能**，默认开启，登录和重新登录共用；二维码开关独立。开启转发后，二维码会放入转发中。OneBot私聊、Core非“允许”转发策略或发送失败时改用普通消息，复用原链接和二维码。转发节点外不附加 `@`。如果开启后看不到消息，请关闭此功能回退普通模式。
+
+### 实验性转发（默认开启，未确认时自动回退）
+
+**转发目前仍可能发送失败，特别是帮助和出刀长图，1.0.07尚未解决其投递稳定性。** 当前NapCat通道失败或未确认发送时会自动回退一次普通消息，并暂停该连接转发5分钟；暂停期间后续查询直接普通发送。进一步修复安排在1.0.08，本版不承诺转发一定成功。
+
+`nk帮助`、`nk卡片`、`nk出刀` 与登录链接各有独立的转发开关，**本版全部默认开启，已有设置保留**。开启后，图片前的首节点显示明确标题：帮助为“AliceUID帮助”，图鉴为“AliceUID·游戏昵称·图鉴展示”，出刀为“AliceUID·公会名-出刀统计”。帮助文字版、生成进度、错误和其它短卡片不受影响。
+
+已移除AliceUID中的“使用当前QQ身份”选项与上次不适用于NapCat直连的NoneBot适配，不再往转发节点中加入身份控制段。头像和昵称沿用你使用的GsCore适配器设置，默认可保持“小助手”；xiowo的NapCat适配器本身支持当前机器人身份，详见[通道与回退说明](integrations/README.md)，无需为AliceUID额外安装机器人前端。
+
+识别到NapCat适配器连接时，会请求Core消息ID回执；未取得确认则回退一次普通原图，并暂停该连接转发5分钟，后续查询直接普通发送。迟到成功可能造成一次重复。旧Core不支持回执时直接普通发送。如果群内仍不可见，可关闭对应转发开关；升级前已关闭的设置不会自动打开。
+
+帮助与出刀等不透明图片在转发时生成高质量 JPG 副本，默认质量 **95**，后台可设 **0–100整数**，下次转发生效。100仍是有损编码，数值不是文件压缩比例。图片保留原宽度和DPI，超过4096像素高或单页4MiB时完整分页，不缩放或截断内容。符合限制的现有JPG直接发送；透明图保留PNG，登录二维码和普通发送使用原图。该处理不能修复NapCat到QQ上传服务器的网络连接超时，详见[排查说明](integrations/README.md)。
 
 ## 常用命令
 
@@ -188,10 +202,16 @@ Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库�
 |---|---|
 | `AliceUID_LoginUrl` | 用户能访问的 Core 登录页面基地址，反向代理需转发 `/nikke/` 路由 |
 | `AliceUID_LoginMode` | `browser` 网页密码/邮箱，或 `cookie` 仅私聊导入 |
+| `AliceUID_LoginForward` | 登录/重新登录链接转发，默认开启，保留已有值 |
+| `AliceUID_HelpForward` | 帮助图片转发，默认开启 |
+| `AliceUID_RosterForward` | 完整阵容卡片转发，默认开启 |
+| `AliceUID_UnionForward` | 出刀总览/速查/详情/缺刀/尾刀图片转发，默认开启 |
+| `AliceUID_ForwardJpegQuality` | 新编码转发图片的JPG质量，整数0–100，默认95；100仍非无损 |
+| `AliceUID_LoginQRCode` | 同时发送二维码；普通、转发及失败回退均适用，默认关闭 |
 | `AliceUID_BrowserChannel` / `AliceUID_Headless` | 登录浏览器通道及无头运行 |
-| `AliceUID_CardTheme` | 暗色、亮色或随机主题；命中缓存不重复随机 |
+| `AliceUID_CardTheme` | 新默认random随机亮暗；命中缓存不重复随机，已有自定义值保留 |
 | `AliceUID_CardLanguage` / `AliceUID_CardFont` | 显示语言及 `formts/` 内字体，失败使用兜底字体 |
-| `AliceUID_GlassStrength` | 0～100%背景模糊，默认10%；前景文字和人物保持清晰 |
+| `AliceUID_GlassStrength` | 0～100%背景模糊，默认20%；前景文字和人物保持清晰，已有值保留 |
 | `AliceUID_UnionCacheSeconds` | 当期会战共享缓存，默认180秒 |
 | `AliceUID_RemoteRenderEnable` | 可选外置HTML渲染服务；默认关闭，失败回退Core原生渲染 |
 | `AliceUID_CommunitySignTime` | 每日自动签到的北京时间，默认`08:33`，支持`00:00`～`23:59`，保存后更新调度 |

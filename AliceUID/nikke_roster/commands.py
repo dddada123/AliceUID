@@ -53,7 +53,10 @@ async def roster_worker(bot, event, policy):
                 await bot.send('绑定或权限已变化，已停止发送旧账号卡片。', at_sender=True)
                 return
             data = prepared.path.read_bytes()
-            result = await bot.send(MessageSegment.image(data), at_sender=True)
+            from ..nikke_message import send_with_forward, display_name
+            result = await send_with_forward(bot, event, MessageSegment.image(data),
+                                             config_key='AliceUID_RosterForward',
+                                             title=f'AliceUID·{display_name(getattr(bind, "nickname", ""), "未知指挥官")}·图鉴展示')
             if result is not False:
                 service.mark_sent(prepared)
     except RosterCooldown as exc:

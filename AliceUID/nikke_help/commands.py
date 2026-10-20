@@ -5,6 +5,7 @@ from ..nikke_commands import command_prefix
 from gsuid_core.logger import logger
 from gsuid_core.segment import MessageSegment
 from gsuid_core.sv import SV
+from ..nikke_message import send_with_forward
 
 from .draw import build_help_context, draw_help, help_text
 
@@ -37,4 +38,5 @@ async def nikke_help(bot, ev):
         logger.warning(f'[AliceUID] 帮助图片渲染失败，回退文字 error_type={type(exc).__name__}')
         await bot.send(help_text(context), at_sender=True)
         return
-    await bot.send([MessageSegment.image(image), f'快速开始：{command_prefix()}登录 → 选择区服绑定 → {command_prefix()}信息。需要复制指令可发 {command_prefix()}帮助 文字。'], at_sender=True)
+    await send_with_forward(bot, ev, [MessageSegment.image(image), f'快速开始：{command_prefix()}登录 → 选择区服绑定 → {command_prefix()}信息。需要复制指令可发 {command_prefix()}帮助 文字。'],
+                            config_key='AliceUID_HelpForward', title='AliceUID帮助')

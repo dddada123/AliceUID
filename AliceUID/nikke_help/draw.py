@@ -80,7 +80,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}红莲暗影注册别名黑莲', 'description': '与新增别名相同；旧的「角色名别名别名」写法已停用'},
             {'command': '后台：AliceUID 用户绑定管理', 'description': '查看绑定摘要与脱敏导出；修改凭据需通过登录流程，解绑走专用接口'},
             {'command': '后台：主题与卡片语言', 'description': '亮色/暗色/随机毛玻璃，简繁可选；出刀缓存按秒调整'},
-            {'command': '后台：全局毛玻璃强度', 'description': '0～100%，默认10%；只模糊背景，修改后下次出图生效'},
+            {'command': '后台：全局毛玻璃强度', 'description': '0～100%，默认20%；只模糊背景，修改后下次出图生效'},
             {'command': f'{command_prefix()}账号列表', 'description': '查看绑定摘要，不展示账号凭据'},
         ]})
     steps = [
