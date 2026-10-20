@@ -1,0 +1,123 @@
+"""Role-aware help content and standalone HTML rendering, without network IO."""
+from __future__ import annotations
+from ..nikke_commands import command_prefix
+
+import base64
+from functools import lru_cache
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from ..nikke_render.theme import apply_theme
+
+PACKAGE = Path(__file__).resolve().parent.parent
+_ENV = Environment(loader=FileSystemLoader(str(PACKAGE / 'templates')), autoescape=select_autoescape(['html']))
+
+
+@lru_cache(maxsize=1)
+def _hero_art() -> str:
+    path = PACKAGE.parent / 'assets/ALICEUID_Login_liberalio_.jpg'
+    return 'data:image/jpeg;base64,' + base64.b64encode(path.read_bytes()).decode() if path.is_file() else ''
+
+
+def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
+    from ..nikke_community.runtime import configured_sign_time
+    sign_time = configured_sign_time()
+    if type(permission) is not int or not 0 <= permission <= 6:
+        permission = 6
+    sections = [
+        {'title': '查询与角色练度', 'tag': '常用查询', 'description': '名片与练度需登录；官方日历无需绑定。', 'items': [
+            {'command': f'{command_prefix()}信息 / {command_prefix()}名片', 'description': '个人资料、战役爬塔、完整主立绘与接口报告皮肤的展示队伍'},
+            {'command': f'{command_prefix()}爱丽丝练度 / {command_prefix()}爱丽丝面板', 'description': '本人立绘、装备与技能；已有本地数据和图片优先复用'},
+            {'command': f'{command_prefix()}练度 爱丽丝 刷新', 'description': '强制刷新指定角色；支持简繁名，歧义给候选'},
+            {'command': f'{command_prefix()}刷新信息', 'description': f'清除个人资料缓存，再发 {command_prefix()}信息 获取更新'},
+            {'command': f'{command_prefix()}卡片', 'description': '每行10个皮肤头像，姓名与星级/核心角标；未变复用7天滑动缓存'},
+            {'command': f'{command_prefix()}更新面板 / {command_prefix()}刷新面板', 'description': '主动刷新本人资料，并使角色详情及图片缓存失效'},
+            {'command': f'{command_prefix()}出刀', 'description': '出刀、输出与击杀前三；当期共享180秒，休赛期复用已结算记录并检测新赛季'},
+            {'command': f'{command_prefix()}出刀速查 Day2 / {command_prefix()}出刀 Day1', 'description': '选择会战阶段；Day1只统计BOSS击杀进度'},
+            {'command': f'{command_prefix()}出刀详情 / {command_prefix()}出刀缺刀 / {command_prefix()}出刀尾刀', 'description': '本人队伍、未完成名单及尾刀；当前名单对照上期时明确标注来源'},
+            {'command': f'{command_prefix()}会战血量 [刷新]', 'description': '联盟阶段与BOSS血量；休赛期展示上一期，卡片注明赛季与状态'},
+            {'command': f'{command_prefix()}资源查询 [刷新]', 'description': '无可用图时同步本人收菜并出图；成功出图后复用5分钟，失败仅短暂冷却；显示90%和回满预计时间'},
+            {'command': f'{command_prefix()}日历', 'description': '官网默认活动日历截图，附来源和拍摄时间'},
+            {'command': f'{command_prefix()}日历 帮助', 'description': '查看截图范围与缓存说明；暂不支持历史月份'},
+            {'command': f'{command_prefix()}红莲暗影别名查询 / {command_prefix()}黑莲别名查询', 'description': '头像卡片展示角色本名与别名；支持简繁和省略符号'},
+            {'command': f'{command_prefix()}角色别名查询 红莲：暗影', 'description': '另一种别名查询写法，不要求登录'},
+        ]},
+        {'title': '账号与 UID', 'tag': '仅本人操作', 'description': 'UID登记与登录凭据分别保存，不混用。', 'items': [
+            {'command': f'{command_prefix()}我的账号', 'description': '查看登录绑定、区服与Cookie有效期'},
+            {'command': f'{command_prefix()}重新登录 / {command_prefix()}重新登陆', 'description': '同账号同区服更新Cookie；失败保留原绑定，成功后需重新开启自动社区'},
+            {'command': f'{command_prefix()}解绑', 'description': '退出登录绑定，撤销自动社区并使旧链接失效'},
+            {'command': f'{command_prefix()}公开 / {command_prefix()}隐藏', 'description': '设置公开标记；本版尚无群排行'},
+            {'command': f'{command_prefix()}绑定UID', 'description': '查看社区标识 / 游戏UID / 分享链接三种登记用法'},
+            {'command': f'{command_prefix()}我的UID / {command_prefix()}解绑UID', 'description': '查看或清除UID登记；不代表登录或账号归属'},
+            {'command': f'{command_prefix()}导入cookie 日服 Cookie内容', 'description': '高级导入仅限私聊，区服必须明确选择'},
+        ]},
+        {'title': '社区日常', 'tag': '默认关闭', 'description': '只操作自己的登录账号；关闭授权不重置每日预算。', 'items': [
+            {'command': f'{command_prefix()}签到', 'description': '立即为本人签到；已开启全量时按该模式执行。本周期已成功则不发任何社区请求'},
+            {'command': f'{command_prefix()}开启全量签到', 'description': '仅为本人开启每日签到、浏览及点赞，立即执行并返回结果；不自动评论'},
+            {'command': f'{command_prefix()}自动社区 状态', 'description': '查看开关、暂停原因和上次完成日期'},
+            {'command': f'{command_prefix()}自动社区 开启', 'description': f'授权签到与浏览；每天北京时间{sign_time}开始，08:00为周期分界'},
+            {'command': f'{command_prefix()}自动社区 关闭', 'description': '停止自动签到、浏览与点赞'},
+            {'command': f'{command_prefix()}自动社区 点赞开启', 'description': '单独授权点赞，不会自动评论'},
+            {'command': f'{command_prefix()}自动社区 点赞关闭', 'description': '只撤销点赞；已暂停的任务保持暂停'},
+        ]},
+    ]
+    if permission <= 3:
+        sections.append({'title': '本群状态', 'tag': '群管理员', 'description': '群管理员可查看状态；所有名单修改仅Bot主。', 'items': [
+            {'command': f'{command_prefix()}群查询 状态', 'description': '查看本群实际查询权限，不能绕过Bot主名单'},
+        ]})
+    if permission == 0:
+        sections.append({'title': '数据库与全局管理', 'tag': 'Bot 主', 'description': 'GsCore Bot主权限；周五02:33北京时间自动增量检查。', 'items': [
+            {'command': f'{command_prefix()}签到查询 [页码]', 'description': '本群绑定/近期使用账号的本周期签到记录；本地确认结果，非实时全员名单'},
+            {'command': '后台：每日签到时间', 'description': '北京时间HH:MM，默认08:33；保存后更新调度，手动签到仍可立即执行'},
+            {'command': f'{command_prefix()}数据库更新', 'description': '后台补公开基础及皮肤头像 / 半身像 / 立绘'},
+            {'command': f'{command_prefix()}数据库更新 状态 / 帮助', 'description': '查看队列/预算/失败；未完成不报全成功'},
+            {'command': f'{command_prefix()}更新资源', 'description': '兼容旧命令，同样进入增量数据库任务'},
+            {'command': f'{command_prefix()}群查询 开启 / 关闭', 'description': 'Bot主操作本群名单；白名单非空仍须在内'},
+            {'command': f'{command_prefix()}群策略 状态', 'description': '两表空默认允许；白名单先限定再判黑'},
+            {'command': f'{command_prefix()}群黑名单 / {command_prefix()}群白名单', 'description': '添加 / 移除 群号；同群号跨两表拒绝保存'},
+            {'command': f'{command_prefix()}用户黑名单 / {command_prefix()}用户白名单', 'description': '添加 / 移除 QQ号；黑用户禁全部Nikke指令与登录'},
+            {'command': f'{command_prefix()}红莲：暗影新增别名黑莲', 'description': f'添加全局角色别名；可省略符号，如 {command_prefix()}红莲暗影新增别名黑莲'},
+            {'command': f'{command_prefix()}红莲暗影注册别名黑莲', 'description': '与新增别名相同；旧的「角色名别名别名」写法已停用'},
+            {'command': '后台：AliceUID 用户绑定管理', 'description': '查看绑定摘要与脱敏导出；修改凭据需通过登录流程，解绑走专用接口'},
+            {'command': '后台：主题与卡片语言', 'description': '亮色/暗色/随机毛玻璃，简繁可选；出刀缓存按秒调整'},
+            {'command': '后台：全局毛玻璃强度', 'description': '0～100%，默认10%；只模糊背景，修改后下次出图生效'},
+            {'command': f'{command_prefix()}账号列表', 'description': '查看绑定摘要，不展示账号凭据'},
+        ]})
+    steps = [
+        {'number': '01', 'command': f'{command_prefix()}登录', 'description': '登录/登陆均可；先看区服选项，再选角色所在区服'},
+        {'number': '02', 'command': '打开登录链接', 'description': '默认账号密码，也可切换邮箱验证码'},
+        {'number': '03', 'command': f'{command_prefix()}信息', 'description': '回到聊天，获取个人名片或角色练度'},
+    ]
+    if login_mode == 'cookie':
+        steps[1] = {'number': '02', 'command': '私聊导入 Cookie', 'description': '当前仅Cookie模式；按区服命令返回的用法操作'}
+    return {
+        'role': 'Bot 主' if permission == 0 else '群管理员' if permission <= 3 else '普通用户',
+        'regions': [f'{command_prefix()}登录日服', f'{command_prefix()}登录国际服', f'{command_prefix()}登录北美服', f'{command_prefix()}登录韩服', f'{command_prefix()}登录东南亚服'],
+        'steps': steps, 'sections': sections, 'hero_art': _hero_art(),
+        'cookie_hint': f'请使用已有游戏邮箱；凭据失效用{command_prefix()}重新登录/重新登陆，无需先解绑。不要在群里发送密码、验证码或Cookie。',
+        'limit_hint': '社区请求默认随机5～15秒，换号随机等待10～120秒，Bot主可在后台自定义；08:00划分周期，每周期最多30次请求；成功不重复，异常暂停。UID登记不提供匿名练度授权。',
+        'database_hint': '公共库每周五02:33（北京时间）增量检查，仅Bot主维护；皮肤显示按本人接口，静态清单不代表拥有。',
+        'footer': f'选错区服或换号：先 {command_prefix()}解绑，再选区服重新登录。港澳台登录流程暂未支持。',
+    }
+
+
+def help_text(context: dict) -> str:
+    lines = [f"AliceUID 指令指南 · {context['role']}", '快速开始：' + ' → '.join(step['command'] for step in context['steps']),
+             '区服命令：' + ' / '.join(context['regions']),
+             f'登录/登陆均可，例如{command_prefix()}登陆日服；{command_prefix()}重新登录/{command_prefix()}重新登陆同样可用。']
+    for section in context['sections']:
+        lines.append('\n' + section['title'])
+        lines.extend(f"{item['command']}：{item['description']}" for item in section['items'])
+    lines.extend(['\n' + context['cookie_hint'], context['limit_hint'], context['database_hint'], context['footer'], f'{command_prefix()}帮助：图片指南；{command_prefix()}帮助 文字：可复制的文字版。'])
+    return '\n'.join(lines)
+
+
+def render_help_html(context: dict) -> str:
+    items=sum(len(section.get('items',[])) for section in context.get('sections',[]))
+    scene_height=max(2200,900+items*90)
+    return _ENV.get_template('help.html').render(**apply_theme(context, context.get("card_theme"),scene_height=scene_height))
+
+
+async def draw_help(context: dict) -> bytes:
+    from ..nikke_render.render import render_html
+    return await render_html(render_help_html(context), root_width=1000)

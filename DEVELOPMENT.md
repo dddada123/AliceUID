@@ -1,0 +1,550 @@
+# AliceUID 开发文档
+
+适用版本：**1.0.05**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+
+用户使用说明见 [README.md](README.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。路径以本文件所在的插件外壳为基准；`AliceUID/nikke_api/client.py` 指外壳下的内层代码。
+
+## 1. 系统与目录
+
+```text
+AliceUID/                       ← 可安装外壳
+├─ __init__.py / __nest__.py     ← Core嵌套插件发现入口
+├─ AliceUID/                    ← 内层代码
+│  ├─ __init__.py               ← Plugins、SV、Web路由、调度与权限注册
+│  ├─ nikke_*/                  ← 业务模块
+│  ├─ templates/                ← Jinja HTML/CSS
+│  └─ data/                     ← 随包静态表兜底
+├─ assets/                      ← 登录页及资源小图
+├─ card_bg/                     ← 六张原始背景
+├─ formts/                      ← 字体；拼写是现有目录契约
+├─ pyproject.toml / requirements.txt
+└─ README.md / CHANGELOG.md / DEVELOPMENT.md
+```
+
+版本工作区额外包含 `tests_alice/`、`tools_alice/`、`docs/`、`handoff/`、`.references/`、`.runtime/`、`dist/`。这些属于开发与交付环境，不应直接放入Core插件扫描目录。生产与开发数据路径的区别见第9节。
+
+### 注册顺序
+
+[内层入口](AliceUID/__init__.py) 在正常模式下执行：
+
+1. 注册 `Plugins(name="AliceUID", force_prefix=["nk"], allow_empty_prefix=False)`。
+2. 建立配置，捕获nikke_commands前缀快照，再建立四名单策略。
+3. 导入 `AliceBind` 模型并尝试挂载Core后台管理；不兼容的管理界面不会阻止普通登录。
+4. 导入各模块命令和登录Web路由；部分模块在 `setup()` 中注册。
+5. 启用日历、数据库命令及周检、社区调度、图鉴命令，绑定会战发送前核验。
+6. 调用 `guard_plugin_triggers()` 包装全部Core Trigger；最后 `nikke_commands.bind_triggers()` 按启动快照重建自定义前缀触发器，复用原func/权限/finally，通知Core候选索引刷新。
+
+`ALICEUID_STANDALONE=1` 只供测试/离线渲染，跳过上述Core注册；生产不能设置它。
+
+```mermaid
+flowchart TD
+    A[Core发现外壳与内层包] --> B[配置与权限策略]
+    B --> C[AliceBind与登录路由]
+    C --> D[命令与调度器]
+    D --> E[统一用户权限包装]
+    E --> F[本人绑定解析]
+    F --> G[业务服务与缓存]
+    G --> H[社区客户端或公共资源服务]
+    H --> I[Builder规范化数据]
+    I --> J[模板与渲染]
+    J --> K[发送前再次核验绑定和权限]
+```
+
+### 模块职责
+
+| 模块 | 主要责任与入口 |
+|---|---|
+| `nikke_config` | `config_default.py` 默认配置；`config.py` 路径与ValidatedStringConfig |
+| `nikke_commands` | 前缀配置校验、启动快照、Core触发器重建、command_prefix提示映射 |
+| `nikke_permissions` | 四名单校验、Core Trigger包装、群管理命令；`policy.py/config.py/access.py` |
+| `nikke_user` | `AliceBind`、加密存储、加载本人客户端、绑定锁、受控后台解绑、主动面板刷新 |
+| `nikke_login` | 选服命令、一次性内存会话、密码/邮箱浏览器流程、验证码与HTTP路由 |
+| `nikke_api` | Credentials、CookieCipher、NikkeClient、StaticData解析、CDN路径生成 |
+| `nikke_resource` | 静态表、图片缓存、皮肤映射、徽章、收藏品元数据、卡片资源准备 |
+| `nikke_database` | 公共数据增量队列、预算与冷却、维护命令、周检调度 |
+| `nikke_profile` | 个人资料取数与缓存、720 CSS宽信息卡Builder及绘制 |
+| `nikke_character` | 角色匹配、本人持有校验、练度详情、装备词条、别名与持久面板缓存 |
+| `nikke_roster` | 完整十列图鉴、AccountReads节流、可见内容指纹和发送后续期 |
+| `nikke_union` | 本人联盟确认、赛季路由、成员/出刀规范化、当前与历史快照 |
+| `nikke_status` | 资源与BOSS状态；成功图片窗口、容量估算、状态图缓存与命令 |
+| `nikke_uid` | 明确类型的UID/分享标识登记；本地解析，不加载私人查询客户端 |
+| `nikke_community` | 本人授权、任务协议、持久预算/幂等账本、立即执行与30分钟调度 |
+| `nikke_calendar` | 匿名浏览器截取官网日历、缓存与过期提示 |
+| `nikke_help` | 同源的权限感知帮助Context，图片与文字输出 |
+| `nikke_render` | 模板主题、语言、字体、照片毛玻璃、布局注册、外置/原生渲染 |
+| `nikke_proxy` | 浏览器代理适配；当前配置不等于已实现代理池或每用户独立IP |
+| `templates` | 正式页面模板及 `card_badges.html` 等共享片段 |
+
+## 2. 命令到业务的调用关系
+
+| 用户入口 | 处理/服务 | 数据来源 | 输出 |
+|---|---|---|---|
+| 登录/登陆、绑定账号 + 区服 | `nikke_login.commands.nikke_login_cmd` | 显式区服、SessionStore | 一次性本人登录链接 |
+| 重新登录/重新登陆 | `nikke_relogin_cmd` | 原绑定revision及区服 | 同账号同区服更新凭据 |
+| 我的账号、解绑 | `nikke_login.commands` → `nikke_user` | AliceBind | 摘要/解除与缓存撤销 |
+| 信息/名片/个人资料 | `nikke_profile.commands._profile_data` | basic、outpost、characters、saved_role、player_info | `build_profile_context` → `draw_profile` |
+| 角色练度/面板 | `nikke_character.commands` → `CharacterQueryService.query` | 本人角色列表、匹配name_code的详情、静态装备表 | compact角色卡 |
+| 卡片 | `RosterService.prepare` | basic与本人characters、资源映射 | 完整JPEG图鉴 |
+| 更新面板/刷新面板 | `nikke_user.panel_refresh` | 本人资料 | 使旧面板数据与图片失效 |
+| 出刀及速查/详情/缺刀/尾刀 | `nikke_union.commands` → `UnionService.query` | 本人联盟、成员、当前或历史赛季 | 会战卡片 |
+| 会战血量 | `nikke_status.commands` → `UnionService.query_bosses` | 同一已验证联盟快照的level_payload | 血量状态卡 |
+| 资源查询 | `ResourceStatusService.prepare_image` | basic→outpost→daily | 成功图片缓存窗口与资源卡 |
+| 日历 | `nikke_calendar.commands/service` | 匿名官网默认页面 | 带时间/来源的截图 |
+| 角色别名查询/新增/注册 | `nikke_character.alias_commands/aliases` | 静态角色与本地别名字典 | 查询卡/管理员写入 |
+| 绑定UID/我的UID/解绑UID | `nikke_uid.commands` → `UIDStore` | 本人提交的明确类型标识 | 本地登记，不证明账号归属 |
+| 签到查询[页码]（Bot主） | `runtime.report_group → group_report_text` | 本地绑定、group_seen与独立签到确认 | 本群已知范围文字分页 |
+| 自动社区/签到/开启全量签到 | `CommunityCommands` → `CommunityService` | 本人授权及社区账本 | 本轮结果或状态 |
+| 数据库更新/状态/帮助 | `DatabaseCommands` → `DatabaseService` | 公共表与固定美术源 | 后台队列与摘要 |
+| 帮助/帮助文字 | `build_help_context → draw_help/help_text` | Core用户权限、当前绑定摘要 | 图片失败可回退文字 |
+
+裸命令、空格与别名是否匹配由Core Trigger契约决定。登录与登陆注册到同一个 `on_command`；重新登录/重新登陆是 `on_fullmatch`，不额外接受换服参数。新增命令后必须同步帮助并重新执行统一Trigger包装。
+
+## 3. 身份、区服与持有关系
+
+### 标识不要混用
+
+| 标识 | 含义/来源 | 使用规则 |
+|---|---|---|
+| `user_id + bot_id` | Core确认的消息发送者 | 选择绑定、权限与个人缓存；不用@对象替代 |
+| `game_id` | 游戏产品编号 | 五区使用29080；不是每个玩家唯一值 |
+| `area_id` | 区服数字 | 与客户端region及接口响应一起核验 |
+| `intl_open_id` | Cookie对应的社区账号身份 | 本人私人接口参数；不能从任意输入UID构造客户端 |
+| `uid / role_id` | 游戏角色UID | 主要从GetSavedRoleInfo的role_info.role_id读取，需game_id/area_id匹配 |
+| `name_code` | 角色逻辑编码 | 静态名字、本人角色及详情匹配的主键 |
+| `resource_id` | 角色美术资源编号 | 静态角色表映射，不能直接把name_code当文件号 |
+| `costume_id / costume_tid` | 本人接口报告的皮肤ID | 需映射到本角色costumes中的costume_index |
+| `skin_index` | 美术变体序号 | 用于SI/MI/full路径，不独立证明拥有 |
+| `binding revision` | `sha256(cookie_enc)` | 旧会话、在途任务与缓存隔离；不日志输出密文本体 |
+
+| 区服 | area_id | region.name |
+|---|---:|---|
+| 日服 | 81 | japan |
+| 北美服 | 82 | na |
+| 韩服 | 83 | korea |
+| 国际服 | 84 | global |
+| 东南亚服 | 85 | sea |
+
+代码定义了港澳台91/29157，但它不在当前登录REGIONS中；不能据此宣传港澳台已支持。登录选服函数向detect_region只传一个所选候选，不跨区自动探测。
+
+### 角色与皮肤映射
+
+[StaticData](AliceUID/nikke_api/parser.py) 加载静态表。角色查询先按官方名称、简繁归一/别名等规则解析；歧义返回候选，不根据持有角色偷偷猜选。之后检查该name_code确实存在于本人characters，再请求/读取对应详情。
+
+[resolve_skin](AliceUID/nikke_resource/skins.py) 优先读取角色列表 `costume_id`；仅在缺失时考虑匹配角色详情的 `costume_tid`。基础皮肤0为显式报告；未知、映射不到或重复映射降级为基础图并保留notice。双方报告冲突时列表优先；详情name_code不匹配时拒绝借用其皮肤。
+
+```python
+# 静态映射示例；owned_row应来自发命令者本人接口。
+selection = resolve_skin(owned_row, static)
+rid = static.resource_id(owned_row["name_code"])
+url = character_resource_url("portraits", rid, selection.skin_index)
+# 生产卡片通过ResourceService/ImageCache准备资源，不让模板自行联网。
+```
+
+头像/完整图库中存在文件、静态costumes列表或分享参数都不代表账号拥有。会战角色ID需要时通过 `character_id_map.json` 辅助映射；不能把其他成员详情当成本人私人练度。
+
+## 4. 私人社区客户端接口
+
+代码：[nikke_api/client.py](AliceUID/nikke_api/client.py)。基地址为 `https://api.blablalink.com`，数据读取默认语言 `zh-TW`。调用方使用 `load_client(ev.user_id, ev.bot_id)` 从本人绑定加载，结束后关闭client。
+
+`_request` 串行访问该客户端实例、禁止跳转；HTTP401与业务401/300001归入NikkeLoginRequired，403/429按拒绝/限流报错，业务code=0解包，其他code为NikkeApiError。它不会通用自动重试；业务服务另行管理节流、缓存和允许的一次性补读。
+
+下表G前缀为 `/api/game/proxy/Game/`；账号参数A为 `{intl_open_id, nikke_area_id}`，必须从已核验的本人客户端取得。
+
+| 客户端方法 | HTTP/端点 | 请求 | 返回与用途 |
+|---|---|---|---|
+| `check_login()` | GET `/api/user/CheckLogin` | 当前Cookie与公共头 | code=0且msg=ok时True |
+| `get_characters()` | POST G+`GetUserCharacters` | A | `data.characters`，本人持有列表 |
+| `get_character_details(codes)` | POST G+`GetUserCharacterDetails` | A + `name_codes`列表 | `data`；服务匹配character_details与state_effects |
+| `get_basic_info()` | POST G+`GetUserProfileBasicInfo` | A | `data.basic_info`；身份、进度、货币等 |
+| `get_outpost_info()` | POST G+`GetUserProfileOutpostInfo` | A | `data.outpost_info`；前哨与同步等级 |
+| `get_daily_progress()` | POST G+`GetUserDailyContentsProgress` | A | `data`；daily_progress中的保管箱容量 |
+| `get_saved_role_info()` | POST G+`GetSavedRoleInfo` | 空对象 | `data.role_info`；匹配后使用role_id |
+| `get_game_player_info()` | POST `/api/ugc/direct/standalonesite/User/GetUserGamePlayerInfo` | 空对象 | `data`；游戏概览/联盟名等 |
+| `get_union_raid_data()` | POST G+`GetUnionRaidData` | A | 原始出刀data；实际会战服务负责更完整的联盟确认 |
+| `get_union_raid_level()` | POST G+`GetUnionRaidLevelInfo` | A | 原始血量data |
+
+### 会战服务的额外端点
+
+[UnionService](AliceUID/nikke_union/service.py) 直接通过client._request调用以下POST端点，不能只用上表两个raid方法取代它的身份/赛季逻辑。
+
+| G后的端点 | 参数 | 处理 |
+|---|---|---|
+| GetMyGuildInfo | 空对象 | 确认本人当前guild_id和guild_name |
+| GetGuildMembers | guild_id、字符串nikke_area_id | 规范化成员名单，无法获取时不凭空补0刀 |
+| GetUnionRaidData / GetUnionRaidLevelInfo | A，已确认时附guild_id | 当前/结算中的赛季快照 |
+| GetUnionRaidDataOfGuildSeason / GetUnionRaidLevelDataOfGuildSeason | 数字area_id、guild_id、字符串season_id | 历史赛季；必须先确认本人联盟 |
+
+公开 `/raid/raid_list.json` 经CDN映射后确定赛季与接口类型。只有已结算、通过历史接口取到非空出刀和血量的快照才能长期复用；仍先核对赛季、当前联盟及名单。没有赛季名单时，可将当前完整名单明确标为历史对照；新入会者无记录不能被认定为上期实际漏刀。
+
+### 社区任务端点
+
+代码：[api.py](AliceUID/nikke_community/api.py)、[service.py](AliceUID/nikke_community/service.py)。调用必须经过CommunityService的本人授权、绑定revision、账本与请求预算，不能直接重放写请求。
+
+| HTTP/路径后缀 | 请求关键字段 | 用途 |
+|---|---|---|
+| GET `/api/lip/proxy/lipass/Points/GetTaskListWithStatusV2` | get_top=false、intl_game_id | 读取本周期任务状态 |
+| POST `/api/lip/proxy/lipass/Points/DailyCheckIn` | task_id | 签到，账本去重 |
+| POST `/api/ugc/direct/standalonesite/Dynamics/GetPostList` | plate_id=38、plate_unique_id=outpost、limit等 | 受预算约束的帖子候选 |
+| POST `/api/ugc/direct/standalonesite/Dynamics/GetPost` | post_uuid | 已授权浏览 |
+| POST `/api/ugc/proxy/standalonesite/Dynamics/PostStar` | post_uuid、type=1、like_type=1 | 已授权且确认未赞的帖子点赞 |
+| GET `/api/lip/proxy/lipass/Points/GetUserTotalPoints` | 无额外业务参数 | 读取可确认的积分余额 |
+
+已知当期已签到时不继续重复签到、浏览/点赞或积分读取。未知任务不猜测操作；跨北京时间08:00终止当前轮次，由下一轮重新识别。定时任务借用Core scheduler，每天北京时间配置时刻执行（默认08:33），配置保存后重排同一任务，单实例、合并调度。
+
+1.0.05的 `Policy(min_interval,daily_requests,max_interval,switch_min,switch_max)` 默认 `(5,30,15,10,120)`；`pacing.parse_range()`解析后台范围字符串，`CommunityService.uniform`可注入测试随机源。每次逻辑请求抽取均匀分布间隔，只在真正reserve发送时推进全局next_at；等待循环不重复抽样。每轮抽取一个换号等待，pacing表增加last_account（账号哈希）与switch_at；上一账号最后HTTP响应成功/失败后都推进switch_at。下一账号满足max(next_at,switch_at)，同账号只满足next_at，已跳过账号不消耗等待或预算。SQLite迁移保留旧next_at，长等待扩展执行租约；600秒仍为实际请求执行的基础租约。
+
+返回结果新增 `counts={signin,browse,like}` 与 `signin_confirmed`。只在HTTP成功确认后累计对应操作；跨08响应不得用counts冒认新周期签到。`messages.result_message()`生成紧凑文本，金币缺失不写成0，部分完成与异常暂停同时显示。signin_confirmations仍独立于last_day保存。
+
+## 5. 登录Web与后台接口
+
+代码：[routes.py](AliceUID/nikke_login/routes.py)。所有会话型API只面向Bot生成的当前登录会话；token是一次性能力标识，不是匿名查询任意账号的入口。每次检查会话、所属用户访问权限及旧绑定状态。
+
+| 方法/路由 | 输入字段 | 功能 |
+|---|---|---|
+| GET `/nikke/assets/{filename}` | 安全的资源文件名 | 登录素材，拒绝路径穿越 |
+| GET `/nikke/i/{token}` | 有效会话token | 输出登录页 |
+| POST `/nikke/api/login` | token、account、password、可选generation | 启动密码登录流程 |
+| POST `/nikke/api/mode` | token、mode、可选generation | 切换密码/邮箱等会话模式 |
+| POST `/nikke/api/email/send` | token、account、可选generation | 本人触发邮箱验证码发送 |
+| POST `/nikke/api/email/verify` | token、code、generation | 提交邮箱验证码 |
+| POST `/nikke/api/status` | token | 轮询状态与当前挑战 |
+| POST `/nikke/api/captcha` | token、dx、challenge_id、可选generation | 提交当前挑战的位移 |
+| POST `/nikke/api/captcha/refresh` | token、challenge_id、generation | 主动刷新挑战 |
+| POST `/nikke/api/cookie` | token、cookie | 会话允许时导入凭据 |
+
+具体错误JSON及状态字段以路由函数为准，不依赖人类提示文字判断成功。前端须跟踪generation与challenge_id，过期挑战不能提交给新会话。
+
+[SessionStore](AliceUID/nikke_login/session.py) 只在内存持有会话。创建默认TTL600秒；进行中的登录/验证码流程有独立360秒上限；成功结果保留300秒供状态读取。取消会递增generation、唤醒等待、取消任务并清理验证码/挑战内容。重启不恢复旧登录链接。
+
+保存绑定经过 [save_login](AliceUID/nikke_user/service.py)：先持有本人绑定锁，核验已有绑定、revision和账号/区服；Cookie加密后落库，再重新读取确认提交结果。重新登录使用比较并交换更新，不通过删行重建账号，也不静默换人换服。
+
+### Core后台绑定管理
+
+[admin.py](AliceUID/nikke_user/admin.py) 在Core提供兼容管理接口时注册AliceBind摘要；`/api/database/table/<table>` 读取/导出做脱敏，通用新增/编辑/导入/删除被拒绝。
+
+专用 `POST /api/aliceuid/bindings/{record_id}/unbind` 依赖Core管理员认证，body包含 `user_id`、`bot_id`、`binding_version`。它核验当前记录版本，执行原解绑生命周期并清除旧会话与缓存。不要通过通用数据库写接口更新凭据。
+
+## 6. 字段与展示映射
+
+| 原始资料 | 规范化/展示 | 位置 |
+|---|---|---|
+| basic.nickname、lv、area_id | 指挥官姓名、等级、区服 | profile.builder、parser.parse_profile |
+| saved role_info.role_id | 游戏UID；先核对game_id/area_id | login.regions、profile.builder |
+| basic.created_at | 苏醒日/注册日期，UTC+8日期 | parser._ts_date |
+| profile_team[].name_code | 按本人持有角色组成最多5位展示队伍；未设置时按战力前五 | profile.builder |
+| progress_normal_campaign / progress_hard_campaign | stage_list对应关卡名 | StaticData.stage_name |
+| outpost等级、synchro_level、recycle_room_researches | 前哨、同步等级、循环室数量 | profile.builder |
+| 角色grade + core、original_rare | SSR最多3星/SR最多2星/R无星；核心01～06与MAX | resource.card_meta.progression |
+| class、element_id.element、use_burst_skill | 职业/属性/爆裂图标键 | character.collection.role_icons |
+| shot_id.element.weapon_type | AR/MG/SG/RL/SMG/SR枚举 | parser.static_weapon_type |
+| head/torso/arm/leg装备与词条ID、state_effects | 四装备、总览词条、等阶与百分比 | character.builder、overload相关函数 |
+| character_skill_map.resource_id | 技能图标映射 | resource.service、character.builder |
+| favorite_item/harmony_cube报告 | 珍藏品/收藏品/魔方公开元数据与等级 | character.collection、resource.collections |
+| basic.currencies[] | 八类资源；明确0与缺失/隐藏分开 | status.builder.build_resources |
+| daily_progress[0].outpost_battle_storage_fullness | 0～1转百分比；隐藏/缺失为未知 | status.builder |
+| level_info[].boss_info[].max_hp/current_hp | 大整数血量及截断百分比；无限血量不除零 | status.builder.build_bosses |
+
+货币type映射：钻石98+99，信用点2000，黄金积分券12000，白银积分券11000，战斗数据1000，芯尘3000，招募券5100，高级招募券5200。任一需要合计的组成缺失时显示未知，不用0补齐。
+
+装备词条必须保留原始值、类型与符号，结合静态规则转换；不要将所有字段统一乘100或直接套用某一个Percent名称。普通装备和未知等阶不能伪造T10词条。名称匹配、单位、突破越界与皮肤回退均有对应测试。
+
+## 7. 公共素材与CDN映射
+
+代码：[resource.py](AliceUID/nikke_api/resource.py)、[ResourceService](AliceUID/nikke_resource/service.py)、[ImageCache](AliceUID/nikke_resource/cache.py)。公开下载与私人客户端分开，不携带Cookie/Authorization。
+
+### 角色资源类型
+
+| kind | 逻辑路径 | data/AliceUID/resource下目录 | 嵌入尺寸上限 |
+|---|---|---|---|
+| icons | `/character/si/si_c{rid:03}_{skin:02}_s.png` | characters/icons | 256×256 |
+| portraits | `/character/mi/mi_c{rid:03}_{skin:02}_s.png` | characters/portraits | 600×900 |
+| full | `/character/full/c{rid:03}_{skin:02}.png` | characters/full | 1200×1800 |
+
+上限只约束嵌入图，不代表所有源文件具有这些尺寸。原始缓存图保持完整；正式信息卡首位用MI、其余SI；练度compact使用MI完整主体，图库仍可独立维护full。
+
+`character_resource_url(kind,rid,skin)` 验证整数资源键，再交给 `obfuscate_path()`：去除前导斜杠，用受控PRIMES和32位djb2生成中间目录段，最终文件名为完整逻辑路径的MD5并保留扩展名，前缀为 `https://sg-tools-cdn.blablalink.com`。不要猜CDN哈希地址；图片本地文件名为 `cNNN_SS.png`，URL和SHA256写同名侧车JSON。
+
+### 静态表与其他资产
+
+| 本地static文件 | 用途 |
+|---|---|
+| nikke_list_zh-TW_v2.json | name_code、resource_id、名字、稀有度、属性、costumes等 |
+| stage_list.json | 关卡ID到显示名 |
+| equip_option_table_v2-zh-tw.json | 词条及状态效果静态描述 |
+| ItemEquipTable-zh-tw.json | 装备条目与图标资源 |
+| character_skill_map.json | 角色resource_id到技能图标 |
+| character_id_map.json | 会战等场景角色编码辅助映射 |
+| character_avatar_map.json | 公开头像辅助映射表；有记录不代表玩家拥有 |
+
+实际逻辑路径及主键由 `nikke_resource.service.TABLES` 模块级字典登记。加载先用随包兜底，再合并外部static；更新按字段、行数变化及体积校验，失败保留旧表。
+
+装备、技能、收藏品、魔方分别落到 `equipment/icons`、`skills/icons`、`collections/icons`、`cubes/icons`。属性/职业/爆裂在 `rolemeta/icons`，企业在 `corporations`，武器在 `rolemeta/weapons`。允许的逻辑前缀由PUBLIC_ICON_TYPES控制。
+
+### 固定徽章与基础图标
+
+`base_icons.py` 登记23项基础图标及4个官方徽章基底；`badges.py` 实现star_active、star_inactive、core、power的按需下载与校验。星/核心落 `rolemeta/breakthrough`，战力符号落 `rolemeta/power/team_combat.png`；战力数字仍来自账号数据，不是数字图片API。
+
+URL白名单只增加六个确切武器URL和四个确切徽章URL，不扩大成官网任意路径。成功来源标记为community_download，失败使用已审核内置字节并标记fallback。带哈希文件名长期复用；无哈希core固定URL每7天条件校验，老合格缓存导入时起算本地TTL。403/429持久冷却，强制更新不越过冷却。
+
+普通图片缓存包含按路径锁、原子写入、ETag/304、图片格式/10MiB/24M像素限制、旧可用图回退。基础图标匿名请求共享2秒节流；批量维护另由PublicHTTP共享预算。源URL改变时不能把旧来源图片或旧冷却当成新来源成功。
+
+## 8. 缓存与并发规则
+
+| 层 | 键/存放 | 复用与失效 |
+|---|---|---|
+| 个人资料 | 账号+凭据revision，内存 | 默认600秒；成功重新取资料会使相关角色/资源缓存失效 |
+| 练度原始数据 | `cache/panels/<身份摘要>/snapshot.json` | 持久角色列表/详情；显式刷新、更新面板或换凭据失效 |
+| 练度图片 | PanelCache，角色+数据+风格指纹 | 已有图片先复用，身份/参数改变重绘 |
+| 图鉴图片 | `cache/roster`，owner/账号/revision+可见内容/素材hash | 成功发送后滑动7天；失败发送不续期 |
+| 资源成功图 | ResourceStatusService._ready | 成功校验图片后300秒，不滑动；24MiB总上限；丢失/到期/风格变化重新同步 |
+| 状态图底层缓存 | 内存及 `cache/resource_images` | 按内容/身份/主题/语言/字体/模糊指纹复用 |
+| 会战 | 账号核验缓存+同服同联盟同赛季快照 | 当期默认180秒；已结算非空历史快照可长期复用但仍核验赛季与本人联盟 |
+| 日历 | `cache/calendar` | 默认1800秒；失败冷却300秒，可明确标注旧截图 |
+| 公共图片 | `resource/` + 侧车JSON | 按来源、hash、TTL/ETag与失败冷却，不按玩家UID重复保存 |
+| 社区账本 | `community.sqlite3` | 授权、lease、请求预算及已完成action持久化；重启不清空 |
+
+### 收菜图片窗口
+
+```mermaid
+flowchart TD
+    Q[本人查询与权限核验] --> C{有有效同风格成功图?}
+    C -- 有 --> S[直接重发 不延长窗口]
+    C -- 无 --> F{短故障冷却结束?}
+    F -- 否 --> W[返回剩余等待秒数]
+    F -- 是 --> R[basic → outpost → daily]
+    R --> D[规范化资源与容量]
+    D --> P[渲染并校验图片]
+    P --> V[再次核验绑定与epoch]
+    V --> T[从成功时刻记录300秒窗口]
+    R -- 失败 --> E[5秒故障门槛 403/429为60秒]
+    P -- 失败 --> E
+    T --> S
+```
+
+生产命令必须走 `ResourceStatusService.prepare_image()`，不能只调用query就宣布进入5分钟窗口。query的纯数据缓存不等于可发送图片。传入actor=(user_id,bot_id)和异步still_current回调；生成成功但发送失败时保留ready图。invalidate递增epoch，阻止旧在途数据或图重新提交。
+
+`AccountReads.transaction()` 被图鉴、主动面板刷新和资源链路使用：按账号锁、全局两槽、每次get请求间隔5秒、每事务最多5次；wait=True可等待批次间隔。个人资料与练度服务另有自己的账号锁和批次门槛；不要误以为所有私人接口都由一个全局5秒队列控制。会战服务也有自己的每账号5秒请求间隔。
+
+## 9. 存储、权限与绑定生命周期
+
+生产根目录由 `get_res_path() / "AliceUID"` 生成，代码不硬编码开发机D盘。
+
+```text
+Core资源根/AliceUID/
+├─ config.json / group_policy.json     # 当前配置及旧策略兼容文件
+├─ secret.key                         # Cookie加密密钥
+├─ character_aliases.json             # 自定义角色别名
+├─ uid_bindings.sqlite3               # 独立UID登记
+├─ community.sqlite3                 # 社区授权与幂等/预算账本
+├─ static/                            # 公开表
+├─ resource/                          # 公开美术缓存及来源JSON
+├─ database/manifest.json             # 公共更新队列、进度与冷却
+├─ cache/auth_invalid/               # 已知失效凭据版本摘要，不含Cookie
+├─ cache/panels/                      # 本人面板数据/图
+├─ cache/roster/                      # 图鉴图与发送续期
+├─ cache/resource_images/             # 私有资源状态图
+├─ cache/union_history/               # 按联盟/赛季隔离的历史快照
+├─ cache/calendar/                    # 公共日历截图
+└─ players/                          # 初始化保留目录，具体使用以模块为准
+```
+
+AliceBind继承Core Bind，实际位于Core配置的数据库，不是上面目录中的一份随意复制的独立SQLite。主要字段：intl_open_id、area_id、game_id、cookie_enc、nickname、uid、cookie_expire、is_public、is_master，加上Core的user_id/bot_id等身份字段。
+
+CookieCipher使用独立secret.key进行加密。备份运行环境时保留密钥与原数据库对应关系。密码和验证码属于短期会话数据，不作为配置或发布资料保存。现有`is_public`不代表群排行已实现，`MasterQQ/is_master`也不提升Core服务pm权限。
+
+群白名单非空时先限制范围，再判群黑名单；用户名单同样处理，交叉冲突拒绝保存。用户访问限制覆盖账号命令/Web会话/社区任务；查询命令额外检查群策略。发送者来自ev.user_id，不能用ev.at或用户给的UID选择别人的Cookie。
+
+重新登录使用同账号同区服的比较并交换，更新后撤销旧社区授权并使相关缓存失效；失败保留旧绑定。解绑要走AliceBind.delete_bind及现有清理生命周期，不手工删数据库文件。后台受控解绑会同时清除旧会话。
+
+开发时 `nikke_resource.workspace.nikke_data(ROOT)` 读取版本工作区workspace_paths.json，将数据定位到共享data根下的AliceUID；生产不读取这个开发映射。旧工作区路径仅用于参考/恢复，不应写进可安装代码。
+
+## 10. 渲染接口
+
+[render_html](AliceUID/nikke_render/render.py) 输入HTML与root_width、可选dpi；默认DPI144，对应1.5倍像素。外置服务启用时发送 `POST JSON {"html": "..."}`，可附Bearer Token，期望HTTP200及有效PNG字节；失败转Core原生 `render_html_to_bytes`。
+
+原生渲染用Core当前原生接口，不应在文档中写成“必定Playwright回退”。Playwright也用于登录、日历及离线浏览器对照，属于不同用途。
+
+| 卡片 | CSS宽度/策略 |
+|---|---|
+| 角色compact | 660；MI主体contain，完整立绘与装备/工具区 |
+| 个人信息 | 720；姓名卡与圆角主立绘分离、四位队员、88px指挥官头像 |
+| 图鉴 | 1400；十列128px头像+32px姓名；强制96DPI后检查完整尺寸，JPEG编码 |
+| 状态、会战、帮助 | 常用1000；以各draw调用root_width为准 |
+
+图鉴197名高3560、203名高3728；encode_complete拒绝尺寸不完整的图，不能通过截断末行适配文件大小。字体优先从formts读取AaZongYiYuan-2.ttf，无法使用时走显式兜底。毛玻璃0～100%只作用背景，默认10%；拍照背景只铺底层，子模块使用半透明主题色。
+
+修改可见布局、元信息、资源选择或渲染参数时同步检查缓存fingerprint/render_version，防止发送旧模板图。信息卡目前每次命令绘制，不是独立的持久成图缓存服务。
+
+## 11. 公共数据库维护
+
+`DatabaseService.run_continuous()` 连续执行有预算的run批次；持久manifest保存资产目录、队列、已下载hash、失败冷却及结果。固定27项图标/徽章与角色SI/MI/full共用任务与字节预算，未完成不能报告全成功。
+
+默认每批40图、128MiB下载预算、2048MiB图库预算、总运行30分钟，失败冷却3600秒；请求间隔实际由PublicHTTP限制至少2秒。关闭皮肤补全会剪除待执行的变体任务，但不会删除旧图片。并发手动/周检/后台触发去重。
+
+调度使用Core共享scheduler：周五02:33，时区Asia/Shanghai，max_instances=1、coalesce=True。不要在插件内另建第二个调度器。
+
+## 12. 配置索引与已知说明差异
+
+下面默认值从config_default.py静态提取。运行时约束在各服务校验，历史WebUI描述并不总是当前行为的完整契约。
+
+- ResourceCacheSeconds是兼容键；实际为成功图片后300秒，而非失败请求后的300秒。
+- CommunityDailyRequests当前说明与cycle_day均按北京时间08:00划周期；每天执行时刻由CommunitySignTime控制。
+- RenderDpi旧描述写1000px模板；实际信息720、角色660、图鉴1400且96DPI。
+- DatabaseRequestInterval旧描述提到1.5秒，当前PublicHTTP实际最低2秒。
+
+| 配置键 | 类型 | 默认值 | 用途标题 |
+|---|---|---|---|
+| `AliceUID_GlassStrength` | GsIntConfig | `10` | 全局毛玻璃强度（%） |
+| `AliceUID_ResourceCacheSeconds` | GsIntConfig | `300` | 资源查询刷新间隔（固定300秒） |
+| `AliceUID_UnionCacheSeconds` | GsIntConfig | `180` | 联盟查询缓存秒数 |
+| `AliceUID_CardLanguage` | GsStrConfig | `zh-CN` | 卡片文字语言 |
+| `AliceUID_CardFont` | GsStrConfig | `factory_default()` | 卡片字体 |
+| `AliceUID_GroupWhitelist` | GsListStrConfig | `[]` | 群白名单 |
+| `AliceUID_GroupBlacklist` | GsListStrConfig | `[]` | 群黑名单 |
+| `AliceUID_UserWhitelist` | GsListStrConfig | `[]` | 用户白名单 |
+| `AliceUID_UserBlacklist` | GsListStrConfig | `[]` | 用户黑名单 |
+| `AliceUID_MasterQQ` | GsListStrConfig | `[]` | Bot 主 QQ |
+| `AliceUID_LoginUrl` | GsStrConfig | `` | 登录页外网地址 |
+| `AliceUID_LoginQRCode` | GsBoolConfig | `false` | 登录链接转二维码 |
+| `AliceUID_LoginForward` | GsBoolConfig | `false` | 登录链接用转发消息 |
+| `AliceUID_DefaultArea` | GsIntConfig | `81` | 默认区服（旧版兼容） |
+| `AliceUID_LoginMode` | GsStrConfig | `browser` | 登录方式 |
+| `AliceUID_BrowserChannel` | GsStrConfig | `auto` | 浏览器通道 |
+| `AliceUID_Headless` | GsBoolConfig | `true` | 无头浏览器 |
+| `AliceUID_Proxy` | GsStrConfig | `` | 浏览器代理 |
+| `AliceUID_LoginTTL` | GsIntConfig | `600` | 登录链接有效期（秒） |
+| `AliceUID_CacheTTL` | GsIntConfig | `600` | 查询缓存（秒） |
+| `AliceUID_RemoteRenderEnable` | GsBoolConfig | `false` | 外置渲染开关 |
+| `AliceUID_RemoteRenderUrl` | GsStrConfig | `http://127.0.0.1:3000/render` | 外置渲染地址 |
+| `AliceUID_RemoteRenderToken` | GsStrConfig | `` | 外置渲染 Token |
+| `AliceUID_CardTheme` | GsStrConfig | `dark` | 全局卡片主题 |
+| `AliceUID_CharacterCardStyle` | GsStrConfig | `compact` | 角色练度卡布局 |
+| `AliceUID_RenderDpi` | GsIntConfig | `144` | 渲染分辨率 DPI |
+| `AliceUID_RenderTimeout` | GsIntConfig | `60` | 外置渲染超时（秒） |
+| `AliceUID_CommunitySignTime` | GsStrConfig | `08:33` | 每日签到时间（北京时间HH:MM，保存即重排） |
+| `AliceUID_CommunityPaused` | GsBoolConfig | `false` | 暂停所有社区任务 |
+| `AliceUID_CommunityRequestRange` | GsStrConfig | `5-15` | 请求随机间隔秒数范围，重启生效 |
+| `AliceUID_CommunityAccountRange` | GsStrConfig | `10-120` | 换账号随机等待范围，重启生效 |
+| `AliceUID_CustomPrefixEnabled` | GsBoolConfig | `false` | 启用自定义前缀，重启生效 |
+| `AliceUID_CustomPrefix` | GsStrConfig | `alice` | 1～12位中英文字母/数字/_/-，重启生效 |
+| `AliceUID_DisableDefaultPrefix` | GsBoolConfig | `false` | 自定义开启时禁用nk并更换提示，重启生效 |
+| `AliceUID_CommunityDailyRequests` | GsIntConfig | `30` | 社区每日请求上限 |
+| `DatabaseWeeklyUpdate` | GsBoolConfig | `true` | 每周自动更新公开数据库 |
+| `DatabaseIncludeSkins` | GsBoolConfig | `true` | 数据库包含公开皮肤变体 |
+| `DatabaseMaxTasks` | GsIntConfig | `40` | 数据库每批图片任务上限 |
+| `DatabaseMaxDownloadMB` | GsIntConfig | `128` | 数据库每批下载预算MiB |
+| `DatabaseMaxDiskMB` | GsIntConfig | `2048` | 公共图库存储预算MiB |
+| `DatabaseRequestInterval` | GsIntConfig | `2` | 数据库请求间隔秒 |
+| `DatabaseFailureCooldown` | GsIntConfig | `3600` | 数据库失败冷却秒 |
+| `DatabaseMaxRunMinutes` | GsIntConfig | `30` | 数据库单次后台运行分钟上限 |
+| `AliceUID_EnableWriteOps` | GsBoolConfig | `false` | 其他写操作（兼容预留） |
+
+## 13. 测试与开发工具
+
+测试位于版本工作区的 `tests_alice/`。conftest设置独立模式，Core集成由明确的stub/固定Core源码契约测试负责。用MockTransport和构造身份验证接口，不把真实登录、发码或社区写操作作为自动回归。
+
+| 关注点 | 主要测试 |
+|---|---|
+| 资源成功窗口/失败重试/重发 | test_v103_resources.py、test_v101_resources.py、test_status_cache.py |
+| 登录别名与Core匹配 | test_v103_login_aliases.py、test_command_contract.py、test_relogin.py |
+| 角色/皮肤/装备/词条 | test_character_*、test_reported_skins.py、test_overload_units.py、test_collections.py |
+| 公共资源/预算/徽章 | test_resources.py、test_base_icons.py、test_v102_badges.py、test_database.py |
+| 图鉴/刷新/缓存 | test_roster.py、test_roster_refresh.py、test_v102_cards.py |
+| 联盟/历史/0刀 | test_union*.py、test_v100_history.py、test_v101_zero_attacks.py |
+| 权限/绑定/后台 | test_access_policy.py、test_policy_integration.py、test_unbind.py、test_v100_admin.py |
+| 社区幂等与周期 | test_community.py、test_v100_community.py |
+| 渲染/主题/字体 | test_character_render.py、test_glass_render.py、test_card_fonts.py、test_v101_glass.py |
+| 打包结构与隐私 | test_release_pipeline.py、tools_alice/build_release.py |
+
+运行示例，在版本工作区根执行：
+
+```bash
+python -m pytest tests_alice -q
+python tools_alice/check_plugin.py AliceUID
+python tools_alice/build_release.py --plugin-only --build-tag docs
+```
+
+若使用外部开发依赖，将workspace_paths.json中的development_packages加入PYTHONPATH。关闭字节码写入可用PYTHONDONTWRITEBYTECODE=1；临时文件明确指向本轮临时目录。pytest及渲染会重新生成临时文件/图片，生成后按当轮归档规则处理。
+
+仍保留的工具按用途分组：构建/自检 `build_release/check_plugin`；图库 `audit_resources/update_static/prefetch_icons`；渲染与测试共享夹具 `preview_character/preview_roster/preview_help/preview_status`；正式布局验收 `preview_v102/preview_v103_help`；公共资料诊断 `probe_*/verify_database_live`。涉及网络或私人快照的工具不是日常离线测试入口，应先读其输入和授权范围。
+
+2026-10-20清理已将历史预览图、旧一次性工具、测试临时目录移入CodexZone/回收站；测试/构建仍引用的辅助代码、参考样本和core_base_models.py保留。历史证据中的图片路径可在归档清单找到，不需要把旧Base64页面重新加载进会话。
+
+## 14. 变更与发布流程
+
+1. 按当前约定在独立版本目录开发，先读AGENTS及handoff当前进度；共享图库只读复用。
+2. 修改命令时同步图文帮助；修改字段时同时检查Builder、资源准备、模板与缓存指纹。
+3. 优先运行相关离线测试。涉及布局时验证亮/暗和原生/浏览器，检查完整尺寸、溢出、缺图及空数据。
+4. 更新pyproject版本与CHANGELOG。README只维护当前能力和用法；架构/接口变化更新本文件。不再新增RELEASE_版本号.md。
+5. 用build_release产生独立新文件名，保持外壳、__nest__.py、模板、字体和六背景；不覆盖旧ZIP。
+6. 校验CRC、源包哈希、干净解压、旧模板覆盖和隐私；记录实际通过数与未验证的实机边界。
+7. 保存handoff进度、交付说明及包哈希。发布包就绪不等于已部署，不自动操作用户NAS或真实社区账号。
+
+本版本功能回归基线为1188通过、1项Windows符号链接权限跳过；这是修复交付时的记录。本次工作区清理/文档重写不等于重新跑过全部功能测试，新的验证结果以本轮handoff日志为准。
+
+## 15. 源码定位索引
+
+下表为静态装饰器提取结果，可帮助从命令反查处理函数。动态四名单（群黑/白、用户黑/白）在permissions.commands的register循环注册，另见第2节。记录数不是所有别名的总数。
+
+| 模块文件 | 处理函数 | 注册类型 | 命令/匹配表达式 |
+|---|---|---|---|
+| [AliceUID/nikke_calendar/commands.py](AliceUID/nikke_calendar/commands.py) | `calendar_command` | on_command | `日历` |
+| [AliceUID/nikke_character/alias_commands.py](AliceUID/nikke_character/alias_commands.py) | `add_alias` | on_regex | `^(?P<character>.+?)(?:新增\|注册)别名(?P<alias>.+)$` |
+| [AliceUID/nikke_character/alias_commands.py](AliceUID/nikke_character/alias_commands.py) | `alias_query_suffix` | on_suffix | `别名查询` |
+| [AliceUID/nikke_character/alias_commands.py](AliceUID/nikke_character/alias_commands.py) | `alias_query_command` | on_command | `角色别名查询` |
+| [AliceUID/nikke_character/commands.py](AliceUID/nikke_character/commands.py) | `nikke_character_cmd` | on_command | `练度` |
+| [AliceUID/nikke_character/commands.py](AliceUID/nikke_character/commands.py) | `nikke_character_suffix_cmd` | on_suffix | `练度` |
+| [AliceUID/nikke_character/commands.py](AliceUID/nikke_character/commands.py) | `nikke_character_panel_cmd` | on_command | `面板` |
+| [AliceUID/nikke_character/commands.py](AliceUID/nikke_character/commands.py) | `nikke_character_panel_suffix_cmd` | on_suffix | `面板` |
+| [AliceUID/nikke_community/commands.py](AliceUID/nikke_community/commands.py) | `community_command` | on_command | `自动社区` |
+| [AliceUID/nikke_community/commands.py](AliceUID/nikke_community/commands.py) | `immediate_signin` | on_fullmatch | `签到` |
+| [AliceUID/nikke_community/commands.py](AliceUID/nikke_community/commands.py) | `enable_full_signin` | on_command | `开启全量签到` |
+| [AliceUID/nikke_community/commands.py](AliceUID/nikke_community/commands.py) | `signin_query` | on_command | `签到查询` |
+| [AliceUID/nikke_database/commands.py](AliceUID/nikke_database/commands.py) | `database_update` | on_command | `数据库更新` |
+| [AliceUID/nikke_help/commands.py](AliceUID/nikke_help/commands.py) | `nikke_help` | on_command | `帮助` |
+| [AliceUID/nikke_login/commands.py](AliceUID/nikke_login/commands.py) | `nikke_login_cmd` | on_command | `["登录", "登陆", "绑定账号"]` |
+| [AliceUID/nikke_login/commands.py](AliceUID/nikke_login/commands.py) | `nikke_relogin_cmd` | on_fullmatch | `["重新登录", "重新登陆"]` |
+| [AliceUID/nikke_login/commands.py](AliceUID/nikke_login/commands.py) | `nikke_unbind_cmd` | on_fullmatch | `["解绑", "删除绑定"]` |
+| [AliceUID/nikke_login/commands.py](AliceUID/nikke_login/commands.py) | `nikke_account_cmd` | on_fullmatch | `["我的账号", "账号信息"]` |
+| [AliceUID/nikke_login/commands.py](AliceUID/nikke_login/commands.py) | `nikke_cookie_cmd` | on_command | `["导入cookie", "导入Cookie", "绑定cookie"]` |
+| [AliceUID/nikke_login/commands.py](AliceUID/nikke_login/commands.py) | `nikke_public_cmd` | on_fullmatch | `["公开", "公开账号"]` |
+| [AliceUID/nikke_login/commands.py](AliceUID/nikke_login/commands.py) | `nikke_private_cmd` | on_fullmatch | `["隐藏", "隐藏账号"]` |
+| [AliceUID/nikke_login/commands.py](AliceUID/nikke_login/commands.py) | `nikke_list_cmd` | on_fullmatch | `["账号列表", "绑定列表"]` |
+| [AliceUID/nikke_permissions/commands.py](AliceUID/nikke_permissions/commands.py) | `group_query` | on_command | `群查询` |
+| [AliceUID/nikke_permissions/commands.py](AliceUID/nikke_permissions/commands.py) | `group_mode` | on_command | `群策略` |
+| [AliceUID/nikke_profile/commands.py](AliceUID/nikke_profile/commands.py) | `nikke_profile_cmd` | on_fullmatch | `["信息", "名片", "个人资料"]` |
+| [AliceUID/nikke_profile/commands.py](AliceUID/nikke_profile/commands.py) | `nikke_profile_refresh_cmd` | on_fullmatch | `["刷新信息", "刷新名片"]` |
+| [AliceUID/nikke_resource/commands.py](AliceUID/nikke_resource/commands.py) | `update_resources` | on_fullmatch | `更新资源` |
+| [AliceUID/nikke_roster/commands.py](AliceUID/nikke_roster/commands.py) | `card` | on_fullmatch | `["卡片", "阵容卡片", "妮姬卡片"]` |
+| [AliceUID/nikke_roster/commands.py](AliceUID/nikke_roster/commands.py) | `refresh` | on_fullmatch | `["更新面板", "刷新面板"]` |
+| [AliceUID/nikke_status/commands.py](AliceUID/nikke_status/commands.py) | `nikke_boss_health_cmd` | on_command | `会战血量` |
+| [AliceUID/nikke_status/commands.py](AliceUID/nikke_status/commands.py) | `nikke_resource_status_cmd` | on_command | `资源查询` |
+| [AliceUID/nikke_uid/commands.py](AliceUID/nikke_uid/commands.py) | `nikke_bind_uid_cmd` | on_command | `["绑定UID", "绑定uid"]` |
+| [AliceUID/nikke_uid/commands.py](AliceUID/nikke_uid/commands.py) | `nikke_my_uid_cmd` | on_command | `["我的UID", "我的uid"]` |
+| [AliceUID/nikke_uid/commands.py](AliceUID/nikke_uid/commands.py) | `nikke_clear_uid_cmd` | on_command | `["解绑UID", "解绑uid"]` |
+| [AliceUID/nikke_union/commands.py](AliceUID/nikke_union/commands.py) | `nikke_union_cmd` | on_command | `["出刀", "联盟突袭", "突袭"]` |
+
+与真实Core端点或社区响应发生变化时，优先补充构造回归和明确的字段校验，再更新映射；不要用旧图片、静态图库或猜测值填补缺失的私人数据。
+
+## 16. 1.0.04新增接口与运行约定
+
+- community/schedule.py：valid_time只接受24小时制HH:MM；默认08:33。ValidatedStringConfig在成功保存后调用runtime.apply_sign_schedule，更新原aliceuid-community任务，不新增重复job；修改时间不清空账本。
+- community/cycle.py：周期起点08:00；自动执行时刻与周期边界分开。每天cron按Asia/Shanghai，长批次跨周期终止。在途响应跨界（成功/异常）通过carry_boundary_guard保守记录新周期请求与写入约束，不直接生成签到确认。
+- community/store.py：新增signin_confirmations（account/day/owner/确认时间/来源）和group_seen（群摘要/聊天用户ID/最近观察时间）。last_day仅表示整轮处理；群查询只有独立确认记录才显示已签到。
+- 旧23:00周期迁移没有逐请求时间戳，因此将可能重叠的旧预算与动作保守带入第一个08:00周期，标记legacy，不制造签到确认。服务可做任务状态检查，但不重复结果不确定的写入。
+- community/report.py与runtime.report_group：Core Bot主在当前群查询，按bot_id与群作用域筛选AliceBind和近期观察记录，40条分页；不调用社区、不过问成员Cookie。没有Core统一实时群名单时明示范围，不能把绑定群记录称为全群实时成员。
+- nikke_user/auth_state.py：known_invalid/mark_invalid/unavailable_message统一失效状态。load_client在解密与缓存命中前检查明确过期或已知无效；客户端只对401/300001写失效标记，403/429不写。标记按owner与cookie_enc摘要隔离，重登新revision不继承。
+- 新配置键AliceUID_CommunitySignTime；新聊天命令nk签到查询[页码]。原nk签到改为精确匹配，避免与新查询命令重叠。
+- 当前源码工作区的Python解释器、45个依赖包和环境验证入口位于CodexZone/DevelopmentEnvironment。读取environment.json中的相对路径与-I -B参数，具体说明见该目录README；不再依赖GptZone或宿主site-packages。
+- 共享数据根现在只有AliceUID主树，新增3个公开元数据JSON；1207张PNG和27项固定装饰图标已核验。旧NikkeUID/private_preview仅归档，用workspace_paths中的legacy_private_preview_root继续做发布隐私检查，不合并到运行账号数据。
+
+1.0.03的1188通过数字是历史功能基线；1.0.04的测试和资源迁移是上一版基线；当前1.0.05以本轮handoff验证记录为准。
+
+## 17. 1.0.05接口与前缀映射
+
+- `nikke_commands.resolve_prefixes(enabled,custom,disable)`返回有序前缀元组：关闭自定义为nk；双前缀首项始终nk；独占自定义首项为custom。`configure(config)`在启动时设置一次，`command_prefix()`用于代码里的指令示例。配置保存不热改快照，须完整重启。
+- `bind_triggers(plugin)`在全部SV/权限包装后执行，以原type/keyword/func/block/to_me创建新Core Trigger，替换TL并调用bump_registry_version；不修改权限、命令参数或回调。默认模式沿用Core原注册，双/独占自定义模式由AliceUID三配置控制前缀。
+- 用户可见Python字面量使用command_prefix插值；不会对整条发送内容替换nk，因此昵称、角色名、网址、Cookie等变量保持原值。模板的command_prefix上下文由apply_theme提供；登录页非Jinja，通过受限{{COMMAND_PREFIX}}占位符提供。
+- 前缀限制1～12位ASCII字母/数字、CJK、_或-，区分大小写；拒绝空白、正则、HTML和引号。两开关键严格布尔。请求/换号范围由pacing.parse_range校验，重启生效；每日时刻仍为1.0.04的保存后重排。
+- 原CommunityIntervalSeconds从配置索引移除。ValidatedStringConfig在Core对账之前读取旧值；仅新键缺失且原自定义整数10～300、非默认15时，迁为同值范围。原15采用新默认5-15；新键已存在时由Core保留其值。账本迁移仅增加pacing列，不清空accounts/budgets/actions。
+- 新回归为test_v105_community.py与test_v105_prefix.py；前者用固定时钟/随机源和MockTransport验证间隔、响应后换号、重启/长租约、部分成功和配置迁移；后者用固定Core真实Trigger验证所有注册关键字/别名及权限包装。帮助预览工具preview_v105_help.py涵盖14组双引擎情况，离线禁止网络。

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><title>AliceUID 指挥官指南</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:0;width:1000px}.help-page{padding:24px;width:1000px;background:{{ theme.page }};color:{{ theme.ink }};font-family:"Microsoft YaHei","Noto Sans CJK SC","MiSans",sans-serif;font-size:15px}
+.hero{position:relative;height:228px;overflow:hidden;border-radius:24px;background:linear-gradient(120deg,#171b2b,#33223d);border:1px solid {{ theme.line }};padding:30px 34px}
+.hero-art{position:absolute;right:0;top:-38px;width:540px;height:340px;object-fit:cover;object-position:44% 35%;opacity:.52}
+.hero-shade{position:absolute;left:0;top:0;width:100%;height:100%;background:linear-gradient(90deg,#181c2c 0%,rgba(24,28,44,.95) 40%,rgba(24,28,44,.1) 100%)}
+.hero-content{position:relative}.eyebrow{font-size:12px;letter-spacing:4px;color:{{ theme.accent }};font-weight:700}.hero h1{font-size:39px;margin:10px 0 7px;letter-spacing:1px}.hero p{font-size:16px;color:{{ theme.muted }};margin:0 0 22px}.role{display:inline-block;padding:6px 12px;border-radius:8px;background:{{ theme.soft }};border:1px solid {{ theme.line }};color:{{ theme.accent }};font-size:12px}
+.label{color:{{ theme.accent }};letter-spacing:1px;font-size:13px;font-weight:700;margin:23px 0 12px}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.step{border-radius:15px;border:1px solid {{ theme.line }};background:{{ theme.glass }};padding:17px 18px}.step-number{font-size:12px;font-weight:700;color:{{ theme.accent }};letter-spacing:2px}.step-command{font-size:21px;font-weight:700;margin:6px 0}.step p{font-size:12px;color:{{ theme.muted }};line-height:1.6;margin:0}
+.regions{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0 7px}.region{font-size:12px;color:{{ theme.ink }};background:{{ theme.soft }};border:1px solid {{ theme.line }};padding:6px 10px;border-radius:8px}.region-hint{font-size:12px;color:{{ theme.muted }};margin-top:9px}
+.sections{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:23px}.section{background:linear-gradient(145deg,#1c2133,#151a2a);border:1px solid {{ theme.line }};border-radius:18px;padding:21px 23px}.section-header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px}.section h2{font-size:21px;margin:0}.tag{font-size:10px;padding:4px 8px;border-radius:6px;background:{{ theme.soft }};color:{{ theme.accent }};white-space:nowrap}.description{font-size:12px;color:{{ theme.muted }};line-height:1.6;margin:0 0 12px}.item{padding:11px 0;border-bottom:1px solid {{ theme.line }}}.item:last-child{border-bottom:none;padding-bottom:0}.command{font-size:15px;font-weight:700;color:{{ theme.ink }};line-height:1.5}.explain{font-size:12px;color:{{ theme.muted }};line-height:1.6;margin-top:3px}
+.notice{margin-top:18px;padding:16px 20px;border-radius:14px;background:{{ theme.glass }};border:1px solid {{ theme.line }}}.notice-title{font-size:14px;color:{{ theme.accent }};font-weight:700;margin-bottom:7px}.notice p{font-size:12px;color:{{ theme.muted }};line-height:1.75;margin:4px 0}.footer{display:flex;justify-content:space-between;gap:20px;color:{{ theme.muted }};font-size:11px;line-height:1.7;margin:17px 2px 0}.footer b{color:{{ theme.ink }}}
+.hero h1,.step-command,.section h2{color:{{ theme.ink }}}
+
+/* Shared renderer-safe glass palette; all tokens are resolved by Jinja. */
+body{background:{{ theme.page }};color:{{ theme.ink }}}
+.help-page{background-color:{{ theme.page }};background-image:url('{{ texture_uri }}');color:{{ theme.ink }}}.hero,.section{background:{{ theme.glass }};border:1px solid {{ theme.line }};box-shadow:0 8px 22px rgba(10,24,43,.08)}.hero{height:214px}.hero-art,.hero-shade{display:none}.step-command,.section h2,.hero h1{color:{{ theme.ink }}}
+.help-page{background-image:url('{{ frost_scene_uri }}');background-size:100% auto;background-position:center top;background-repeat:no-repeat}.hero,.section,.step,.notice{border-radius:20px;background:{{ theme.surface_glass }};background-image:none;border:1px solid {{ theme.line }};box-shadow:0 8px 24px #0000001a,inset 0 1px rgba(255,255,255,.14)}.hero{padding:24px 32px}.steps{gap:16px}.sections{gap:16px}.section{padding:24px}.step{padding:16px}.notice{padding:16px 24px}.region,.role,.tag{border-radius:8px}
+{% include 'glass_finish.css' %}
+/* Intrinsic-height region chips: one translucent surface and centered text in both renderers. */
+.regions{justify-content:center;align-items:center}
+.region{display:flex;align-items:center;justify-content:center;align-self:center;height:auto;min-height:0;padding:6px 12px;line-height:18px;text-align:center;background:{{'rgba(20,32,50,.50)' if card_theme=='dark' else 'rgba(248,251,255,.50)'}};box-shadow:0 3px 10px rgba(8,18,32,.08),inset 0 1px rgba(255,255,255,.12)}
+.region>span{display:block;line-height:18px;white-space:nowrap}
+.help-page .commander-banner,.help-page .label,.help-page .region-hint{border-radius:14px;border:1px solid {{ theme.line }};background:{{ theme.surface_glass }};box-shadow:0 4px 14px rgba(8,18,32,.10),inset 0 1px rgba(255,255,255,.14);padding:11px 16px;line-height:1.65;color:{{ theme.ink }}}
+.help-page .label{margin:16px 0 12px;color:{{ theme.accent }}}
+.help-page .region-hint{margin-top:12px;margin-bottom:0}
+.help-page .command,.help-page .step-command{overflow-wrap:anywhere}
+</style></head><body><div class="help-page">
+<div class="hero">{% if hero_art %}<img class="hero-art" src="{{ hero_art }}" alt="NIKKE"><div class="hero-shade"></div>{% endif %}<div class="hero-content"><div class="eyebrow">AliceUID · COMMAND GUIDE</div><h1>指挥官，从这里开始</h1><p>绑定你的区服，查看个人资料与展示队伍。</p><span class="role">{{ role }}指令 · 当前可用功能</span></div></div>
+{% include 'commander.html' %}
+<div class="label">QUICK START / 三步开始</div><div class="steps">{% for step in steps %}<div class="step"><div class="step-number">{{ step.number }}</div><div class="step-command">{{ step.command }}</div><p>{{ step.description }}</p></div>{% endfor %}</div>
+<div class="regions">{% for command in regions %}<span class="region"><span>{{ command }}</span></span>{% endfor %}</div><div class="region-hint">「登录」也可写成「登陆」，含区服登录和重新登录。选择角色所在区服，不会自动换区。</div>
+<div class="sections">{% for section in sections %}<div class="section"><div class="section-header"><h2>{{ section.title }}</h2><span class="tag">{{ section.tag }}</span></div><p class="description">{{ section.description }}</p>{% for item in section['items'] %}<div class="item"><div class="command">{{ item.command }}</div><div class="explain">{{ item.description }}</div></div>{% endfor %}</div>{% endfor %}</div>
+<div class="notice"><div class="notice-title">使用提醒</div><p>{{ footer }}</p><p>{{ cookie_hint }}</p><p>{{ limit_hint }}</p><p>{{ database_hint }}</p></div><div class="footer"><span><b>{{ command_prefix }}帮助 文字</b> · 获取可复制的文字版</span><span>AliceUID · 显示范围随你的权限变化</span></div>
+{% include 'brand_credit.html' %}</div></body></html>

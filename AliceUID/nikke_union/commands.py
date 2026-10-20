@@ -1,0 +1,109 @@
+"""Single Union Raid command boundary; all reads use the invoking sender."""
+from __future__ import annotations
+from ..nikke_commands import command_prefix
+
+from gsuid_core.logger import logger
+from gsuid_core.segment import MessageSegment
+from gsuid_core.sv import SV
+
+from ..nikke_api.client import NikkeApiError, NikkeLoginRequired
+from ..nikke_config.config import MAIN_PATH
+from ..nikke_permissions.runtime import get_policy
+from ..nikke_user.service import load_client
+from ..nikke_user.auth_state import RELOGIN, is_login_error, unavailable_message
+from ..nikke_user.service import binding_lock
+from ..nikke_user.models import AliceBind
+from .builder import UnionDataError
+from .service import UnionCooldown, union_queries
+
+sv_union = SV('妮姬联盟突袭', pm=6, priority=3)
+_before_send = None
+USAGE = f'用法：{command_prefix()}出刀 / {command_prefix()}出刀速查 Day2 / {command_prefix()}出刀 Day1 / {command_prefix()}出刀详情（本人三队） / {command_prefix()}出刀缺刀 / {command_prefix()}出刀尾刀。'
+
+
+def set_before_send(callback):
+    """Parent hook: async callback(bot, event) -> bool, rechecked before sending."""
+    global _before_send
+    _before_send = callback
+
+
+async def _send(bot, ev, message):
+    if _before_send is not None and not await _before_send(bot, ev):
+        return
+    await bot.send(message, at_sender=True)
+
+
+def parse_arguments(text):
+    text = ''.join(str(text or '').split())
+    view, day, refresh = 'quick', None, False
+    if text.endswith('刷新'):
+        text, refresh = text[:-2], True
+    for prefix, mode in (('速查', 'quick'), ('详情', 'detail'), ('详细', 'detail'), ('缺刀', 'missing'), ('尾刀', 'tails')):
+        if text.startswith(prefix):
+            text, view = text[len(prefix):], mode
+            break
+    if text.lower() in ('day1', '1'):
+        day = 0
+    elif text.lower() in ('day2', '2'):
+        day = 1
+    elif text not in ('', '全部'):
+        raise UnionDataError(USAGE)
+    if view == 'detail' and day == 0:
+        raise UnionDataError('Day1仅看Boss通关，不统计个人出刀。')
+    if view in ('detail', 'missing', 'tails'):
+        day = 1
+    return view, day, refresh
+
+
+@sv_union.on_command(('出刀', '联盟突袭', '突袭'))
+async def nikke_union_cmd(bot, ev):
+    client = None
+    bind = None
+    result = None
+    try:
+        view, day, refresh = parse_arguments(ev.text)
+        if not await get_policy().query_allowed(ev.group_id):
+            result = '本群未开放妮姬查询，请联系群管理员或 Bot 主。'
+        else:
+            client, bind = await load_client(ev.user_id, ev.bot_id)
+            if client is None:
+                result = unavailable_message(bind)
+            else:
+                static, character_map = None, []
+                if view == 'detail':
+                    from ..nikke_resource.service import get_resources
+                    resources = get_resources()
+                    static = resources.load_static()
+                    # Read only the existing database resource table. Never
+                    # interpret tid ordering / suffixes as a character code.
+                    character_map = resources._load_rows('character_id_map.json')
+                context = await union_queries.query(client, bind, view=view, day=day, refresh=refresh,
+                                                    static=static, character_map=character_map)
+                from .draw import draw_union
+                result = MessageSegment.image(await draw_union(context))
+    except (UnionDataError, UnionCooldown) as exc:
+        result = str(exc)
+    except NikkeLoginRequired:
+        result = RELOGIN
+    except NikkeApiError as exc:
+        logger.warning(f'[AliceUID] union stage=query error_type={type(exc).__name__} code={exc.code}')
+        result = RELOGIN if is_login_error(exc) else f'联盟查询失败，请稍后重试（{exc.code}）。'
+    except Exception as exc:
+        logger.error(f'[AliceUID] union stage=query error_type={type(exc).__name__}')
+        result = '联盟查询失败，请稍后重试并请管理员检查日志。'
+    finally:
+        if client is not None:
+            try:
+                await client.close()
+            except Exception as exc:
+                # Closure errors must not replace a successfully rendered result
+                # or send an extra reply. Never log exception text / credentials.
+                logger.error(f'[AliceUID] union stage=close error_type={type(exc).__name__}')
+    if result is not None:
+        if bind is None or client is None:
+            await _send(bot, ev, result)
+        else:
+            async with binding_lock(ev.user_id, ev.bot_id):
+                current=await AliceBind.get_bind(ev.user_id,ev.bot_id)
+                if current is not None and union_queries.cache_key(current)==union_queries.cache_key(bind):
+                    await _send(bot,ev,result)

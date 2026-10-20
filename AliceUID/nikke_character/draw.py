@@ -1,0 +1,223 @@
+"""Character card HTML and resource preparation; rendering has no player writes."""
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from ..nikke_render.theme import apply_theme, get_character_style
+
+CARD_WIDTH = 1000
+_ENV = Environment(loader=FileSystemLoader(str(Path(__file__).resolve().parent.parent / 'templates')),
+                   autoescape=select_autoescape(['html']))
+
+_LABELS = {
+    'Attacker': '火力型', 'Defender': '防御型', 'Supporter': '辅助型',
+    'Fire': '燃烧', 'Water': '水冷', 'Wind': '风压', 'Electric': '电击', 'Iron': '铁甲',
+    'Electronic': '电击', 'Electricity': '电击', 'Missilis': '米西利斯', 'Elysion': '极乐净土',
+    'Tetra': '泰特拉', 'Pilgrim': '朝圣者', 'Abnormal': '反常',
+    'MISSILIS': '米西利斯', 'ELYSION': '极乐净土', 'TETRA': '泰特拉',
+    'PILGRIM': '朝圣者', 'ABNORMAL': '反常',
+}
+
+
+def aggregate_options(gear: list[dict]) -> dict:
+    """Sum exact raw values by function and unit; count each line's tier once."""
+    groups = {}
+    total_level = 0
+    known_levels = 0
+    unknown_lines = 0
+    unparsed_values = 0
+    for item in gear:
+        if item.get('tier') != 10:
+            continue
+        for line in item.get('lines', []):
+            if line.get('status') == 'empty':
+                continue
+            level = line.get('level')
+            if isinstance(level, int) and not isinstance(level, bool) and 1 <= level <= 15:
+                total_level += level
+                known_levels += 1
+            else:
+                unknown_lines += 1
+            if not line.get('functions'):
+                unparsed_values += 1
+            for fn in line.get('functions', []):
+                key, unit = fn.get('key'), fn.get('value_type')
+                group = groups.setdefault((key, unit), {'name': fn.get('name') or key or '未知词条',
+                                                        'sum': Decimal(0), 'known': 0, 'unknown': 0})
+                try:
+                    from .builder import overload_display_number
+                    value = overload_display_number(key, fn.get('raw_value'), unit)
+                    if value is None:
+                        raise InvalidOperation
+                    if not value.is_finite() or key is None or unit is None:
+                        raise InvalidOperation
+                except (InvalidOperation, ValueError, TypeError):
+                    group['unknown'] += 1
+                else:
+                    group['sum'] += value
+                    group['known'] += 1
+    rows, entries = [], []
+    for (key, unit), group in groups.items():
+        value = group['sum']
+        text = f'{value / 100:.2f}%' if unit == 'Percent' else format(value.normalize(), 'f')
+        if not group['known']:
+            text = '未知'
+        elif group['unknown']:
+            text += ' + 未知'
+        rows.append({'name': group['name'], 'value': text})
+        entries.append(dict(rows[-1], key=key))
+    if unparsed_values:
+        rows.append({'name': f'未解析词条（{unparsed_values}条）', 'value': '未知'})
+        entries.append(dict(rows[-1], key='unknown'))
+    return {'rows': rows, 'level': str(total_level) if known_levels else '未知',
+            'level_partial': bool(unknown_lines), 'known_lines': known_levels, 'unknown_lines': unknown_lines,
+            'entries': entries}
+
+
+SUMMARY_ORDER = ('StatAtk', 'IncElementDmg', 'StatAmmoLoad', 'StatChargeTime', 'StatCritical', 'StatCriticalDamage')
+SUMMARY_NAMES = dict(zip(SUMMARY_ORDER, ('攻击', '优越', '装弹', '蓄速', '暴击', '暴伤')),
+                     StatChargeDamage='蓄伤', StatDef='防御', StatHitRate='命中',
+                     StatAccuracyCircle='命中', OnHitRatio='命中', StatAmmo='装弹')
+
+
+def summary_display(aggregate):
+    """Limit presentation only; retain every raw aggregate row and its units."""
+    order = {key: index for index, key in enumerate(SUMMARY_ORDER)}
+    entries = sorted(aggregate['entries'], key=lambda row: order.get(row['key'], 99))
+    compact = len(entries) > 3
+    return [dict(row, name=SUMMARY_NAMES.get(row['key'], row['name']) if compact else row['name'])
+            for row in entries[:6]]
+
+
+def portrait_placement(source, kind, width, height):
+    """Read source size without changing cached art; contain the complete portrait."""
+    if kind != 'portraits':
+        return ''
+    try:
+        import base64, io
+        from PIL import Image
+        if not source.startswith('data:image/') or ';base64,' not in source:
+            return ''
+        with Image.open(io.BytesIO(base64.b64decode(source.split(';base64,', 1)[1], validate=True))) as image:
+            if image.width*image.height > 8_000_000:
+                return ''
+            bounds = image.convert('RGBA').getchannel('A').getbbox()
+            if not bounds:
+                return ''
+            # Exact source aspect, without additional headroom or body crop.
+            scale = min(width/image.width, height/image.height)
+            w, h = image.width*scale, image.height*scale
+            left = (width-w)/2
+            top = (height-h)/2
+            return f'width:{w:.2f}px;height:{h:.2f}px;left:{left:.2f}px;top:{top:.2f}px'
+    except (ValueError, OSError, TypeError):
+        return ''
+
+
+def _equipment_info(context: dict, prepared_key: str, raw_key: str, label: str) -> dict:
+    prepared = context.get(prepared_key) or {}
+    raw = context.get(raw_key) or {}
+    tid = raw.get('tid')
+    name = prepared.get('name') or ('未装备' if tid == 0 else f'{label}信息未知')
+    level = prepared.get('display_level')
+    if level is None:
+        level = '—' if tid == 0 else '等级未知' if prepared else f"Lv.{raw['lv']}" if raw.get('lv') is not None else '等级未知'
+    elif isinstance(level, (int, float)):
+        level = f'Lv.{level}'
+    return dict(prepared, name=name, display_level=level,
+                notice=prepared.get('notice') or ('标识未知' if tid is None else f'ID {tid}' if tid else ''),
+                rarity=prepared.get('rarity') or '')
+
+
+def render_character_html(context: dict, style: str | None = None, theme: str | None = None) -> str:
+    from .builder import normalize_overload_context
+    context = normalize_overload_context(context)
+    from ..nikke_render.layouts import resolve_character_layout
+    layout = resolve_character_layout(style if style else get_character_style())
+    style = layout.key
+    context = apply_theme(context, theme, with_wallpaper=False)
+    context.setdefault('generated_at', datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M'))
+    context['core_text'] = '未知' if context.get('core') is None else 'MAX' if context['core'] >= 7 else f"+{context['core']}"
+    context['card_width'] = CARD_WIDTH
+    context.setdefault('bond', None)
+    import base64
+    bond_path=Path(__file__).resolve().parents[2]/'assets/status/bond-heart.png'
+    context['bond_icon_url']='data:image/png;base64,'+base64.b64encode(bond_path.read_bytes()).decode('ascii')
+    for key in ('char_class', 'element', 'corporation'):
+        value = context.get(key)
+        context[key + '_label'] = _LABELS.get(value, value or '未知')
+    context['burst_label'] = {1: 'Ⅰ', 2: 'Ⅱ', 3: 'Ⅲ', '1': 'Ⅰ', '2': 'Ⅱ', '3': 'Ⅲ'}.get(context.get('burst'), str(context.get('burst') or '未知'))
+    context['aggregate'] = aggregate_options(context.get('gear', []))
+    context['aggregate']['display_rows'] = summary_display(context['aggregate'])
+    context['aggregate']['columns'] = 2 if len(context['aggregate']['display_rows']) > 3 else 1
+    context['aggregate']['hidden_count'] = max(0, len(context['aggregate']['rows'])-6)
+    context['collection_display'] = _equipment_info(context, 'collection', 'favorite', '收藏品')
+    context['cube_display'] = _equipment_info(context, 'cube_info', 'cube', '魔方')
+    context['commander_name'] = context.get('commander_name') or context.get('nickname') or '昵称未知'
+    context['commander_uid'] = context.get('commander_uid') or context.get('uid') or '未知'
+    context['commander_region'] = context.get('commander_region') or context.get('area_label') or '区服未知'
+    if style == 'compact':
+        import unicodedata
+        title_em=sum(1 if unicodedata.east_asian_width(ch) in ('W','F') else .6 for ch in str(context.get('name') or ''))
+        context['compact_name_font_size']=min(27,max(16,int(360/max(1,title_em))))
+        from ..nikke_render.card_background import compact_geometry, compact_backdrop
+        from ..nikke_resource.cache import PLACEHOLDER
+        geometry = compact_geometry(len(context['aggregate']['rows']))
+        context.update(compact_backdrop(context['card_theme'], geometry,context['glass_strength']))
+        context['card_width'] = geometry.width
+        use_current_icon = (context.get('portrait_fallback', False)
+                            and not context.get('character_icon_fallback', False)
+                            and not context.get('character_icon_missing', False)
+                            and context.get('character_icon_url'))
+        if context.get('portrait_url') and not context.get('portrait_missing', False) and not use_current_icon:
+            context['compact_portrait_url'] = context['portrait_url']
+            context['compact_image_kind'] = 'portraits'
+        else:
+            context['compact_portrait_url'] = context.get('character_icon_url') or PLACEHOLDER
+            context['compact_image_kind'] = 'icons'
+        context['portrait_style'] = portrait_placement(context['compact_portrait_url'], context['compact_image_kind'], 318, geometry.portrait_height-2)
+    template = layout.template
+    from ..nikke_render.fonts import apply_font_html
+    return apply_font_html(_ENV.get_template(template).render(**context), embed=False)
+
+
+_render_locks = {}
+
+
+async def draw_character(context: dict, style: str | None = None, theme: str | None = None) -> bytes:
+    """Reuse the exact bound-account PNG before theme selection or rendering."""
+    import asyncio, hashlib, json
+    from ..nikke_render.glass_settings import capture_glass
+    context=capture_glass(context)
+    identity=context.get('_cache_identity')
+    if not identity:
+        return await _draw_uncached(context,style,theme)
+    from .cache import get_panel_cache
+    from ..nikke_render.theme import get_card_theme_mode
+    from ..nikke_render.fonts import resolve_font
+    from ..nikke_render.language import get_card_language
+    stable={key:value for key,value in context.items() if key not in ('generated_at',)}
+    stable.update(render_version='alice-v100-glass-footer-2',
+                  theme=theme or get_card_theme_mode(),style=style or get_character_style(),
+                  language=get_card_language(),font=resolve_font().fingerprint)
+    digest=hashlib.sha256(json.dumps(stable,ensure_ascii=False,sort_keys=True,default=str).encode()).hexdigest()
+    code=context['name_code']
+    store=get_panel_cache()
+    async with _render_locks.setdefault((identity,code),asyncio.Lock()):
+        cached=store.image(identity,code,digest)
+        if cached is not None: return cached
+        image=await _draw_uncached(context,style,theme)
+        store.save_image(identity,code,digest,image)
+        return image
+
+
+async def _draw_uncached(context: dict, style: str | None = None, theme: str | None = None) -> bytes:
+    from ..nikke_resource.service import get_resources
+    from ..nikke_render.render import render_html
+    prepared = await get_resources().prepare_character(context)
+    from ..nikke_render.layouts import resolve_character_layout
+    layout = resolve_character_layout(style if style else get_character_style())
+    return await render_html(render_character_html(prepared, layout.key, theme), root_width=layout.width)

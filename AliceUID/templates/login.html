@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+<title>NIKKE 账号绑定</title>
+<style>
+  :root{
+    --ink:#1f2430;--muted:rgba(255,255,255,.62);
+    --pink:#e8467c;--pink-dark:#d63a6e;
+    --ok:#2f9e73;--err:#cf4b45;
+  }
+  *{box-sizing:border-box}
+  html,body{min-height:100%}
+  body{
+    margin:0;color:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:#0b0d16 url('/nikke/assets/ALICEUID_Login_liberalio_.jpg') center/cover no-repeat fixed;
+    display:flex;align-items:center;justify-content:flex-end;
+    padding:32px 7vw;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;
+    background:linear-gradient(90deg,rgba(8,9,15,.10) 0%,rgba(8,9,15,.32) 42%,rgba(8,9,15,.78) 100%);
+  }
+  .card{
+    position:relative;z-index:1;width:min(400px,100%);
+    background:rgba(12,14,24,.80);
+    border:1px solid rgba(255,255,255,.22);
+    border-radius:20px;
+    box-shadow:0 24px 70px rgba(0,0,0,.55);
+    backdrop-filter:blur(18px) saturate(120%);
+    -webkit-backdrop-filter:blur(18px) saturate(120%);
+    padding:28px 28px 24px;
+    animation:fadeUp .55s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .brand{display:flex;align-items:center;gap:14px;margin-bottom:24px}
+  .brand img{
+    width:56px;height:56px;border-radius:14px;object-fit:cover;
+    border:1px solid rgba(255,255,255,.35);
+    box-shadow:0 6px 18px rgba(0,0,0,.35);
+  }
+  .brand h1{margin:0;font-size:19px;font-weight:600;letter-spacing:.01em}
+  .brand p{margin:5px 0 0;font-size:12px;color:var(--muted)}
+  label{display:block;font-size:12px;color:#fff;font-weight:500;margin:14px 0 7px}
+  input[type=email],input[type=password],input[type=text]{
+    width:100%;height:46px;border:1px solid rgba(255,255,255,.25);
+    border-radius:10px;padding:0 12px;font-size:15px;color:var(--ink);
+    background:rgba(255,255,255,.92);outline:none;transition:.18s;
+  }
+  input[type=email]:focus,input[type=password]:focus,input[type=text]:focus{
+    border-color:rgba(232,70,124,.85);
+    box-shadow:0 0 0 3px rgba(232,70,124,.18);
+    background:#fff;
+  }
+  .btn{
+    width:100%;height:46px;border:0;border-radius:10px;margin-top:20px;
+    background:var(--pink);color:#fff;font-size:15px;font-weight:600;
+    cursor:pointer;transition:.18s;
+  }
+  .btn:hover{background:var(--pink-dark);transform:translateY(-1px)}
+  .btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+  .btn.ghost{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.28);color:#fff}
+  .btn.ghost:hover{background:rgba(255,255,255,.14)}
+  .modes{display:flex;gap:8px;margin-top:12px}.modes button{margin-top:0;font-size:13px}.modes [aria-selected=true]{background:var(--pink)}
+  [hidden]{display:none!important}
+  .hint{font-size:11.5px;color:rgba(255,255,255,.66);line-height:1.7;margin-top:16px}
+  .status{display:none;margin-top:16px;padding:11px 13px;border-radius:10px;font-size:12.5px;line-height:1.6}
+  .status.show{display:block}
+  .status.info{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);color:#e9ebf4}
+  .status.err{background:rgba(207,75,69,.18);border:1px solid rgba(207,75,69,.38);color:#ffb8b2}
+  .status.ok{background:rgba(47,158,115,.18);border:1px solid rgba(47,158,115,.38);color:#a8e6cb}
+  .captcha{display:none;margin-top:18px;border-top:1px solid rgba(255,255,255,.12);padding-top:16px}
+  .captcha.show{display:block}
+  .captcha-title{font-size:13px;font-weight:600;margin-bottom:10px}
+  .cap-stage{position:relative;width:100%;max-width:360px;margin:0 auto;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,.18);background:#111;touch-action:none;user-select:none}
+  .cap-stage img{display:block;width:100%;height:100%;object-fit:fill;pointer-events:none}
+  #piece-cover{position:absolute;display:none;background:rgba(8,10,18,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:6px;pointer-events:none;z-index:1}
+  #piece-ghost{position:absolute;display:none;background-repeat:no-repeat;border:1.5px solid rgba(255,255,255,.9);border-radius:6px;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 6px 18px rgba(0,0,0,.35);cursor:grab;touch-action:none;z-index:3}
+  #piece-ghost:active{cursor:grabbing}
+  #hole-guide{position:absolute;display:none;border:2px dashed rgba(232,70,124,.95);border-radius:6px;pointer-events:none;z-index:2}
+  #align-line{position:absolute;display:none;top:0;bottom:0;border-left:2px dashed #ed6495;filter:drop-shadow(0 0 1px #fff);pointer-events:none;z-index:4}
+  .cap-tip{font-size:11px;color:rgba(255,255,255,.55);text-align:center;margin-top:8px;line-height:1.6}
+  .cap-stage.aligned #piece-ghost{border-color:#7fe0b8;box-shadow:0 0 0 2px rgba(127,224,184,.35)}
+  .cap-stage.aligned #hole-guide{border-color:#7fe0b8}
+  .slider-wrap{margin-top:14px}
+  input[type=range]{width:100%;accent-color:var(--pink)}
+  .range-meta{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-top:5px}
+  .success{display:none;text-align:center;padding:8px 0 2px}
+  .success.show{display:block}
+  dialog{color:#fff;background:#121623;border:1px solid #485068;border-radius:16px;padding:28px;max-width:min(400px,90vw);text-align:center}
+  dialog::backdrop{background:rgba(0,0,0,.65)}
+  .official{display:flex;align-items:center;justify-content:center;text-decoration:none}
+  .success .big{font-size:30px;margin-bottom:8px;color:#7fe0b8}
+  .success h2{font-size:18px;margin:0 0 6px;font-weight:600}
+  .success p{font-size:12.5px;color:var(--muted);margin:0;line-height:1.7}
+  .foot{margin-top:18px;text-align:center;font-size:10.5px;color:rgba(255,255,255,.45);line-height:1.6}
+  @media (max-width:760px){
+    body{justify-content:center;padding:20px 16px;background-position:30% center}
+    body::before{background:rgba(8,9,15,.55)}
+    .card{background:rgba(10,12,20,.92);padding:24px 22px 20px}
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="brand">
+    <img src="/nikke/assets/ICON.png?v=1.0.0" alt="AliceUID">
+    <div>
+      <h1>NIKKE 账号绑定</h1>
+      <p>Blablalink · 绑定区服：{{REGION}}</p>
+    </div>
+  </div>
+
+  <form id="form">
+    <p class="hint">本链接仅绑定 <b>{{REGION}}</b>。查不到该服角色时会提示失败，不会自动换区。选错请回聊天发送 {{COMMAND_PREFIX}}登录，重新选择区服。</p>
+    <div class="modes" role="tablist" aria-label="登录方式">
+      <button class="btn ghost" id="mode-password" type="button" role="tab" aria-selected="true">账号密码</button>
+      <button class="btn ghost" id="mode-email" type="button" role="tab" aria-selected="false">邮箱验证码</button>
+    </div>
+    <label for="account" id="account-label">Blablalink 邮箱</label>
+    <input id="account" type="email" autocomplete="username" placeholder="you@example.com" required>
+    <div id="password-fields">
+      <label for="password">账号密码</label>
+      <input id="password" type="password" autocomplete="current-password" placeholder="blablalink 密码" required>
+    </div>
+    <div id="email-fields" hidden>
+      <button class="btn ghost" id="send-code" type="button">发送邮箱验证码</button>
+      <label for="email-code">邮箱验证码</label>
+      <input id="email-code" type="text" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{5}" maxlength="5" placeholder="5位邮箱验证码" disabled>
+      <p class="hint">点击发送后才会请求邮件，可能需先完成滑块。官方会自动注册未注册邮箱，请确认使用已有游戏账号邮箱。验证码最多等待4分钟，过期后需手动重新发送。</p>
+    </div>
+    <button class="btn" id="submit" type="submit" disabled>验证并绑定</button>
+    <button class="btn ghost" id="cancel-login" type="button" hidden>取消本次登录 / 修改邮箱</button>
+  </form>
+
+  <div class="status" id="status"></div>
+
+  <div class="captcha" id="captcha">
+    <div class="captcha-title" id="captcha-title">拖动拼图块完成验证</div>
+    <div class="cap-stage" id="cap-stage">
+      <img id="captcha-img" alt="验证码">
+      <div id="piece-cover"></div>
+      <div id="piece-ghost"></div>
+      <div id="hole-guide"></div>
+      <div id="align-line"></div>
+    </div>
+    <div class="cap-tip" id="cap-tip">按住图里的拼图块左右拖动；下方的滑条可以微调。</div>
+    <div class="slider-wrap">
+      <input id="dx" type="range" min="0" max="300" value="0" step="1">
+      <div class="range-meta"><span>向左</span><span id="dx-label">0 px</span><span>向右</span></div>
+      <button class="btn ghost" id="captcha-submit" type="button">提交验证</button>
+      <button class="btn ghost" id="captcha-refresh" type="button">刷新验证码</button>
+    </div>
+  </div>
+
+  <div class="success" id="success">
+    <div class="big">✓</div>
+    <h2 id="success-name">绑定成功</h2>
+    <p id="success-meta"></p>
+    <p id="success-expiry"></p>
+    <p style="margin-top:10px">回到聊天窗口，发送 <b>{{COMMAND_PREFIX}}我的账号</b> 查看绑定。</p>
+  </div>
+
+  <div class="hint">
+    密码和邮箱验证码只在本次登录内存中使用，用后清除，不会写入数据库。<br>
+    链接从生成起 {{TTL}} 分钟内有效，绑定完成后不能重复使用。Cookie 会加密保存，用于后续查询。
+  </div>
+  <div class="foot">AliceUID · 仅用于查询你自己的账号数据</div>
+</div>
+
+<dialog id="success-dialog" aria-labelledby="dialog-title">
+  <h2 id="dialog-title">绑定成功</h2>
+  <p id="dialog-meta"></p>
+  <p id="dialog-expiry"></p>
+  <p>已保存绑定。你可以留在本页查看结果，或回聊天发送 {{COMMAND_PREFIX}}我的账号。</p>
+  <button class="btn" id="stay" type="button">留在本页</button>
+  <a class="btn ghost official" href="https://nikke-en.com/" target="_blank" rel="noopener noreferrer">打开 NIKKE 官网</a>
+</dialog>
+<script>
+const TOKEN = "{{TOKEN}}";
+const LOGIN_MODE = "{{MODE}}";
+const $ = (id) => document.getElementById(id);
+const statusBox = $("status");
+let successShown = false;
+let authMode = "password", generation = 0, viewEpoch = 0, activeStatus = "created", resendUntil = 0, changingMode = false, starting = false;
+function showMode(mode) {
+  authMode = mode;
+  $("password-fields").hidden = mode !== "password";
+  $("email-fields").hidden = mode !== "email";
+  $("password").disabled = mode !== "password";
+  $("password").required = mode === "password";
+  $("mode-email").setAttribute("aria-selected", String(mode === "email"));
+  $("mode-password").setAttribute("aria-selected", String(mode === "password"));
+  $("account-label").textContent = mode === "email" ? "Blablalink 邮箱" : "Blablalink 邮箱（账号）";
+  $("submit").textContent = mode === "email" ? "验证并绑定" : "登录并绑定";
+  $("submit").disabled = mode === "email";
+  $("account").readOnly = false;
+  $("email-code").disabled = true;
+}
+function clearSecrets() { $("password").value = ""; $("email-code").value = ""; }
+function updateCooldown() {
+  const remaining = Math.max(0, Math.ceil((resendUntil - Date.now()) / 1000));
+  const busy = ["sending_code", "logging_in", "captcha", "success", "expired"].includes(activeStatus);
+  $("send-code").disabled = LOGIN_MODE === "cookie" || changingMode || busy || remaining > 0;
+  $("send-code").textContent = activeStatus === "sending_code" ? "发送中…" : remaining ? `重新发送（${remaining}秒）` : "发送邮箱验证码";
+}
+setInterval(updateCooldown, 1000);
+async function switchMode(mode) {
+  if (LOGIN_MODE === "cookie" || successShown || changingMode || starting) return;
+  changingMode = true;
+  $("submit").disabled = $("cancel-login").disabled = true;
+  updateCooldown();
+  const epoch = ++viewEpoch;
+  if (timer) clearTimeout(timer);
+  clearSecrets(); capData = null;
+  $("captcha").classList.remove("show");
+  $("mode-email").disabled = $("mode-password").disabled = true;
+  try {
+    const r = await post("/nikke/api/mode", {token:TOKEN, mode, generation});
+    if (epoch !== viewEpoch) return;
+    if (!r.ok) { setStatus(r.msg || "切换失败，请刷新状态", "err"); return; }
+    generation = r.generation; activeStatus = "created";
+    showMode(r.mode); $("cancel-login").hidden = true;
+    setStatus("已取消上一操作。" + (r.mode === "email" ? "请输入邮箱并点击发送验证码。" : "请输入账号密码。"), "info");
+  } catch (_) { setStatus("切换失败，请检查连接后重试。", "err"); }
+  finally { changingMode = false; $("cancel-login").disabled = false; $("mode-email").disabled = $("mode-password").disabled = false; updateCooldown(); poll(); }
+}
+$("mode-email").addEventListener("click", () => switchMode("email"));
+$("mode-password").addEventListener("click", () => switchMode("password"));
+$("cancel-login").addEventListener("click", () => switchMode(authMode));
+window.addEventListener("pagehide", () => {
+  clearSecrets();
+  if (["sending_code", "awaiting_code", "logging_in", "captcha"].includes(activeStatus)) {
+    navigator.sendBeacon("/nikke/api/mode", new Blob([JSON.stringify({token:TOKEN, mode:"cancel", generation})], {type:"application/json"}));
+  }
+});
+$("send-code").addEventListener("click", async () => {
+  if (LOGIN_MODE === "cookie" || changingMode || starting || !$("account").reportValidity()) return;
+  starting = true; $("mode-email").disabled = $("mode-password").disabled = true;
+  const epoch = ++viewEpoch;
+  if (timer) clearTimeout(timer);
+  clearSecrets(); $("send-code").disabled = true;
+  activeStatus = "sending_code"; $("submit").disabled = true;
+  setStatus("正在发送…可能需要先完成滑块验证，请保持页面打开。", "info");
+  try {
+    const r = await post("/nikke/api/email/send", {token:TOKEN, account:$("account").value.trim(), generation});
+    if (epoch !== viewEpoch) return;
+    if (r.retry_after) resendUntil = Date.now() + r.retry_after * 1000;
+    if (!r.ok) { activeStatus = "failed"; setStatus(r.msg || "发送失败，请手动重试。", "err"); return; }
+    generation = r.generation; $("account").readOnly = true;
+    $("cancel-login").hidden = false;
+  } catch (_) { activeStatus = "failed"; setStatus("发送结果未确认，请等待冷却后手动重试，不会自动重发。", "err"); }
+  finally { starting = false; $("mode-email").disabled = $("mode-password").disabled = false; if (epoch === viewEpoch) { updateCooldown(); poll(); } }
+});
+$("stay").addEventListener("click", () => $("success-dialog").close());
+
+function setStatus(text, kind) {
+  statusBox.className = "status show " + (kind || "info");
+  statusBox.textContent = text;
+}
+
+async function post(url, body) {
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(body),
+  });
+  const result = await resp.json();
+  if (!resp.ok && !result.msg) throw new Error("请求失败");
+  return result;
+}
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (LOGIN_MODE === "cookie" || changingMode || starting) return;
+  starting = true; $("mode-email").disabled = $("mode-password").disabled = true;
+  const epoch = ++viewEpoch;
+  if (timer) clearTimeout(timer);
+  $("submit").disabled = true;
+  const body = {token:TOKEN, generation};
+  let url;
+  if (authMode === "email") {
+    url = "/nikke/api/email/verify"; body.code = $("email-code").value.trim();
+  } else {
+    url = "/nikke/api/login"; body.account = $("account").value.trim(); body.password = $("password").value;
+  }
+  setStatus("正在验证并登录…请保持页面打开。", "info");
+  try {
+    const r = await post(url, body);
+    if (epoch !== viewEpoch) return;
+    if (!r.ok) { $("submit").disabled = false; setStatus(r.msg || "登录启动失败", "err"); return; }
+    if (r.generation !== undefined) generation = r.generation;
+    activeStatus = "logging_in"; $("cancel-login").hidden = false;
+    $("account").readOnly = true; $("email-code").disabled = true;
+  } catch (_) { $("submit").disabled = false; setStatus("网络连接失败，请检查连接后重试。", "err"); }
+  finally { clearSecrets(); body.password = body.code = ""; starting = false; $("mode-email").disabled = $("mode-password").disabled = false; if (epoch === viewEpoch) poll(); }
+});
+
+let capData = null, capScale = 1, capDragging = false, capStartX = 0, capStartLeft = 0;
+
+function setGhostByDx(dx) {
+  const max = Number($("dx").max || 300);
+  dx = Math.max(0, Math.min(max, Number(dx) || 0));
+  $("dx").value = dx;
+  $("dx-label").textContent = Math.round(dx) + " px";
+  if (capData && capData.captcha_slider) {
+    $("align-line").style.left = ((capData.captcha_slider.cx + dx) * capScale) + "px";
+  }
+  if (!capData || !capData.captcha_piece) return;
+  const p = capData.captcha_piece;
+  $("piece-ghost").style.left = (p.x * capScale + dx * capScale) + "px";
+  $("dx").value = dx;
+  $("dx-label").textContent = Math.round(dx) + " px";
+  const hole = capData.captcha_hole;
+  if (hole) {
+    const target = hole.cx - p.cx;
+    $("cap-stage").classList.toggle("aligned", Math.abs(dx - target) <= 4);
+  }
+}
+
+function setupCaptcha(data) {
+  capData = data;
+  capDragging = false;
+  ["piece-cover", "piece-ghost", "hole-guide", "align-line"].forEach(id => $(id).style.display = "none");
+  $("dx").max = 300;
+  $("dx").value = 0;
+  $("dx-label").textContent = "0 px";
+  $("cap-stage").classList.remove("aligned");
+  $("captcha-submit").disabled = true;
+  $("captcha-refresh").disabled = false;
+  $("dx").disabled = true;
+  const img = $("captcha-img");
+  img.onload = () => {
+    if (capData !== data) return;
+    $("captcha-submit").disabled = false;
+    $("dx").disabled = false;
+    const w = (data.captcha_size && data.captcha_size.width) || img.naturalWidth || 360;
+    const h = (data.captcha_size && data.captcha_size.height) || img.naturalHeight || 360;
+    const stage = $("cap-stage");
+    const sw = stage.clientWidth || 340;
+    capScale = sw / w;
+    stage.style.height = Math.round(h * capScale) + "px";
+    const p = data.captcha_piece, hole = data.captcha_hole;
+    if (data.captcha_slider) {
+      const slider = data.captcha_slider;
+      $("align-line").style.display = "block";
+      $("dx").max = Math.min(300, Math.max(1, Math.floor(w - slider.cx - slider.w / 2)));
+      setGhostByDx(Number($("dx").value));
+    }
+    if (!p || !hole) {
+      $("captcha-title").textContent = data.captcha_slider ? "拖动滑条完成验证（虚线随位移移动）" : "拖动滑条完成验证（本图未提供虚线参考）";
+      $("cap-tip").textContent = data.captcha_slider ? "虚线从蓝色滑块三条白线的中心起步，随下方滑条移动；拼图保留原始偏移，请以原图缺口为准。" : "未能可靠识别滑块，本图没有虚线参考；请按原图缺口使用下方滑条，或点击刷新验证码。";
+      ["piece-cover", "piece-ghost", "hole-guide"].forEach(id => $(id).style.display = "none");
+      return;
+    }
+    $("captcha-title").textContent = "拖动拼图块完成验证（虚线仅为识别参考）";
+    $("cap-tip").textContent = "虚线从蓝色滑块三条白线的中心起步，随位移移动；拼图块保留原始偏移。请以原图缺口为准，下方滑条可微调。";
+    const px = p.x * capScale, py = p.y * capScale, pw = p.w * capScale, ph = p.h * capScale;
+    const ghost = $("piece-ghost"), cover = $("piece-cover"), guide = $("hole-guide"), line = $("align-line");
+    cover.style.display = "block";
+    cover.style.left = px + "px"; cover.style.top = py + "px";
+    cover.style.width = pw + "px"; cover.style.height = ph + "px";
+    ghost.style.display = "block";
+    ghost.style.left = px + "px"; ghost.style.top = py + "px";
+    ghost.style.width = pw + "px"; ghost.style.height = ph + "px";
+    ghost.style.backgroundImage = "url(" + img.src + ")";
+    ghost.style.backgroundSize = Math.round(w * capScale) + "px " + Math.round(h * capScale) + "px";
+    ghost.style.backgroundPosition = "-" + px + "px -" + py + "px";
+    guide.style.display = "block";
+    guide.style.left = (hole.x * capScale) + "px"; guide.style.top = (hole.y * capScale) + "px";
+    guide.style.width = (hole.w * capScale) + "px"; guide.style.height = (hole.h * capScale) + "px";
+    const maxDx = Math.max(1, Math.round(w - p.x - p.w));
+    $("dx").max = Math.min(Number($("dx").max), maxDx);
+    setGhostByDx(Number($("dx").value));
+  };
+  img.onerror = () => {
+    if (capData !== data) return;
+    $("captcha-submit").disabled = true;
+    setStatus("验证码图片加载失败，请刷新验证码。", "err");
+  };
+  img.src = "data:image/png;base64," + data.captcha;
+}
+
+new ResizeObserver(() => {
+  const img = $("captcha-img");
+  if (capData && img.complete && img.naturalWidth && img.onload) img.onload();
+}).observe($("cap-stage"));
+
+$("captcha-refresh").addEventListener("click", async () => {
+  if (!capData || $("captcha-submit").disabled && $("captcha-refresh").disabled) return;
+  const data = capData, epoch = viewEpoch;
+  $("captcha-refresh").disabled = true;
+  $("captcha-submit").disabled = true;
+  $("dx").disabled = true;
+  capDragging = false;
+  setStatus("正在刷新验证码…", "info");
+  try {
+    const r = await post("/nikke/api/captcha/refresh", {token:TOKEN,challenge_id:data.challenge_id,generation});
+    if (epoch !== viewEpoch || capData !== data) return;
+    if (!r.ok) throw new Error(r.msg || "刷新失败");
+    capData = null;
+    $("dx").value = 0;
+    $("captcha").classList.remove("show");
+    poll();
+  } catch (e) {
+    if (epoch !== viewEpoch || capData !== data) return;
+    $("captcha-refresh").disabled = false;
+    $("captcha-submit").disabled = false;
+    $("dx").disabled = false;
+    setStatus("刷新失败，请检查连接后重试。", "err");
+  }
+});
+
+$("dx").addEventListener("input", () => setGhostByDx(Number($("dx").value)));
+
+$("piece-ghost").addEventListener("pointerdown", (e) => {
+  capDragging = true;
+  capStartX = e.clientX;
+  capStartLeft = parseFloat($("piece-ghost").style.left) || 0;
+  $("piece-ghost").setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+$("piece-ghost").addEventListener("pointermove", (e) => {
+  if (!capDragging || !capData || !capData.captcha_piece) return;
+  const p = capData.captcha_piece;
+  const maxLeft = $("cap-stage").clientWidth - p.w * capScale;
+  const left = Math.max(0, Math.min(maxLeft, capStartLeft + (e.clientX - capStartX)));
+  setGhostByDx((left - p.x * capScale) / capScale);
+});
+function endCapDrag() { capDragging = false; }
+$("piece-ghost").addEventListener("pointerup", endCapDrag);
+$("piece-ghost").addEventListener("pointercancel", endCapDrag);
+
+$("captcha-submit").addEventListener("click", async () => {
+  if (!capData || $("captcha-submit").disabled) return;
+  const epoch = viewEpoch;
+  $("captcha-submit").disabled = true;
+  $("captcha-refresh").disabled = true;
+  let r;
+  try {
+    r = await post("/nikke/api/captcha", {token: TOKEN, dx: Number($("dx").value), challenge_id: capData && capData.challenge_id, generation});
+  } catch (e) {
+    if (epoch !== viewEpoch) return;
+    $("captcha-submit").disabled = false;
+    $("captcha-refresh").disabled = false;
+    setStatus("验证码提交失败，请检查连接后重试。", "err");
+    return;
+  }
+  if (epoch !== viewEpoch) return;
+  if (!r.ok) {
+    $("captcha-submit").disabled = false;
+    $("captcha-refresh").disabled = false;
+    capData = null;
+    setStatus(r.msg || "验证码已更新，请重试。", "err");
+    timer = setTimeout(poll, 1500);
+    return;
+  }
+  setStatus("正在验证…", "info");
+  $("captcha").classList.remove("show");
+  capData = null;
+  setTimeout(() => { if (epoch !== viewEpoch) return; $("captcha-submit").disabled = false; poll(); }, 1800);
+});
+
+let timer = null;
+async function poll() {
+  const epoch = viewEpoch;
+  if (timer) clearTimeout(timer);
+  let r;
+  try {
+    r = await post("/nikke/api/status", {token: TOKEN});
+  } catch (e) {
+    if (epoch !== viewEpoch) return;
+    setStatus("连接中断，正在重试；请保持页面打开。", "info");
+    timer = setTimeout(poll, 2000);
+    return;
+  }
+
+  if (epoch !== viewEpoch || (r.generation !== undefined && r.generation < generation)) return;
+  if (r.generation !== undefined) generation = r.generation;
+  activeStatus = r.status;
+  if (r.mode && r.mode !== authMode) showMode(r.mode);
+  resendUntil = Date.now() + (r.retry_after || 0) * 1000;
+  updateCooldown();
+  $("cancel-login").hidden = !["sending_code", "awaiting_code", "logging_in", "captcha"].includes(r.status);
+  if (r.status === "success") {
+    $("form").style.display = "none";
+    $("captcha").classList.remove("show");
+    statusBox.classList.remove("show");
+    $("success").classList.add("show");
+    $("success-name").textContent = (r.relogin ? "重新登录成功" : "绑定成功") + (r.nickname ? " · " + r.nickname : "");
+    $("success-expiry").textContent = r.expiry_hint || "";
+    $("success-meta").textContent = [r.area, r.uid ? "UID " + r.uid : ""].filter(Boolean).join(" · ");
+    if (!successShown) {
+      successShown = true;
+      $("dialog-meta").textContent = $("success-meta").textContent;
+      $("dialog-title").textContent = r.relogin ? "重新登录成功" : "绑定成功";
+      $("dialog-expiry").textContent = r.expiry_hint || "";
+      if (typeof $("success-dialog").showModal === "function") $("success-dialog").showModal();
+    }
+    return;
+  }
+
+  if (r.status === "captcha" && r.captcha) {
+    $("captcha").classList.add("show");
+    if (!capData || capData.challenge_id !== r.challenge_id) setupCaptcha(r);
+    setStatus("需要验证码：拖动图里的拼图块对齐原图缺口，再提交验证。", "info");
+    timer = setTimeout(poll, 2500);
+    return;
+  }
+
+  if (r.status === "awaiting_code") {
+    $("captcha").classList.remove("show"); capData = null;
+    $("account").readOnly = true; $("email-code").disabled = false;
+    $("submit").disabled = false;
+    setStatus(`邮件已发送，请输入5位邮箱验证码（剩余${r.code_expires_in}秒）。过期后需手动重发。`, "info");
+    timer = setTimeout(poll, 2000); return;
+  }
+  if (r.status === "sending_code") {
+    $("submit").disabled = true; $("email-code").disabled = true;
+    $("captcha").classList.remove("show"); capData = null;
+    setStatus("发送中…请稍候，可能需完成滑块。不会自动重新发送邮件。", "info");
+  }
+  if (r.status === "failed" || r.status === "expired") {
+    clearSecrets(); $("account").readOnly = false; $("email-code").disabled = true;
+    $("submit").disabled = r.status === "expired" || authMode === "email";
+    $("captcha").classList.remove("show");
+    capData = null;
+    setStatus(r.error || "登录失败，请检查输入后手动重试。", "err");
+    return;
+  }
+
+  if (r.status === "logging_in") {
+    $("submit").disabled = true;
+    $("captcha").classList.remove("show");
+    capData = null;
+    setStatus("正在登录 blablalink…请保持页面打开。", "info");
+  }
+  timer = setTimeout(poll, 2000);
+}
+
+showMode("password");
+if (LOGIN_MODE === "cookie") {
+  $("mode-email").disabled = $("mode-password").disabled = $("send-code").disabled = $("submit").disabled = true;
+  $("form").style.display = "none";
+  setStatus("当前仅允许 Cookie 导入。请私聊 Bot：{{COMMAND_PREFIX}}导入cookie {{REGION}} game_openid=...; game_token=...; ...。不要在群里发送 Cookie。", "info");
+}
+poll();
+</script>
+</body>
+</html>
