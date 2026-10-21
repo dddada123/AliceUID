@@ -21,19 +21,12 @@ async def nikke_help(bot, ev):
     from ..nikke_config.config import AliceUIDConfig
     mode = AliceUIDConfig.get_config('AliceUID_LoginMode').data
     context = build_help_context(getattr(ev, 'user_pm', 6), login_mode=mode)
-    from ..nikke_user.models import AliceBind
-    bind=await AliceBind.get_bind(ev.user_id,ev.bot_id) if getattr(ev,'user_id',None) and getattr(ev,'bot_id',None) else None
-    if bind is not None:
-        from ..nikke_api.client import REGIONS
-        region=REGIONS.get(bind.area_id)
-        context.update(commander_name=bind.nickname or '昵称未知',
-                       commander_uid=bind.uid or '未知',
-                       commander_region=region.label if region else '区服未知')
     if option:
         await bot.send(help_text(context), at_sender=True)
         return
     try:
-        image = await draw_help(context)
+        from .cache import cached_help
+        image = await cached_help(context, draw_help)
     except Exception as exc:
         logger.warning(f'[AliceUID] 帮助图片渲染失败，回退文字 error_type={type(exc).__name__}')
         await bot.send(help_text(context), at_sender=True)

@@ -38,7 +38,10 @@ class PanelCache:
     def write(self,key,data):
         from ..nikke_resource.cache import atomic_write
         body=dict(data,schema=1,saved_at=time.time())
-        atomic_write(self.path(key,'snapshot.json'),json.dumps(body,ensure_ascii=False,allow_nan=False).encode())
+        encoded=json.dumps(body,ensure_ascii=False,allow_nan=False).encode()
+        if len(encoded)>16*1024*1024:
+            raise ValueError('panel snapshot exceeds size budget')
+        atomic_write(self.path(key,'snapshot.json'),encoded)
 
     def invalidate(self,key):
         self.path(key,'snapshot.json').unlink(missing_ok=True)

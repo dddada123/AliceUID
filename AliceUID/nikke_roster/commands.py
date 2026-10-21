@@ -113,7 +113,7 @@ def setup(policy=None, scheduler=None):
     @sv.on_fullmatch(('卡片', '阵容卡片', '妮姬卡片'))
     async def card(bot, ev):
         await queue_roster(bot, ev, policy)
-    @sv.on_fullmatch(('更新面板', '刷新面板'))
+    @sv.on_fullmatch(('刷新面板',))
     async def refresh(bot, ev):
         from ..nikke_user.panel_refresh import queue_refresh
         await queue_refresh(bot, ev, policy)

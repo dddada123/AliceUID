@@ -155,7 +155,8 @@ async def _notify_login(bot: Bot, ev: Event, token: str):
         if session.status == "success":
             await bot.send(
                 f"{'重新登录' if session.replace_revision else '绑定'}成功：{session.nickname or '未知'}（{session.area_label}）\n"
-                f"回到聊天窗口发送 {command_prefix()}我的账号 查看绑定。\n" + expiry_notice(session.cookie_expire),
+                f"回到聊天窗口发送 {command_prefix()}我的账号 查看绑定。\n"
+                "正在后台准备本人资料、角色练度与皮肤缓存；首次查询会等待数据准备。\n" + expiry_notice(session.cookie_expire),
                 at_sender=True,
             )
             return
@@ -182,6 +183,8 @@ async def nikke_unbind_cmd(bot: Bot, ev: Event):
         await bot.send("解绑失败，本地绑定删除未确认，请稍后重试并请管理员检查日志。", at_sender=True)
         return
     sessions.clear_owner(ev.user_id, ev.bot_id)
+    from ..nikke_user.panel_refresh import cancel_prefetch
+    cancel_prefetch(bind)
     cache_notice = ''
     try:
         from ..nikke_character.service import character_queries
@@ -261,6 +264,7 @@ async def nikke_cookie_cmd(bot: Bot, ev: Event):
         )
         await bot.send(
             f"绑定成功：{role.get('role_name') or '未知'}（{region.label}）\n"
+            "正在后台准备本人资料、角色练度与皮肤缓存。\n"
             "提醒：这条消息里的 Cookie 请自行撤回。",
             at_sender=True,
         )

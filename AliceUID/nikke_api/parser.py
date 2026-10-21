@@ -106,7 +106,7 @@ class StaticData:
         if not stage_id:
             return ""
         name = self.stages.get(int(stage_id), "")
-        for suffix in (" HARD STAGE", " BOSS", " STAGE"):
+        for suffix in (" HARD STAGE", " HARD BOSS", " BOSS", " STAGE"):
             if name.endswith(suffix):
                 name = name[: -len(suffix)]
         return name or str(stage_id)

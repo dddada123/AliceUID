@@ -98,6 +98,7 @@ async def save_login(
             # Old renders and old automatic jobs must not publish under the new
             # credential revision. Do not reset any community budget ledger.
             await _invalidate_replaced(existing)
+            _start_login_prefetch(stored, group_id)
             return 0
         result = await AliceBind.save_bind(
             user_id=user_id,
@@ -122,11 +123,24 @@ async def save_login(
                         cookie_expire=expire_at, is_master=master)
         if stored is None or any(getattr(stored, key, None) != value for key, value in expected.items()):
             raise BindingPersistenceError("绑定保存后校验失败")
+        _start_login_prefetch(stored, group_id)
         return 0
+
+
+def _start_login_prefetch(bind, group_id):
+    # A background cache failure must never turn a confirmed login into failure.
+    try:
+        from .panel_refresh import schedule_login_prefetch
+        schedule_login_prefetch(bind, group_id)
+    except Exception as exc:
+        from gsuid_core.logger import logger
+        logger.warning(f'[AliceUID] login prefetch scheduling failed error_type={type(exc).__name__}')
 
 
 async def _invalidate_replaced(existing):
     from gsuid_core.logger import logger
+    from .panel_refresh import cancel_prefetch
+    cancel_prefetch(existing)
     def character():
         from ..nikke_character.service import character_queries
         from ..nikke_character.cache import panel_identity

@@ -58,23 +58,8 @@ class ProfileCooldown(Exception):
 
 
 async def _profile_data(client, bind) -> dict:
-    key = _cache_key(bind)
-    account = _account_key(bind)
-    async with _fetch_locks.setdefault(account, asyncio.Lock()):
-        cached = _cache.get(key)
-        if cached and time.time() - cached[0] < _cache_ttl():
-            return cached[1]
-        now = time.monotonic()
-        if account in _last_fetch and now - _last_fetch[account] < 5:
-            raise ProfileCooldown
-        _last_fetch[account] = now
-        data = await _fetch(client)
-        from ..nikke_character.service import character_queries
-        character_queries.invalidate(bind)
-        from ..nikke_status.service import resource_status
-        resource_status.invalidate(bind)
-        _cache[key] = (time.time(), data)
-        return data
+    from ..nikke_user.panel_refresh import ensure_profile
+    return await ensure_profile(client, bind)
 
 
 def _get_static() -> StaticData:
@@ -128,6 +113,34 @@ async def _fetch(client) -> dict:
     return {"basic": basic, "outpost": outpost, "chars": chars, "saved": saved, "player": player}
 
 
+async def send_profile_image(bot, ev, client, bind, data, *, policy=None):
+    from ..nikke_roster.commands import allowed
+    policy = policy or get_policy()
+    from ..nikke_character.service import character_queries
+    epoch = character_queries._epochs.get(character_queries._account(bind), 0)
+    if not await allowed(policy, ev):
+        return False
+
+    context = build_profile_context(
+        data["basic"],
+        data["outpost"],
+        data["chars"],
+        _get_static(),
+        saved_role=data["saved"],
+        player_info=data["player"],
+        area_label=client.region.label,
+    )
+    png = await draw_profile(context)
+    async with binding_lock(ev.user_id,ev.bot_id):
+        current=await AliceBind.get_bind(ev.user_id,ev.bot_id)
+        if (current is not None and _cache_key(current)==_cache_key(bind) and
+                epoch == character_queries._epochs.get(character_queries._account(bind), 0) and
+                await allowed(policy, ev)):
+            await bot.send(MessageSegment.image(png), at_sender=True)
+            return True
+    return False
+
+
 @sv_profile.on_fullmatch(("信息", "名片", "个人资料"))
 @profile_errors
 async def nikke_profile_cmd(bot: Bot, ev: Event):
@@ -141,22 +154,7 @@ async def nikke_profile_cmd(bot: Bot, ev: Event):
 
     try:
         data = await _profile_data(client, bind)
-
-        context = build_profile_context(
-            data["basic"],
-            data["outpost"],
-            data["chars"],
-            _get_static(),
-            saved_role=data["saved"],
-            player_info=data["player"],
-            area_label=client.region.label,
-        )
-        png = await draw_profile(context)
-        async with binding_lock(ev.user_id,ev.bot_id):
-            current=await AliceBind.get_bind(ev.user_id,ev.bot_id)
-            if (current is not None and _cache_key(current)==_cache_key(bind) and
-                    get_policy().user_allowed(ev.user_id) and await get_policy().query_allowed(ev.group_id)):
-                await bot.send(MessageSegment.image(png), at_sender=True)
+        await send_profile_image(bot, ev, client, bind, data)
     except ProfileCooldown:
         await bot.send('资料刷新较频繁，请至少等待5秒后再查询。', at_sender=True)
     except NikkeLoginRequired:
@@ -175,17 +173,8 @@ async def nikke_profile_cmd(bot: Bot, ev: Event):
             logger.error(f"[AliceUID] 客户端关闭失败 error_type={type(exc).__name__}")
 
 
-@sv_profile.on_fullmatch(("刷新信息", "刷新名片"))
+@sv_profile.on_fullmatch(('刷新信息',))
 @profile_errors
 async def nikke_profile_refresh_cmd(bot: Bot, ev: Event):
-    if not await get_policy().query_allowed(ev.group_id):
-        await bot.send('本群未开放妮姬查询，请联系群管理员或 Bot 主。', at_sender=True)
-        return
-    bind = await AliceBind.get_bind(ev.user_id, ev.bot_id)
-    if not bind:
-        await bot.send(f"还没有绑定账号。发送 {command_prefix()} 登录 获取绑定链接。", at_sender=True)
-        return
-    await _clear_profile_cache(bind)
-    from ..nikke_character.service import character_queries
-    character_queries.invalidate(bind)
-    await bot.send(f"已清除个人信息缓存，重新发送 {command_prefix()} 信息 即可。", at_sender=True)
+    from ..nikke_user.panel_refresh import queue_refresh
+    await queue_refresh(bot, ev, get_policy())

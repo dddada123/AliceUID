@@ -11,7 +11,8 @@ from .images import prepare_forward_content
 # Connection metadata only, no image/user content. Bound storage and give a stuck
 # Highway upload time to finish before this plugin attempts another forward.
 _paused = OrderedDict()
-PAUSE_SECONDS = 300
+PAUSE_SECONDS = 60
+_retry_receipts = {}
 _image_slots = asyncio.Semaphore(1)
 
 
@@ -19,19 +20,18 @@ def _pause(key):
     _paused[key] = monotonic() + PAUSE_SECONDS
     _paused.move_to_end(key)
     while len(_paused) > 64:
-        _paused.popitem(last=False)
+        expired, _ = _paused.popitem(last=False)
+        _retry_receipts.pop(expired, None)
 
 
-def _receipt_timeout(transport):
-    method = getattr(transport, 'target_send', None)
-    function = getattr(method, '__func__', method)
-    value = getattr(function, '__globals__', {}).get('RECALL_WAIT_TIMEOUT', 10.0)
-    return float(value) if type(value) in (int, float) and value > 0 else 10.0
+def _receipt_timeout():
+    from .receipt import configured_timeout
+    return configured_timeout()
 
 
 async def _pending(bot, at_sender, key, message):
     _pause(key)
-    logger.warning('[AliceUID] 转发上传未确认，普通发送原内容一次，暂停本连接转发300秒；迟到成功可能重复，不再重试转发')
+    logger.warning(f'[AliceUID] 转发上传未确认，普通发送原内容一次，暂停本连接转发{PAUSE_SECONDS}秒；迟到成功可能重复，不再重试转发')
     return await bot.send(message, at_sender=at_sender)
 
 def display_name(value, fallback):
@@ -63,6 +63,12 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None):
         eligible = False
     elif connection in _paused:
         _paused.pop(connection, None)
+        retry_transport = _retry_receipts.pop(connection, None)
+        if retry_transport is transport and getattr(transport, '_supports_recall', None) is False:
+            # Only retry a capability latch caused by this plugin's own send.
+            # A connection already unsupported before our attempt stays untouched.
+            transport._supports_recall = None
+            transport._recall_timeout_streak = 0
     if napcat and (getattr(transport, '_supports_recall', None) is False
                    or not isinstance(getattr(transport, '_recall_waiters', None), dict)
                    or getattr(event, 'task_event', None) is not None):
@@ -91,11 +97,23 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None):
         logger.info(f'[AliceUID] 转发发送 kind={kind} nodes={len(content)} '
                     f'images={sum(getattr(item, "type", None) == "image" for item in content)} '
                     f'strategy={"login_original" if kind == "login" else "classic_node"}')
+        from .receipt import receipt_scope, install_timeout_override, core_timeout
+        receipt_seconds = _receipt_timeout() if napcat else None
+        if napcat and not install_timeout_override(transport):
+            receipt_seconds = core_timeout(transport)
+            logger.warning(f'[AliceUID] 当前Core不支持单次回执等待覆盖，沿用Core等待{receipt_seconds}秒；自定义值未应用')
+        previous_support = getattr(transport, '_supports_recall', None)
         started = monotonic()
         try:
             # Core Bot.send defaults at_sender=False: keep this a pure node
             # frame, matching fix1. Only the ordinary fallback may mention.
-            result = await bot.send(node, wait_recall=True) if napcat else await bot.send(node)
+            if napcat:
+                # Keep the original Bot.send / live access guard. Only the
+                # awaited Core call receives this task-local timeout value.
+                with receipt_scope(transport, receipt_seconds):
+                    result = await bot.send(node, wait_recall=True)
+            else:
+                result = await bot.send(node)
         except (TimeoutError, ConnectionError):
             if napcat:
                 return await _pending(bot, at_sender, connection, message)
@@ -106,15 +124,17 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None):
             if napcat:
                 elapsed = monotonic() - started
                 logger.info(f'[AliceUID] 转发回执 kind={kind} elapsed_ms={int(elapsed * 1000)} '
-                            f'confirmed={isinstance(result, list) and any(type(item) in (str, int) and str(item).strip() for item in result)}')
+                            f'wait_seconds={receipt_seconds} confirmed={isinstance(result, list) and any(type(item) in (str, int) and str(item).strip() for item in result)}')
                 if isinstance(result, list) and any(
                     type(item) in (str, int) and str(item).strip() for item in result
                 ):
                     logger.info('[AliceUID] NapCat转发已取得消息ID回执')
                     return result
+                if previous_support is not False and getattr(transport, '_supports_recall', None) is False:
+                    _retry_receipts[connection] = transport
                 # Empty results near the Core wait deadline do NOT prove API
                 # failure: NapCat may still be uploading minutes later.
-                if monotonic() - started >= _receipt_timeout(transport) * .9:
+                if monotonic() - started >= receipt_seconds * .9:
                     return await _pending(bot, at_sender, connection, message)
                 logger.warning('[AliceUID] NapCat转发未返回消息ID且未到等待上限，回退普通消息一次')
                 _pause(connection)

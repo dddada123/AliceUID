@@ -210,7 +210,9 @@ async def draw_character(context: dict, style: str | None = None, theme: str | N
         cached=store.image(identity,code,digest)
         if cached is not None: return cached
         image=await _draw_uncached(context,style,theme)
-        store.save_image(identity,code,digest,image)
+        stamp=context.get('_snapshot_saved_at')
+        if stamp is None or store.read(identity).get('saved_at') == stamp:
+            store.save_image(identity,code,digest,image)
         return image
 
 

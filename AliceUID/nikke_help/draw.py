@@ -24,14 +24,14 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
     sign_time = configured_sign_time()
     if type(permission) is not int or not 0 <= permission <= 6:
         permission = 6
+    permission = 0 if permission == 0 else 6
     sections = [
         {'title': '查询与角色练度', 'tag': '常用查询', 'description': '名片与练度需登录；官方日历无需绑定。', 'items': [
-            {'command': f'{command_prefix()}信息 / {command_prefix()}名片', 'description': '个人资料、战役爬塔、完整主立绘与接口报告皮肤的展示队伍'},
+            {'command': f'{command_prefix()}信息 / {command_prefix()}名片', 'description': '读取本人资料缓存；展示战役爬塔、主立绘与当前皮肤'},
             {'command': f'{command_prefix()}爱丽丝练度 / {command_prefix()}爱丽丝面板', 'description': '本人立绘、装备与技能；已有本地数据和图片优先复用'},
-            {'command': f'{command_prefix()}练度 爱丽丝 刷新', 'description': '强制刷新指定角色；支持简繁名，歧义给候选'},
-            {'command': f'{command_prefix()}刷新信息', 'description': f'清除个人资料缓存，再发 {command_prefix()}信息 获取更新'},
-            {'command': f'{command_prefix()}卡片', 'description': '每行10个皮肤头像，姓名与星级/核心角标；未变复用7天滑动缓存'},
-            {'command': f'{command_prefix()}更新面板 / {command_prefix()}刷新面板', 'description': '主动刷新本人资料，并使角色详情及图片缓存失效'},
+            {'command': f'{command_prefix()}刷新爱丽丝面板', 'description': '替换角色名，更新该角色数据并渲染卡片；至少间隔5秒'},
+            {'command': f'{command_prefix()}卡片', 'description': '读取本人角色与皮肤缓存；每行10个头像，含星级/核心角标'},
+            {'command': f'{command_prefix()}刷新信息 / {command_prefix()}刷新面板', 'description': '刷新并缓存本人资料、全部角色练度与皮肤；完成后发送最新信息图'},
             {'command': f'{command_prefix()}出刀', 'description': '出刀、输出与击杀前三；当期共享180秒，休赛期复用已结算记录并检测新赛季'},
             {'command': f'{command_prefix()}出刀速查 Day2 / {command_prefix()}出刀 Day1', 'description': '选择会战阶段；Day1只统计BOSS击杀进度'},
             {'command': f'{command_prefix()}出刀详情 / {command_prefix()}出刀缺刀 / {command_prefix()}出刀尾刀', 'description': '本人队伍、未完成名单及尾刀；当前名单对照上期时明确标注来源'},

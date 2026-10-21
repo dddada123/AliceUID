@@ -19,21 +19,15 @@ from .service import CharacterCooldown, CharacterDataError, CharacterNotOwned, c
 
 sv_character = SV('妮姬角色练度', pm=6, priority=3)
 USAGE = (f'用法：{command_prefix()}爱丽丝练度 / {command_prefix()}爱丽丝面板 / {command_prefix()}练度 爱丽丝\n'
-         f'强制刷新：{command_prefix()}练度 爱丽丝 刷新（至少间隔5秒）。\n'
+         f'强制刷新：{command_prefix()}刷新爱丽丝面板（替换角色名，至少间隔5秒）。\n'
          '仅查询本人已绑定账号持有的角色；暂不提供全角色列表。')
 
 
-def _arguments(text: str) -> tuple[str, bool]:
-    parts = str(text or '').strip().split()
-    refresh = bool(parts and parts[-1] == '刷新')
-    if refresh:
-        parts.pop()
-    name = ' '.join(parts).strip()
-    # A user may wrap the two documented forms together. The suffix handler
-    # skips it, so this command handler executes at most one actual query.
+def _arguments(text: str) -> str:
+    name = str(text or '').strip()
     if name.endswith(('练度', '面板')):
         name = name[:-2].strip()
-    return name, refresh
+    return name
 
 
 def _cache_ttl() -> int:
@@ -44,10 +38,13 @@ def _cache_ttl() -> int:
         return 600
 
 
-async def _query(bot: Bot, ev: Event, text: str):
+async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
     client = None
     try:
-        name, refresh = _arguments(text)
+        name = _arguments(text)
+        if not refresh and name.endswith(('刷新', '更新')):
+            await bot.send(f'单角色更新请使用 {command_prefix()}刷新爱丽丝面板（替换角色名）。', at_sender=True)
+            return
         if not name:
             await bot.send(USAGE, at_sender=True)
             return
@@ -58,11 +55,24 @@ async def _query(bot: Bot, ev: Event, text: str):
         if client is None:
             await bot.send(unavailable_message(bind), at_sender=True)
             return
+        from ..nikke_user.panel_refresh import wait_for_refresh
+        await wait_for_refresh(bind)
+        from ..nikke_user.service import binding_lock
+        from ..nikke_user.models import AliceBind
+        from ..nikke_character.cache import panel_identity
+        from ..nikke_roster.commands import allowed
+        async def current():
+            stored = await AliceBind.get_bind(ev.user_id, ev.bot_id)
+            return (stored is not None and panel_identity(stored) == panel_identity(bind)
+                    and await allowed(get_policy(), ev))
+        if not await current():
+            return
         resources = get_resources()
         equipment_items, skill_icons = await resources.ensure_character_tables()
         context = await character_queries.query(
             client, bind, name, resources.load_static(), refresh=refresh, ttl=_cache_ttl(),
             equipment_items=equipment_items, skill_icons=skill_icons,
+            current_check=current, publish_lock=binding_lock(ev.user_id, ev.bot_id),
         )
         # Draw and resource preparation are owned by the integration layer.
         from .draw import draw_character
@@ -70,7 +80,9 @@ async def _query(bot: Bot, ev: Event, text: str):
         if not character_queries.context_current(context,bind):
             await bot.send('面板已更新，请重新查询；未发送旧卡片。',at_sender=True)
             return
-        await bot.send(MessageSegment.image(png), at_sender=True)
+        async with binding_lock(ev.user_id, ev.bot_id):
+            if await current() and character_queries.context_current(context,bind):
+                await bot.send(MessageSegment.image(png), at_sender=True)
     except (CharacterLookupError, CharacterCooldown, CharacterNotOwned, CharacterDataError) as exc:
         await bot.send(str(exc), at_sender=True)
     except NikkeLoginRequired:
@@ -120,6 +132,11 @@ async def nikke_character_panel_cmd(bot: Bot, ev: Event):
 @sv_character.on_suffix('面板')
 async def nikke_character_panel_suffix_cmd(bot: Bot, ev: Event):
     text=(ev.text or '').strip()
-    if not text or '面板' in text or '练度' in text:
+    # The exact whole-account refresh is owned by roster.commands. Removed
+    # 更新面板 must not fall through to a character lookup either.
+    if not text or text in ('更新', '刷新') or '面板' in text or '练度' in text:
         return
-    await _query(bot, ev, text)
+    if text.startswith('刷新'):
+        await _query(bot, ev, text[len('刷新'):].strip(), refresh=True)
+    else:
+        await _query(bot, ev, text)

@@ -1,6 +1,6 @@
 # AliceUID 开发文档
 
-适用版本：**1.0.09**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+适用版本：**1.0.11**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
 
 用户使用说明见 [README.md](README.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。路径以本文件所在的插件外壳为基准；`AliceUID/nikke_api/client.py` 指外壳下的内层代码。
 
@@ -86,7 +86,7 @@ flowchart TD
 | 信息/名片/个人资料 | `nikke_profile.commands._profile_data` | basic、outpost、characters、saved_role、player_info | `build_profile_context` → `draw_profile` |
 | 角色练度/面板 | `nikke_character.commands` → `CharacterQueryService.query` | 本人角色列表、匹配name_code的详情、静态装备表 | compact角色卡 |
 | 卡片 | `RosterService.prepare` | basic与本人characters、资源映射 | 完整JPEG图鉴 |
-| 更新面板/刷新面板 | `nikke_user.panel_refresh` | 本人资料 | 使旧面板数据与图片失效 |
+| 刷新信息/刷新面板 | `nikke_user.panel_refresh` | 本人资料及全部角色/皮肤详情 | 原子替换持久快照，手动完成后发送信息图 |
 | 出刀及速查/详情/缺刀/尾刀 | `nikke_union.commands` → `UnionService.query` | 本人联盟、成员、当前或历史赛季 | 会战卡片 |
 | 会战血量 | `nikke_status.commands` → `UnionService.query_bosses` | 同一已验证联盟快照的level_payload | 血量状态卡 |
 | 资源查询 | `ResourceStatusService.prepare_image` | basic→outpost→daily | 成功图片缓存窗口与资源卡 |
@@ -255,7 +255,7 @@ XWUID参考固定提交4c1727580c613ef3034a391dc3156a1570cd5260，登录转发�
 
 用户实际链路是[napcat-plugin-gscore-adapter @ df1859b](https://github.com/xiowo/napcat-plugin-gscore-adapter/blob/df1859b396ffbd73bd2b72ce4a35147667281472/src/services/gscore-service.ts)。handleGsCoreMessage调用send_msg，并在自身catch错误；Core的bot.send默认只确认WS入队，无法感知这次错误。适配器在MessageSend.echo存在时，无论成功/失败都会回传recall_message_id，成功带消息ID，失败为null。
 
-对bot_id=onebot且WS_BOT_ID为napcat或napcat-*，共享边界检查底层_Bot的_recall_waiters字典与_supports_recall。旧Core缺少能力、HTTP任务或能力已锁定False时直接普通；其余通过受权限包装bot.send(node,wait_recall=True)，由Core按echo匹配回执。取得非空消息ID列表则返回，未确认回退原内容一次并暂停该连接转发300秒，后续查询普通发送。连接暂停表仅存元数据，最多64项。参考Core等待上限10秒且finally清理Future；取消不回退。不修改Core等待常量；回执丢失、失败和仍在上传都可能返回空列表，迟到成功可能造成一次重复，普通回退不触发递归转发。
+对bot_id=onebot且WS_BOT_ID为napcat或napcat-*，共享边界检查底层_Bot的_recall_waiters字典与_supports_recall。旧Core缺少能力、HTTP任务或能力已锁定False时直接普通；其余通过受权限包装bot.send(node,wait_recall=True)，由Core按echo匹配回执。取得非空消息ID列表则返回，未确认回退原内容一次并暂停该连接转发60秒，后续查询普通发送。连接暂停表仅存元数据，最多64项。参考Core原等待上限10秒且finally清理Future；1.0.11 fix1的receipt.py为本次AliceUID转发提供默认30秒的实际等待覆盖，取消不回退，不修改Core全局等待常量；回执丢失、失败和仍在上传都可能返回空列表，迟到成功可能造成一次重复，普通回退不触发递归转发。
 
 `nikke_message.images.encode_forward_pages(data,quality=95)`保留兼容入口，但现在只返回包含一张完整图片的列表，不再分页。`prepare_forward_content(content)`只处理inline base64图，读取AliceUID_ForwardJpegQuality，下次发送生效；将文本合并到首节点，保留非文本段顺序。配置保存接受严格整数0–100，非法磁盘值编码时安全回到95。现有JPEG验证后字节直通；不透明图使用指定质量的RGB JPEG、4:4:4、非渐进编码，真正透明图保留无损RGBA PNG。保留DPI、ICC和全部原始尺寸。输入32MiB/6400万像素、完整输出8MiB上限，JPEG尺寸每边上限65500；超出即整体普通发送原图，不降质量、缩放或截断。8MiB是插件保护上限，不能冒称QQ官方限制。不读取文件引用或拉取URL，编码在线程内串行限并发；源渲染器、缓存和LoginForward二维码不改。
 
@@ -337,8 +337,8 @@ URL白名单只增加六个确切武器URL和四个确切徽章URL，不扩大�
 
 | 层 | 键/存放 | 复用与失效 |
 |---|---|---|
-| 个人资料 | 账号+凭据revision，内存 | 默认600秒；成功重新取资料会使相关角色/资源缓存失效 |
-| 练度原始数据 | `cache/panels/<身份摘要>/snapshot.json` | 持久角色列表/详情；显式刷新、更新面板或换凭据失效 |
+| 个人资料、角色列表与皮肤 | `cache/panels/<身份摘要>/snapshot.json` 的profile/roster | 无TTL；信息/图鉴查询复用，整体手动更新替换，解绑清除，重登新revision重建 |
+| 练度原始数据 | 同一snapshot.json的details | 无TTL；角色更新仅替换指定角色，保留其余详情及profile；全体更新原子替换 |
 | 练度图片 | PanelCache，角色+数据+风格指纹 | 已有图片先复用，身份/参数改变重绘 |
 | 图鉴图片 | `cache/roster`，owner/账号/revision+可见内容/素材hash | 成功发送后滑动7天；失败发送不续期 |
 | 资源成功图 | ResourceStatusService._ready | 成功校验图片后300秒，不滑动；24MiB总上限；丢失/到期/风格变化重新同步 |
@@ -462,7 +462,7 @@ CookieCipher使用独立secret.key进行加密。备份运行环境时保留密�
 | `AliceUID_Headless` | GsBoolConfig | `true` | 无头浏览器 |
 | `AliceUID_Proxy` | GsStrConfig | `` | 浏览器代理 |
 | `AliceUID_LoginTTL` | GsIntConfig | `600` | 登录链接有效期（秒） |
-| `AliceUID_CacheTTL` | GsIntConfig | `600` | 查询缓存（秒） |
+| `AliceUID_CacheTTL` | GsIntConfig | `600` | 兼容旧配置；信息/图鉴/持久角色快照不使用该TTL过期 |
 | `AliceUID_RemoteRenderEnable` | GsBoolConfig | `false` | 外置渲染开关 |
 | `AliceUID_RemoteRenderUrl` | GsStrConfig | `http://127.0.0.1:3000/render` | 外置渲染地址 |
 | `AliceUID_RemoteRenderToken` | GsStrConfig | `` | 外置渲染 Token |
@@ -562,10 +562,10 @@ python tools_alice/build_release.py --plugin-only --build-tag docs
 | [AliceUID/nikke_permissions/commands.py](AliceUID/nikke_permissions/commands.py) | `group_query` | on_command | `群查询` |
 | [AliceUID/nikke_permissions/commands.py](AliceUID/nikke_permissions/commands.py) | `group_mode` | on_command | `群策略` |
 | [AliceUID/nikke_profile/commands.py](AliceUID/nikke_profile/commands.py) | `nikke_profile_cmd` | on_fullmatch | `["信息", "名片", "个人资料"]` |
-| [AliceUID/nikke_profile/commands.py](AliceUID/nikke_profile/commands.py) | `nikke_profile_refresh_cmd` | on_fullmatch | `["刷新信息", "刷新名片"]` |
+| [AliceUID/nikke_profile/commands.py](AliceUID/nikke_profile/commands.py) | `nikke_profile_refresh_cmd` | on_fullmatch | `["刷新信息"]` |
 | [AliceUID/nikke_resource/commands.py](AliceUID/nikke_resource/commands.py) | `update_resources` | on_fullmatch | `更新资源` |
 | [AliceUID/nikke_roster/commands.py](AliceUID/nikke_roster/commands.py) | `card` | on_fullmatch | `["卡片", "阵容卡片", "妮姬卡片"]` |
-| [AliceUID/nikke_roster/commands.py](AliceUID/nikke_roster/commands.py) | `refresh` | on_fullmatch | `["更新面板", "刷新面板"]` |
+| [AliceUID/nikke_roster/commands.py](AliceUID/nikke_roster/commands.py) | `refresh` | on_fullmatch | `["刷新面板"]` |
 | [AliceUID/nikke_status/commands.py](AliceUID/nikke_status/commands.py) | `nikke_boss_health_cmd` | on_command | `会战血量` |
 | [AliceUID/nikke_status/commands.py](AliceUID/nikke_status/commands.py) | `nikke_resource_status_cmd` | on_command | `资源查询` |
 | [AliceUID/nikke_uid/commands.py](AliceUID/nikke_uid/commands.py) | `nikke_bind_uid_cmd` | on_command | `["绑定UID", "绑定uid"]` |
@@ -622,3 +622,41 @@ python tools_alice/build_release.py --plugin-only --build-tag docs
 nikke_solo.service.capture_result保留网站左栏原宽，隐藏外围并整体等比放大至960 CSS像素；不再独立拉宽fg-set。使用1.5 DPR、等待字体及头像解码，验证五队/25格/伤害/标题边界，失败不截图。tests_alice/test_v109_crop_fix.py使用冻结的真实CSS和compact卡片DOM还原白色右栏，证明旧实现会混入外围像素，修复在900/1280/1600窗口均不越界。最终亮暗样张共用此裁切链路。
 
 nikke_solo.cache保存本人账号/区服/Bot/凭据修订隔离的PNG和原子元数据。120小时固定有效期，读取不续期；每身份最多8个样式。普通指令优先本地命中，刷新指令强制重新计算，失败不把旧图作为新计算发送。重新登录/解绑清理接入原有_invalidate_replaced，过期回收复用每小时本地清理任务。保存和发送之前复核权限、绑定及已知凭据状态；所有验证使用离线数据，不执行真实账号操作。
+
+## 1.0.10：主线 Hard 关卡显示
+
+`StaticData.stage_name()`补全` HARD BOSS`后缀处理；`48-36 HARD BOSS`归一化为`48-36`。普通关卡、困难普通关卡、分支关卡和未知ID回退保持原有行为。卡片标题、字号和布局不变。
+
+## 1.0.10 fix1：统一账号快照与命令边界
+
+`save_login()`确认数据库写入成功后，经`_start_login_prefetch()`调度`panel_refresh.schedule_login_prefetch()`，初登、重登及Cookie导入共用入口。任务按user_id/bot_id去重并记录panel_identity，登录结果不等待缓存完成。纯登录背景任务无Bot实例，不发消息、不调用图片渲染；1.0.11允许合并其间的手动请求，在任务成功后发送一张信息图。失败不回滚已成功的绑定。
+
+`refresh_panel()`在角色账号锁内获取profile._fetch的五个资料接口；从返回的本人角色列表取name_code，每批最多20个获取详情，每事务最多5个请求，5秒间隔、全局两槽及300秒任务上限。500角色是本地任务保护预算，不代表上游API限制。响应必须覆盖每批全部唯一角色，皮肤字段原样保留。全部成功后在绑定锁内复核绑定、权限、epoch，将profile/roster/details/complete一次性原子写入；失败保留旧完整快照，不自动重试。快照16MiB上限在写前检查。
+
+`ensure_profile()`先等同绑定正在进行的预缓存，再读取完整持久快照；缺失时只补建一次。生产RosterService通过snapshot_provider注入该入口；普通图鉴流程只准备公共图片并按既有指纹复用或渲染。`_profile_data()`同样使用该快照，不再600秒自动取数或使角色缓存失效。1.0.11的`nk刷新信息`与`nk刷新面板`共用queue_refresh，全量重取后输出信息图。
+
+角色查询恢复同一快照的roster/details，持久数据无TTL；只在显式角色更新或缺少该角色详情时访问玩家接口。`nk刷新角色名面板`仅更新目标角色的角色行和详情，同时更新profile.chars中对应行，保留其他角色和个人资料。查询发布复核绑定和权限，图片写入检查快照saved_at，解绑或更新后旧渲染不写回缓存。
+
+1.0.11保留fullmatch“刷新面板”，suffix“面板”遇到完整“刷新/更新”时直接返回；“刷新角色名”去掉开头的“刷新”后调用单角色refresh=True。删除suffix“面板更新”。“刷新信息”只注册一次，委托同一账号队列。旧“练度角色刷新/更新”不执行刷新，仅给新用法。所有前缀由既有nikke_commands配置统一管理。
+
+验证入口：tests_alice/test_v110_account_cache.py、test_character_commands.py、test_roster_refresh.py及test_v110_stage_name.py；完整回归和交付记录位于当前handoff。
+
+
+## 1.0.11：通用帮助缓存与刷新完成图
+
+`nikke_help.cache.HelpCache`只保留public/owner两组PNG和JSON，缓存键不含个人身份；help.commands不查询AliceBind，help.html不包含commander.html。权限严格整数0才是Bot主，其余为普通图。30天TTL以成功生成时间为起点，命中不写入；首次/过期重建随机选择light/dark，并保存实际主题。每角色级别异步锁保护读-重绘-写入，避免同时请求重复渲染。元数据记录内容/渲染配置指纹及PNG SHA256，先原子写图再写元数据；损坏、不匹配或系统时间回拨均重新生成。升级版本、帮助内容或语言/字体/毛玻璃/DPI变化提前失效；图片失败沿用文字回退。帮助图独立随机主题，不随全局CardTheme每次重绘。
+
+`profile.send_profile_image`由普通信息查询与全量刷新完成共用，直接使用本次返回的数据，不重复获取账号资料。渲染前捕获epoch，发送前在绑定锁内复核绑定修订、epoch及用户/群权限；不发送已过时图片。单角色与图鉴不在全量刷新时渲染。完整快照写入后出图/发送失败明确标注数据已经刷新，不宣称回滚。
+
+`panel_refresh._manual_requests`保存当前账号任务的首次手动通知目标；纯自动预缓存不出图，手动请求加入后成功完成会出图。重复命令合并，仍沿用账号隔离、请求节流、失败保留旧完整缓存、解绑撤销与重登录修订机制。回归入口为test_v111_refresh_help.py、test_character_commands.py及原持久账号缓存测试。
+
+
+## 1.0.11 fix1：可配置的实际回执等待
+
+新增`AliceUID_ForwardReceiptSeconds`，默认30，整数5～300；Web配置写入验证，运行时坏值回落30。转发前读取一次，当次等待不受之后配置变化干扰。
+
+`nikke_message.receipt`在当前连接的已知Python `target_send`上安装一次包装。常规调用直接执行原函数；AliceUID转发通过ContextVar携带(transport, seconds)，只有同连接且wait_recall=True的本次调用才用FunctionType浅拷贝globals后的原始代码，替换其RECALL_WAIT_TIMEOUT数值。echo序号、Future字典、队列、回执能力探测和finally清理全部沿用Core实现；不改Core文件或全局常量，不绕过原Bot.send及_LiveAccessBot。ContextVar在finally复位，并发其他插件仍使用原等待值。未知Core方法结构无法覆盖时明确记录日志并沿用实际Core等待值，不假称配置生效。
+
+连接暂停固定60秒，继续一次普通回退。如果本次发送将原非False的_supports_recall锁为False，只为该连接保留可重试标记；暂停到期且仍是同一transport时恢复None及计数器，允许下一次正常转发探测。调用前已不支持回执的连接不自动改动。暂停表上限64，随条目淘汰清理重试引用。
+
+离线测试执行冻结Core原函数，控制回执在模拟第20秒/45秒到达，确认实际wait参数为30/60且没有普通回退；验证即时配置变化、并发其他插件10秒隔离、60秒边界恢复、取消清理、权限拒绝和既有完整原图字节。不会因本修复重绘出刀或修改180秒联盟快照。日志只记录时长/确认状态，不重复输出图片Base64。

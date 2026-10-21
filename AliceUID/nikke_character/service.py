@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import AsyncExitStack
 import hashlib
 import time
 from typing import Callable
@@ -48,13 +49,14 @@ class CharacterQueryService:
         return (str(bind.game_id), str(bind.intl_open_id), int(bind.area_id))
 
     def _revision(self, bind) -> tuple:
-        return self._account(bind) + (hashlib.sha256(bind.cookie_enc.encode()).hexdigest(),)
+        return self._account(bind) + (str(getattr(bind,'user_id','')), str(getattr(bind,'bot_id','')),
+                                      hashlib.sha256(bind.cookie_enc.encode()).hexdigest())
 
-    def invalidate(self, bind) -> None:
+    def invalidate(self, bind, *, clear_store=True) -> None:
         account=self._account(bind)
         self._epochs[account]=self._epochs.get(account,0)+1
         store=self.store()
-        if store is not None:
+        if store is not None and clear_store:
             from .cache import panel_identity
             store.invalidate(panel_identity(bind))
         key = self._revision(bind)
@@ -70,17 +72,56 @@ class CharacterQueryService:
             raise CharacterDataError('角色详情响应格式发生变化，请稍后重试并联系管理员。')
         return rows
 
+    @staticmethod
+    def roster_codes(roster):
+        if not isinstance(roster, list) or not all(isinstance(row, dict) for row in roster):
+            raise CharacterDataError('角色列表响应格式发生变化，请稍后重试。')
+        codes = [integer(row.get('name_code')) for row in roster]
+        if any(code is None or code <= 0 for code in codes) or len(codes) != len(set(codes)):
+            raise CharacterDataError('角色列表存在无效或重复记录，请稍后重试。')
+        return codes
+
+    @classmethod
+    def detail_entries(cls, payload, requested):
+        if not isinstance(payload, dict):
+            raise CharacterDataError('角色详情响应格式发生变化，请稍后重试。')
+        rows = cls._detail_rows(payload)
+        codes = [integer(row.get('name_code')) for row in rows]
+        if len(codes) != len(set(codes)) or set(codes) != set(requested):
+            raise CharacterDataError('接口未返回全部唯一匹配的角色详情，未替换原缓存。')
+        effects = payload.get('state_effects')
+        if effects is None:
+            effects = []
+        if not isinstance(effects, list) or not all(isinstance(row, dict) for row in effects):
+            raise CharacterDataError('装备词条响应格式发生变化，请稍后重试。')
+        return {str(code): dict(detail=row, effects=effects) for code, row in zip(codes, rows)}
+
+    def publish_snapshot(self, bind, snapshot):
+        """Caller holds the account and current-binding locks; publish atomically."""
+        from .cache import panel_identity
+        self.roster_codes(snapshot['roster'])
+        store = self.store()
+        if store is not None:
+            store.write(panel_identity(bind), snapshot)
+        account, revision = self._account(bind), self._revision(bind)
+        self._epochs[account] = self._epochs.get(account, 0) + 1
+        self._rosters[revision] = (self.clock(), snapshot['roster'])
+        for key in [key for key in self._details if key[:-1] == revision]:
+            self._details.pop(key, None)
+        for code, saved in snapshot['details'].items():
+            self._details[revision+(int(code),)] = (self.clock(), saved['detail'], saved['effects'])
+
     async def query(self, client, bind, name: str, static: StaticData, *, refresh: bool = False, ttl: int = 600,
-                    equipment_items=None, skill_icons=None) -> dict:
+                    equipment_items=None, skill_icons=None, current_check=None, publish_lock=None) -> dict:
         from .aliases import current_aliases
         code = resolve_character(name, static, aliases=current_aliases())
         account, revision = self._account(bind), self._revision(bind)
-        async with self._locks.setdefault(account, asyncio.Lock()):
+        async with self._locks.setdefault(account, asyncio.Lock()), AsyncExitStack() as network_stack:
             epoch=self._epochs.get(account,0)
             from .cache import panel_identity
             store=self.store()
             identity=panel_identity(bind)
-            snapshot=store.read(identity) if store is not None and not refresh else {}
+            snapshot=store.read(identity) if store is not None else {}
             if snapshot:
                 self._rosters[revision]=(self.clock(),snapshot['roster'])
                 for saved_code,saved in snapshot['details'].items():
@@ -88,24 +129,33 @@ class CharacterQueryService:
                         if isinstance(saved.get('detail'),dict) and isinstance(saved.get('effects'),list):
                             self._details[revision+(int(saved_code),)]=(self.clock(),saved['detail'],saved['effects'])
             fetched = False
-            def reserve():
-                nonlocal fetched
+            network_client = client
+            async def reserve():
+                nonlocal fetched, network_client
                 if fetched:
                     return
                 now = self.clock()
                 if account in self._last_fetch and now - self._last_fetch[account] < self.cooldown:
                     raise CharacterCooldown('练度刷新较频繁，请至少等待5秒后再查询。')
                 self._last_fetch[account] = now
+                if store is not None:
+                    from ..nikke_roster.service import account_reads
+                    network_client = await network_stack.enter_async_context(
+                        account_reads.transaction(client, bind, wait=True))
                 fetched = True
             def fresh(entry):
                 return entry is not None and (store is not None or 0 <= self.clock() - entry[0] < max(0, ttl))
             try:
                 roster_entry = self._rosters.get(revision)
                 if refresh or not fresh(roster_entry):
-                    reserve()
-                    roster = await client.get_characters()
+                    await reserve()
+                    roster = await network_client.get_characters()
                     if not isinstance(roster, list) or not all(isinstance(row, dict) and integer(row.get('name_code')) not in (None, 0) for row in roster):
                         raise CharacterDataError('角色列表响应格式发生变化，请稍后重试并联系管理员。')
+                    if refresh and snapshot:
+                        current = next((row for row in roster if integer(row.get('name_code')) == code), None)
+                        if current is not None:
+                            roster = [row for row in snapshot['roster'] if integer(row.get('name_code')) != code] + [current]
                     self._rosters[revision] = (self.clock(), roster)
                 else:
                     roster = roster_entry[1]
@@ -118,8 +168,8 @@ class CharacterQueryService:
                 key = revision + (code,)
                 detail_entry = self._details.get(key)
                 if refresh or not fresh(detail_entry):
-                    reserve()
-                    payload = await client.get_character_details([code])
+                    await reserve()
+                    payload = await network_client.get_character_details([code])
                     if not isinstance(payload, dict):
                         raise CharacterDataError('角色详情响应格式发生变化，请稍后重试并联系管理员。')
                     # Never rely on response order and never use another role's
@@ -136,6 +186,10 @@ class CharacterQueryService:
                     self._details[key] = (self.clock(), detail, effects)
                 else:
                     _, detail, effects = detail_entry
+                if publish_lock is not None:
+                    await network_stack.enter_async_context(publish_lock)
+                if current_check is not None and not await current_check():
+                    raise CharacterDataError('绑定或权限已变化，已停止保存和展示旧账号数据。')
                 if self._epochs.get(account,0)!=epoch:
                     self._rosters.pop(revision,None)
                     self._details.pop(key,None)
@@ -145,7 +199,13 @@ class CharacterQueryService:
                     saved=store.read(identity)
                     saved_details=saved.get('details',{})
                     saved_details[str(code)]={'detail':detail,'effects':effects}
-                    store.write(identity,{'roster':roster,'details':saved_details})
+                    updated = dict(saved, roster=roster, details=saved_details)
+                    if isinstance(updated.get('profile'), dict):
+                        updated['profile'] = dict(updated['profile'], chars=roster)
+                    store.write(identity, updated)
+                    if refresh:
+                        self._epochs[account] = self._epochs.get(account, 0) + 1
+                        epoch = self._epochs[account]
                 context = build_character_context(owned, detail, effects, static,
                                                area_label=client.region.label,
                                                nickname=bind.nickname or '',
@@ -154,14 +214,16 @@ class CharacterQueryService:
                                commander_uid=getattr(bind,'uid','') or '未知',
                                commander_region=client.region.label)
                 context['_panel_epoch']=epoch
-                if store is not None: context['_cache_identity']=identity
+                if store is not None:
+                    context['_cache_identity']=identity
+                    context['_snapshot_saved_at']=store.read(identity).get('saved_at')
                 return context
             except NikkeLoginRequired:
-                self.invalidate(bind)
+                self.invalidate(bind, clear_store=False)
                 raise
             except NikkeApiError as exc:
                 if exc.code in (401, 403, 300001):
-                    self.invalidate(bind)
+                    self.invalidate(bind, clear_store=False)
                 raise
 
     def context_current(self,context,bind):

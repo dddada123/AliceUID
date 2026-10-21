@@ -133,6 +133,9 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                     if key in ('AliceUID_GlassStrength', 'AliceUID_ForwardJpegQuality'):
                         if type(value) is not int or not 0<=value<=100:
                             return False
+                    if key == 'AliceUID_ForwardReceiptSeconds':
+                        if type(value) is not int or not 5 <= value <= 300:
+                            return False
                     if key == 'AliceUID_SoloCardTheme' and value not in ('light','dark','random'):
                         return False
                     if key == 'AliceUID_CardFont':
