@@ -145,7 +145,10 @@ async def _invalidate_replaced(existing):
         from ..nikke_union.service import union_queries
         resource_status.invalidate(existing)
         union_queries.invalidate(existing)
-    for cleanup in (character, roster, community, status):
+    def solo():
+        from ..nikke_solo.cache import invalidate_binding
+        invalidate_binding(existing)
+    for cleanup in (character, roster, community, status, solo):
         try:
             cleanup()
         except Exception as exc:

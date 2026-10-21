@@ -47,6 +47,7 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
     from .nikke_database.scheduler import setup as setup_database_scheduler  # noqa: E402
     from .nikke_roster.commands import setup as setup_roster  # noqa: E402
     from .nikke_union import commands as _union_commands  # noqa: E402
+    from .nikke_solo import commands as _solo_commands  # noqa: E402,F401
     from .nikke_status import commands as _status_commands  # noqa: E402,F401
 
     def _database_config(key):
@@ -59,6 +60,8 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
     setup_database_commands(_database_config)
     setup_database_scheduler(_database_config)
     setup_community(policy=policy)
+    from .nikke_community.notify_policy import register as register_notify_commands
+    register_notify_commands(AliceUIDConfig)
     set_group_observer(observe_group)
     setup_roster(policy=policy)
     _union_commands.set_before_send(_query_before_send)

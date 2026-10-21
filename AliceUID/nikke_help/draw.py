@@ -37,7 +37,9 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}出刀详情 / {command_prefix()}出刀缺刀 / {command_prefix()}出刀尾刀', 'description': '本人队伍、未完成名单及尾刀；当前名单对照上期时明确标注来源'},
             {'command': f'{command_prefix()}会战血量 [刷新]', 'description': '联盟阶段与BOSS血量；休赛期展示上一期，卡片注明赛季与状态'},
             {'command': f'{command_prefix()}资源查询 [刷新]', 'description': '无可用图时同步本人收菜并出图；成功出图后复用5分钟，失败仅短暂冷却；显示90%和回满预计时间'},
+            {'command': f'{command_prefix()}个人突袭推荐 [亮色/暗色/随机]', 'description': '实验性：DILDORO本人编队推荐，本地缓存5天；独立亮暗主题，默认暗色'},
             {'command': f'{command_prefix()}日历', 'description': '官网默认活动日历截图，附来源和拍摄时间'},
+            {'command': f'{command_prefix()}个人突袭推荐刷新 [亮色/暗色/随机]', 'description': '练度变化时重新导入并计算，成功后更新本人五天缓存'},
             {'command': f'{command_prefix()}日历 帮助', 'description': '查看截图范围与缓存说明；暂不支持历史月份'},
             {'command': f'{command_prefix()}红莲暗影别名查询 / {command_prefix()}黑莲别名查询', 'description': '头像卡片展示角色本名与别名；支持简繁和省略符号'},
             {'command': f'{command_prefix()}角色别名查询 红莲：暗影', 'description': '另一种别名查询写法，不要求登录'},
@@ -67,6 +69,9 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
         ]})
     if permission == 0:
         sections.append({'title': '数据库与全局管理', 'tag': 'Bot 主', 'description': 'GsCore Bot主权限；周五02:33北京时间自动增量检查。', 'items': [
+            {'command': f'{command_prefix()}签到群通知 开启/关闭/状态', 'description': 'Bot主设置全局群签到通知，不影响签到执行或其他功能'},
+            {'command': f'{command_prefix()}签到通知白名单 添加/移除 群号', 'description': '非空时只通知这些群；与通知黑名单重叠时白名单优先'},
+            {'command': f'{command_prefix()}签到通知黑名单 添加/移除 群号', 'description': '只限制签到通知；白名单为空时排除这些群，两表均支持状态查询'},
             {'command': f'{command_prefix()}签到查询 [页码]', 'description': '本群绑定/近期使用账号的本周期签到记录；本地确认结果，非实时全员名单'},
             {'command': '后台：每日签到时间', 'description': '北京时间HH:MM，默认08:33；保存后更新调度，手动签到仍可立即执行'},
             {'command': f'{command_prefix()}数据库更新', 'description': '后台补公开基础及皮肤头像 / 半身像 / 立绘'},

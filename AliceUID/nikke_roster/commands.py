@@ -121,7 +121,13 @@ def setup(policy=None, scheduler=None):
         from gsuid_core.aps import scheduler
     async def cleanup():
         # Local filesystem only; no account/static/public-network calls.
-        get_roster_service().cache.cleanup()
+        from ..nikke_solo.cache import get_cache
+        from gsuid_core.logger import logger
+        for store in (get_roster_service().cache, get_cache()):
+            try:
+                store.cleanup()
+            except (OSError, ValueError) as exc:
+                logger.warning(f'[AliceUID] local cache cleanup error_type={type(exc).__name__}')
     scheduler.add_job(cleanup, 'interval', hours=1, id='aliceuid-roster-local-cleanup',
                       replace_existing=True, max_instances=1, coalesce=True)
     _registered = sv

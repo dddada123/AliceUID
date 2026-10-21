@@ -12,6 +12,18 @@ from gsuid_core.utils.plugins_config.models import (
 from ..nikke_render.fonts import factory_default, font_options
 
 CONFIG_DEFAULT: Dict[str, GSC] = {
+    "AliceUID_SoloCardTheme": GsStrConfig(
+        "个人突袭推荐卡片主题（独立）", "只影响个人突袭推荐卡片，默认暗色；可选亮色或随机，不跟随其他卡片主题。查询时可用亮色/暗色/随机参数临时指定。毛玻璃强度仍使用全局设置。", "dark", options=["light","dark","random"],
+    ),
+    "AliceUID_SignGroupNotify": GsBoolConfig(
+        "全局签到群通知", "默认开启，仅控制自动签到的分群完成通知，不影响签到执行或其他业务。全局关闭优先于通知黑白名单。", True,
+    ),
+    "AliceUID_SignNotifyWhitelist": GsListStrConfig(
+        "签到通知群白名单", "仅影响签到群通知。非空时只通知这些群；白黑名单有相同群号时白名单优先。仍须满足Core与AliceUID现有权限。", [],
+    ),
+    "AliceUID_SignNotifyBlacklist": GsListStrConfig(
+        "签到通知群黑名单", "仅影响签到群通知；白名单为空时排除这些群。与白名单重叠时按照白名单允许；不改变任何其他业务权限。", [],
+    ),
     "AliceUID_CustomPrefixEnabled": GsBoolConfig(
         "启用自定义唤醒指令", "保存后重启Core生效。默认仍使用nk；自定义指令与原有权限检查共用。", False,
     ),

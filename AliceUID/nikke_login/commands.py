@@ -195,6 +195,13 @@ async def nikke_unbind_cmd(bot: Bot, ev: Event):
     except Exception as exc:
         logger.error(f'[AliceUID] 登录绑定已解除但卡片缓存清理未确认 error_type={type(exc).__name__}')
         cache_notice = '\n登录绑定已解除；卡片缓存清理未确认，请管理员检查日志。'
+    # Solo results must also be erased if another card cache cleanup failed.
+    try:
+        from ..nikke_solo.cache import invalidate_binding
+        invalidate_binding(bind)
+    except Exception as exc:
+        logger.error(f'[AliceUID] 登录绑定已解除但突袭缓存清理未确认 error_type={type(exc).__name__}')
+        cache_notice += '\n登录绑定已解除；个人突袭缓存清理未确认，请管理员检查日志。'
     await bot.send(f"已解绑「{bind.nickname or '未知'}」，本地 Cookie 已删除。" + cache_notice, at_sender=True)
 
 

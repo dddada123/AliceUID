@@ -13,7 +13,7 @@ _runtime = None
 
 
 def binding_revision(bind) -> str:
-    return hashlib.sha256(bind.cookie_enc.encode()).hexdigest()
+    return hashlib.sha256((bind.cookie_enc or '').encode()).hexdigest()
 
 
 async def _load_binding(actor_id, bot_id):
@@ -35,7 +35,7 @@ async def _load_binding(actor_id, bot_id):
 async def _list_bindings():
     from ..nikke_user.models import AliceBind
     return [(str(row.user_id), str(row.bot_id), binding_revision(row))
-            for row in await AliceBind.get_all_binds() if row.cookie_enc]
+            for row in await AliceBind.get_all_binds()]
 
 
 async def _binding_current(actor_id, bot_id, revision):
@@ -72,6 +72,10 @@ def setup_community(*, policy=None):
             group_report=report_group,
             binding_hint=binding_hint,
         )
+        from .notifications import GroupNotifier
+        from ..nikke_user.auth_state import expired, known_invalid
+        _runtime.runner.notifier = GroupNotifier(_runtime.service, _report_bindings, _send_summary, _summary_allowed,
+                                                 invalid=lambda row: expired(row) or known_invalid(row))
     _runtime.service.user_allowed = policy.user_allowed
     _runtime.service.binding_current = _binding_current
     return _runtime
@@ -102,6 +106,7 @@ def observe_group(ev):
     if _runtime is None or not getattr(ev, 'group_id', None):
         return
     try:
+        _runtime.runner.notifier.store.observe(ev, _runtime.service.clock())
         _runtime.service.store.observe_group(str(ev.user_id), str(ev.bot_id), str(ev.group_id),
                                              _runtime.service.clock())
     except Exception as exc:
@@ -132,3 +137,38 @@ async def binding_hint(actor_id,bot_id):
     from ..nikke_user.models import AliceBind
     from ..nikke_user.auth_state import unavailable_message
     return unavailable_message(await AliceBind.get_bind(actor_id,bot_id))
+
+
+async def _report_bindings():
+    from ..nikke_user.models import AliceBind
+    return await AliceBind.get_all_binds()
+
+async def _summary_allowed(route):
+    from ..nikke_permissions.runtime import get_policy
+    from gsuid_core.gss import gss
+    from ..nikke_config.config import AliceUIDConfig
+    from .notify_policy import notify_allowed
+    if not notify_allowed(AliceUIDConfig,route['group_id']):
+        return False
+    # Only the exact observed connection, never the first connected bot.
+    from gsuid_core.sv import SL
+    plugin = SL.plugins.get('AliceUID')
+    sv = getattr(_runtime,'sv',None)
+    def native_allowed(item):
+        if item is None or not getattr(item,'enabled',True) or getattr(item,'area','ALL') == 'DIRECT':
+            return False
+        black = {str(x) for x in getattr(item,'black_list',[])}
+        white = {str(x) for x in getattr(item,'white_list',[])}
+        return route['group_id'] not in black and (not white or route['group_id'] in white)
+    if not native_allowed(plugin) or not native_allowed(sv):
+        return False
+    transport = gss.active_bot.get(route['ws_id'])
+    return transport is not None and getattr(transport,'bot',None) is not None and await get_policy().query_allowed(route['group_id'])
+
+async def _send_summary(route, text):
+    from gsuid_core.gss import gss
+    transport = gss.active_bot.get(route['ws_id'])
+    if transport is None or not await _summary_allowed(route):
+        return None
+    return await transport.target_send(text, 'group', route['group_id'], route['bot_id'],route['self_id'],
+                                       group_id=route['group_id'],at_sender=False,wait_recall=True)

@@ -75,11 +75,22 @@ class CommunityCommands:
             await client.close()
 
     async def execute(self, actor_id, bot_id, *, full=False, notify=None):
-        """Explicit one-shot sign-in or owner-only full daily opt-in."""
+        """Immediate owned run, with the live daily schedule in the final reply."""
         binding = await self.load_binding(str(actor_id), str(bot_id))
         if binding is None:
             return await self.binding_hint(actor_id,bot_id) if self.binding_hint else f'请先发送 {command_prefix()}登录，绑定本人的账号。'
         client = binding.client
+        configured = False
+        def finish(text):
+            if not full or not configured:
+                return text
+            state = self.service.status(client,actor_id,bot_id,binding.revision)
+            at = normalized_time(self.sign_time())
+            if not state['enabled']:
+                return text + '\n自动签到授权已变更，请查看自动社区状态。'
+            if state['paused'] or not self.enabled() or not self.service.user_allowed(str(actor_id)):
+                return text + f'\n⏰ 自动签到时间为北京时间{at}；当前任务暂停或权限受限，恢复后生效。'
+            return text + f'\n⏰ 此后每天北京时间{at}开始自动签到，按账号依次执行，请稍候完成。'
         try:
             if (str(binding.actor_id),str(binding.bot_id)) != (str(actor_id),str(bot_id)):
                 return '仅能操作本人当前绑定账号。'
@@ -91,15 +102,15 @@ class CommunityCommands:
             stored = self.service.store.state(account)
             if full:
                 self.service.configure(client,actor_id,bot_id,binding.revision,enabled=True,likes=True)
+                configured = True
             elif stored.get('owner') != owner:
-                # A manual check-in grants one run, not future automation.
                 self.service.configure(client,actor_id,bot_id,binding.revision,enabled=False)
             state = self.service.status(client,actor_id,bot_id,binding.revision)
             prefix = '已为你本人开启全量签到（签到、浏览及点赞），不影响其他用户。\n' if full else ''
             if self.service.store.signin_status(account,owner,day)['confirmed']:
-                return prefix + '本周期已签到✅ 本次未重复请求。'
+                return finish(prefix + '本周期已签到✅ 本次未重复请求。')
             if state['paused']:
-                return '社区任务已暂停：' + state['paused'] + '。请人工检查后重新开启。'
+                return finish('社区任务已暂停：' + state['paused'] + '。请人工检查后重新开启。')
             if notify:
                 await notify(prefix + '签到任务已受理⏳ 正在排队或执行，完成后会返回结果，请勿重复发送。')
             result = await self.service.run(client,actor_id,bot_id,binding.revision,
@@ -108,14 +119,14 @@ class CommunityCommands:
                 return None
             kind = result['result']
             if kind in ('completed', 'paused', 'cycle_changed', 'unconfirmed'):
-                return result_message(result)
+                return finish(result_message(result))
             if kind == 'daily_limit':
-                return '本周期请求预算已用尽，未继续发送签到或互动请求。'
+                return finish('本周期请求预算已用尽，未继续发送签到或互动请求。')
             if kind == 'already_completed':
-                return '社区确认本周期已签到✅ 本次未继续浏览、点赞或查询金币。'
-            return '本周期已执行或已有任务正在处理，本次未重复请求。'
+                return finish('社区确认本周期已签到✅ 本次未继续浏览、点赞或查询金币。')
+            return finish('本周期已执行或已有任务正在处理，本次未重复请求。')
         except CommunityError as exc:
-            return str(exc)
+            return finish(str(exc))
         finally:
             await client.close()
 

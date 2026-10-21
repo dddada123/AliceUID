@@ -1,6 +1,6 @@
 [project]
 name = "AliceUID"
-version = "1.0.08"
+version = "1.0.09"
 description = "GsCore NIKKE 插件：邮箱登录、个人与角色面板、皮肤图鉴、联盟出刀和公开资料库"
 requires-python = ">=3.10"
 dependencies = [

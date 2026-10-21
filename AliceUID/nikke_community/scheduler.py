@@ -11,7 +11,7 @@ JOB_ID = "aliceuid-community"
 
 
 class CommunityScheduler:
-    def __init__(self, commands: CommunityCommands, list_bindings, *, sign_time=lambda: DEFAULT):
+    def __init__(self, commands: CommunityCommands, list_bindings, *, sign_time=lambda: DEFAULT, notifier=None):
         """list_bindings(): awaitable iterable of (actor_id, bot_id, revision).
 
         It must include all current bindings, even those without valid cookies.
@@ -21,6 +21,7 @@ class CommunityScheduler:
         self._lock = asyncio.Lock()
         self.sign_time = sign_time
         self.scheduler = None
+        self.notifier = notifier
 
     def reschedule(self, value):
         if self.scheduler is None:
@@ -46,23 +47,50 @@ class CommunityScheduler:
             service = self.commands.service
             owners = {service.owner(str(actor), str(bot), str(revision)) for actor, bot, revision in rows}
             service.store.reconcile(owners)
+            processed = set()
             for actor, bot, revision in rows:
                 if cycle_day(service.clock()) != batch_day:
                     break
                 if not self.commands.enabled():
                     return
-                if not service.user_allowed(str(actor)):
-                    service.pause_owner(str(actor), str(bot), str(revision))
-                    continue
-                binding = await self.commands.load_binding(str(actor), str(bot))
-                if binding is None:
-                    continue
+                binding = None
+                cancelled = False
                 try:
+                    if not service.user_allowed(str(actor)):
+                        service.pause_owner(str(actor), str(bot), str(revision))
+                        continue
+                    binding = await self.commands.load_binding(str(actor), str(bot))
+                    if binding is None:
+                        continue
                     if (str(binding.actor_id), str(binding.bot_id), binding.revision) != (str(actor), str(bot), str(revision)):
                         continue
                     await service.run(binding.client, str(actor), str(bot), str(revision))
+                except asyncio.CancelledError:
+                    cancelled = True
+                    raise
+                except Exception as exc:
+                    import logging
+                    logging.getLogger(__name__).warning('AliceUID community account error_type=%s',type(exc).__name__)
                 finally:
-                    await binding.client.close()
+                    try:
+                        if binding is not None:
+                            await binding.client.close()
+                    finally:
+                        if not cancelled:
+                            processed.add((str(actor),str(bot)))
+                            await self._notify(batch_day,processed)
+            await self._notify(batch_day,processed)
+
+    async def _notify(self, day, processed):
+        if self.notifier is None:
+            return
+        try:
+            await self.notifier.progress(day,processed)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning('AliceUID group summary error_type=%s',type(exc).__name__)
 
 
 def register_scheduler(runner: CommunityScheduler, scheduler=None, *, time_value=None):

@@ -1,6 +1,6 @@
 # AliceUID 开发文档
 
-适用版本：**1.0.08**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+适用版本：**1.0.09**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
 
 用户使用说明见 [README.md](README.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。路径以本文件所在的插件外壳为基准；`AliceUID/nikke_api/client.py` 指外壳下的内层代码。
 
@@ -597,3 +597,28 @@ python tools_alice/build_release.py --plugin-only --build-tag docs
 - 前缀限制1～12位ASCII字母/数字、CJK、_或-，区分大小写；拒绝空白、正则、HTML和引号。两开关键严格布尔。请求/换号范围由pacing.parse_range校验，重启生效；每日时刻仍为1.0.04的保存后重排。
 - 原CommunityIntervalSeconds从配置索引移除。ValidatedStringConfig在Core对账之前读取旧值；仅新键缺失且原自定义整数10～300、非默认15时，迁为同值范围。原15采用新默认5-15；新键已存在时由Core保留其值。账本迁移仅增加pacing列，不清空accounts/budgets/actions。
 - 新回归为test_v105_community.py与test_v105_prefix.py；前者用固定时钟/随机源和MockTransport验证间隔、响应后换号、重启/长租约、部分成功和配置迁移；后者用固定Core真实Trigger验证所有注册关键字/别名及权限包装。帮助预览工具preview_v105_help.py涵盖14组双引擎情况，离线禁止网络。
+
+
+## 1.0.09：DILDORO实验性推荐与通知隔离
+
+新增 `nikke_solo`，流程与依赖见其 `MAINTENANCE.md`。`owned_account`使用本人已绑定客户端读取保存角色及GetUserInfoNew分享标识，区分登录openid与分享openid；网站端使用独立无Cookie的非持久上下文。生产不执行下载到工作区的参考JS，所有计算仍由网站UI完成。
+
+`nikke_community/notifications.py`新增SQLite表notify_routes与notify_receipts，与既有签到账本共用事务。路由由有效群命令事件记录Bot类型、机器人自身ID、群ID与WS连接；发送使用Core现有target_send和回执。通知唯一键包含Bot类型、自身ID、群ID、签到周期；发送前预留unknown，确认后改delivered，未知不自动重发。同一机器人换WS连接更新路由，不重复发送同周期消息。
+
+调度按账号运行一次，每个账号结束后检查已知群；同群目标仍在途/未执行时不发完成通知。成功依据signin_confirmations，不依据last_day或completed标签；无法确认的结果另列未确认。每群只汇总自己的绑定/近30天命令观察成员，不把未记录成员归入未开启。跨08:00或全局社区暂停停止本轮通知。
+
+`notify_policy.py`的3个配置键仅由签到通知发送路径读取。默认全局开启、两表空；白名单非空即限定范围并覆盖重叠黑名单；白名单为空才按黑名单排除。群号只接受ASCII数字字符串，名单重叠有效；原业务四名单的冲突拒绝规则不变。通知仍检查Core插件/SV开启、群范围和名单，以及AliceUID既有群策略。全局关通知不撤销账号签到授权、不改scheduler、不影响查询。
+
+待实机：网址同步对每个实际区服的响应、网站更新/限流条件、真实推荐完成时长、用户环境的Playwright与QQ通知回执。没有实现自动修改公开设置或自动JSON备用导入。
+
+
+### candidate2独立主题
+
+个人突袭卡片使用独立的AliceUID_SoloCardTheme（dark默认、light、random），不读取AliceUID_CardTheme。命令可携带亮色/暗色/随机参数，仅覆盖本次渲染；未指定时读取独立配置。色板仍来自nikke_render.theme，随机只选择一次。apply_theme继续捕获全局GlassStrength并生成预模糊场景；hero、notes、shot-panel使用container_glass及共用glass_finish，网站截图在960px内容宽度和原DPI下保持原色，四角遮罩不变。卡片外宽1072px，为截图外增加15px毛玻璃衬边。
+
+
+### 1.0.09 candidate3：截图裁切与本地缓存
+
+nikke_solo.service.capture_result保留网站左栏原宽，隐藏外围并整体等比放大至960 CSS像素；不再独立拉宽fg-set。使用1.5 DPR、等待字体及头像解码，验证五队/25格/伤害/标题边界，失败不截图。tests_alice/test_v109_crop_fix.py使用冻结的真实CSS和compact卡片DOM还原白色右栏，证明旧实现会混入外围像素，修复在900/1280/1600窗口均不越界。最终亮暗样张共用此裁切链路。
+
+nikke_solo.cache保存本人账号/区服/Bot/凭据修订隔离的PNG和原子元数据。120小时固定有效期，读取不续期；每身份最多8个样式。普通指令优先本地命中，刷新指令强制重新计算，失败不把旧图作为新计算发送。重新登录/解绑清理接入原有_invalidate_replaced，过期回收复用每小时本地清理任务。保存和发送之前复核权限、绑定及已知凭据状态；所有验证使用离线数据，不执行真实账号操作。

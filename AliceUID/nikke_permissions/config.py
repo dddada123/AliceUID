@@ -112,6 +112,11 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                 with _CONFIG_LOCK:
                     from ..nikke_commands import ENABLED_KEY, PREFIX_KEY, DISABLE_KEY, valid_prefix
                     from ..nikke_community.pacing import RANGE_KEYS, parse_range
+                    from ..nikke_community.notify_policy import ENABLED, WHITE, BLACK, valid_groups
+                    if key == ENABLED and type(value) is not bool:
+                        return False
+                    if key in (WHITE,BLACK) and not valid_groups(value):
+                        return False
                     if key in (ENABLED_KEY, DISABLE_KEY) and type(value) is not bool:
                         return False
                     if key == PREFIX_KEY and not valid_prefix(value):
@@ -128,6 +133,8 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                     if key in ('AliceUID_GlassStrength', 'AliceUID_ForwardJpegQuality'):
                         if type(value) is not int or not 0<=value<=100:
                             return False
+                    if key == 'AliceUID_SoloCardTheme' and value not in ('light','dark','random'):
+                        return False
                     if key == 'AliceUID_CardFont':
                         from ..nikke_render.fonts import font_options
                         if not isinstance(value,str) or value not in font_options():

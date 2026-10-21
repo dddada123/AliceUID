@@ -9,18 +9,37 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.08-ff69b4?style=flat-square" alt="Version: 1.0.08"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.09-ff69b4?style=flat-square" alt="Version: 1.0.09"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
-适用于 GsCore 的《胜利女神：NIKKE》插件，提供本人账号绑定、个人资料、角色练度、皮肤图鉴、联盟会战、资源与保管箱查询，以及可选的社区日常任务。当前版本 **1.0.08**，默认使用 `nk` 前缀，也支持后台自定义。
+适用于 GsCore 的《胜利女神：NIKKE》插件，提供本人账号绑定、个人资料、角色练度、皮肤图鉴、联盟会战、资源与保管箱查询，以及可选的社区日常任务。当前版本 **1.0.09**，默认使用 `nk` 前缀，也支持后台自定义。
 
 [亮点功能](#亮点功能) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
 <p align="center">
   <img src="https://count.getloli.com/@AliceUID?theme=nixietube-1&amp;padding=7&amp;offset=0&amp;align=top&amp;scale=1&amp;pixelated=1&amp;darkmode=auto" alt="AliceUID 访问计数">
 </p>
+
+## 1.0.09 新增功能
+
+- **个人突袭推荐（实验性）**：发送 `nk个人突袭推荐`，优先复用本人五天缓存；无有效缓存时先提示查询来源，再导入本人blablalink资料，在DILDORO选择本人区服并计算推荐队伍；输出独立主题卡片（默认暗色，可选亮色/随机），截图四角圆弧，显示来源及模拟说明。伤害仅为模拟参考，详细计算请直接访问DILDORO。
+- `nk开启全量签到` 的最终回复会提示每日自动时间，读取当前配置，默认北京时间08:33；已签到也会提示，暂停时明确说明恢复后生效。
+- 自动签到按群发送完成统计，同一用户存在多个群时只执行一次签到、各群分别汇总。统计仅覆盖本群绑定或近30天使用过命令的已知用户，不代表实时全员名单；失败、未确认、暂停等不冒充全部成功。
+
+| Bot主指令 | 功能 |
+|---|---|
+| `nk签到群通知 开启/关闭/状态` | 全局开关，默认开启；关闭只停止通知，签到和其他业务照常 |
+| `nk签到通知白名单 添加/移除 群号` | 非空时只向白名单群发送；与黑名单重叠时白名单优先 |
+| `nk签到通知黑名单 添加/移除 群号` | 白名单为空时排除这些群；名单仅影响签到通知 |
+| `nk签到通知白名单 状态` / `nk签到通知黑名单 状态` | 查看通知专用名单 |
+
+后台对应 `AliceUID_SignGroupNotify`、`AliceUID_SignNotifyWhitelist`、`AliceUID_SignNotifyBlacklist`。通知规则为：全局开启 → 白名单非空则按白名单（含重叠群） → 否则排除黑名单。仍须满足Core和AliceUID原有权限；专用名单不能授予其他业务权限。
+
+网址同步需要blablalink个人档案与妮姬列表公开，未公开不会自动改设置；不支持的区服、没有完整适用队伍、网站繁忙或页面更新会明确返回失败。本人Cookie只用于官方接口，不传给DILDORO。页面会选取同弱点最近可用赛季排行，卡片注明推荐参考赛季与网站当前模拟条件，不能保证实战伤害。
+
+升级后，群需要有一次有效的nk命令事件以记录准确的Bot与群发送路由，之后可跨重启使用近30天记录；缺少路由时不猜测机器人账号。通知回执不明时保留记录，不重复刷群。1.0.09为离线验证候选版本，真实账号导入、外站计算与QQ投递仍待用户环境验收。
 
 ## 功能
 
@@ -32,6 +51,7 @@
 | 完整图鉴 | 十列已持有角色头像、姓名及星级/核心角标，按接口报告展示皮肤 |
 | 联盟会战 | 出刀速查、本人队伍详情、漏刀/尾刀、伤害及击杀排行、BOSS血量；区分当前与历史赛季 |
 | 收菜与资源 | 八类资源、保管箱容量、到90%与回满的北京时间估算；查询不会自动领取资源 |
+| 个人突袭推荐（实验性） | DILDORO本人养成数据与同区服排行推荐，五天缓存/主动刷新，独立亮暗主题卡片 |
 | 活动日历 | 匿名截取官网当前默认日历，显示来源与拍摄时间 |
 | 社区日常 | 本人手动签到，或按本人授权启用签到/浏览/点赞；自动任务默认关闭 |
 | 管理与外观 | 群/用户四名单、角色别名管理、公共资料库更新、亮暗/随机主题、字体与毛玻璃强度 |
@@ -39,6 +59,19 @@
 支持日服、北美服、韩服、国际服、东南亚服。登录时必须明确选服；港澳台网页登录流程暂未支持。
 
 ## 亮点功能
+
+### 🧮 个人突袭编队推荐（实验性）
+
+`nk个人突袭推荐` 使用本人blablalink养成数据，在 **dildoro.com 妮姬伤害计算器·DILDORO** 中按本人服务器获取排行编队推荐与模拟伤害，并将网站推荐区域截图放入AliceUID毛玻璃卡片。截图四角圆弧，保留每队与合计伤害，卡内明确数据来源和模拟参考说明。
+
+结果按本人账号、Bot、区服与当前绑定隔离，在本地保存 **5天（120小时）**。再次发送 `nk个人突袭推荐` 会优先使用缓存图并显示生成时间，读取不会延长有效期。练度变化后发送 **`nk个人突袭推荐刷新`** 重新导入计算；也可用 `nk个人突袭推荐刷新 亮色` 指定本次主题。刷新成功后更新缓存，刷新失败会明确报错，不把旧图当作新结果；有效期内仍可用普通指令查看明确标注的旧缓存。切换主题或毛玻璃强度仅在本地重绘，不重复查询网站。
+
+缓存位于Core资源目录的 `AliceUID/cache/solo`，原始截图与成品PNG均保存；五天到期立即停止复用，并由查询时清理及现有每小时本地清理任务回收。解绑、重新登录会清理原绑定的推荐缓存；已知失效凭据不发送旧图。
+
+卡片有独立主题设置 `AliceUID_SoloCardTheme`，默认 `dark`，可选 `light` 或 `random`，不受其他卡片主题影响。用户也可发送 `nk个人突袭推荐 亮色`、`nk个人突袭推荐 暗色`、`nk个人突袭推荐 随机`，仅为本次查询指定主题。顶部、截图承托区和说明区使用共用毛玻璃样式，模糊强度沿用全局设置；网站截图本身保留原始配色。
+
+推荐与伤害计算由DILDORO提供，AliceUID负责本人账号衔接、页面操作、截图与展示。伤害预估仅为模拟参考，详细参数与计算请访问 [dildoro.com](https://dildoro.com/)。
+
 
 ### ⚔️ 会战血量与联盟成员出刀总览
 
@@ -332,6 +365,14 @@ Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库�
 </p>
 
 </details>
+
+## 鸣谢
+
+感谢 [dildoro.com 妮姬伤害计算器·DILDORO](https://dildoro.com/) 提供妮姬伤害模拟、排行编队推荐及本功能采用的网站截图内容。AliceUID不将这些推荐与截图内容声明为独立原创，结果卡片同时标注来源与联合署名：
+
+`Powered By GsCore & Created By  AliceUID & dildoro`
+
+感谢 GsCore 提供插件运行、消息处理与卡片渲染基础。NIKKE角色、图片与游戏资料的权利归各权利人所有。
 
 ## 反馈与贡献
 
