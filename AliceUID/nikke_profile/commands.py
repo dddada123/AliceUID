@@ -1,6 +1,7 @@
 """nk 信息：个人名片查询与渲染。"""
 from __future__ import annotations
 from ..nikke_commands import command_prefix
+from ..nikke_ai import query as ai_query, summary as ai_summary, description as ai_description
 
 import asyncio
 from functools import wraps
@@ -130,6 +131,7 @@ async def send_profile_image(bot, ev, client, bind, data, *, policy=None):
         player_info=data["player"],
         area_label=client.region.label,
     )
+    ai_summary("profile", context)
     png = await draw_profile(context)
     async with binding_lock(ev.user_id,ev.bot_id):
         current=await AliceBind.get_bind(ev.user_id,ev.bot_id)
@@ -141,7 +143,14 @@ async def send_profile_image(bot, ev, client, bind, data, *, policy=None):
     return False
 
 
-@sv_profile.on_fullmatch(("信息", "名片", "个人资料"))
+@sv_profile.on_fullmatch(("信息", "名片", "个人资料"),
+    to_ai=ai_description("""查询当前用户本人绑定的妮姬个人资料，复用插件缓存；不接受他人UID或账号。
+    当用户询问我的指挥官等级、推图进度、同步等级时调用。
+    Args:
+        text: 无需参数，留空。例“查看我的妮姬资料”“我的同步等级是多少”。
+    """), covers=['妮姬个人资料', 'NIKKE指挥官等级', '妮姬推图进度'],
+    aliases=['妮姬·我的资料', '妮姬·我的同步等级'])
+@ai_query(sv_profile, no_args=True)
 @profile_errors
 async def nikke_profile_cmd(bot: Bot, ev: Event):
     if not await get_policy().query_allowed(ev.group_id):

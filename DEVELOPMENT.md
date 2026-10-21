@@ -1,6 +1,6 @@
 # AliceUID 开发文档
 
-适用版本：**1.0.11**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+适用版本：**1.0.12**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
 
 用户使用说明见 [README.md](README.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。路径以本文件所在的插件外壳为基准；`AliceUID/nikke_api/client.py` 指外壳下的内层代码。
 
@@ -28,11 +28,11 @@ AliceUID/                       ← 可安装外壳
 [内层入口](AliceUID/__init__.py) 在正常模式下执行：
 
 1. 注册 `Plugins(name="AliceUID", force_prefix=["nk"], allow_empty_prefix=False)`。
-2. 建立配置，捕获nikke_commands前缀快照，再建立四名单策略。
+2. 在任何SV与StringConfig初始化前，通过Core PluginConfigStore完成旧前缀的一次性迁移并读取生效前缀；随后建立插件配置与四名单策略。
 3. 导入 `AliceBind` 模型并尝试挂载Core后台管理；不兼容的管理界面不会阻止普通登录。
 4. 导入各模块命令和登录Web路由；部分模块在 `setup()` 中注册。
 5. 启用日历、数据库命令及周检、社区调度、图鉴命令，绑定会战发送前核验。
-6. 调用 `guard_plugin_triggers()` 包装全部Core Trigger；最后 `nikke_commands.bind_triggers()` 按启动快照重建自定义前缀触发器，复用原func/权限/finally，通知Core候选索引刷新。
+6. 调用 `guard_plugin_triggers()` 保留普通命令的统一用户权限检查。前缀完全由Core原生SV注册生成，不替换触发器，不手动刷新候选索引。AI入口在to_ai注册前已加专用查询检查。
 
 `ALICEUID_STANDALONE=1` 只供测试/离线渲染，跳过上述Core注册；生产不能设置它。
 
@@ -55,7 +55,8 @@ flowchart TD
 | 模块 | 主要责任与入口 |
 |---|---|
 | `nikke_config` | `config_default.py` 默认配置；`config.py` 路径与ValidatedStringConfig |
-| `nikke_commands` | 前缀配置校验、启动快照、Core触发器重建、command_prefix提示映射 |
+| `nikke_commands` | 旧前缀迁移、Core前缀启动快照、command_prefix提示映射 |
+| `nikke_ai` | 四类to_ai查询入口的权限检查、图片结果核验后的最小数据摘要 |
 | `nikke_message` | 默认开启的实验性转发、标题首节点、完整单图JPG、NapCat消息ID回执与普通消息回退 |
 | `nikke_permissions` | 四名单校验、Core Trigger包装、群管理命令；`policy.py/config.py/access.py` |
 | `nikke_user` | `AliceBind`、加密存储、加载本人客户端、绑定锁、受控后台解绑、主动面板刷新 |
@@ -468,15 +469,13 @@ CookieCipher使用独立secret.key进行加密。备份运行环境时保留密�
 | `AliceUID_RemoteRenderToken` | GsStrConfig | `` | 外置渲染 Token |
 | `AliceUID_CardTheme` | GsStrConfig | `random` | 全局卡片主题，已有自定义保留 |
 | `AliceUID_CharacterCardStyle` | GsStrConfig | `compact` | 角色练度卡布局 |
+| `AliceUID_AIQueryEnabled` | GsBoolConfig | `false` | 允许Core AI只读查询；关闭后立即拒绝，普通命令不受影响 |
 | `AliceUID_RenderDpi` | GsIntConfig | `144` | 渲染分辨率 DPI |
 | `AliceUID_RenderTimeout` | GsIntConfig | `60` | 外置渲染超时（秒） |
 | `AliceUID_CommunitySignTime` | GsStrConfig | `08:33` | 每日签到时间（北京时间HH:MM，保存即重排） |
 | `AliceUID_CommunityPaused` | GsBoolConfig | `false` | 暂停所有社区任务 |
 | `AliceUID_CommunityRequestRange` | GsStrConfig | `5-15` | 请求随机间隔秒数范围，重启生效 |
 | `AliceUID_CommunityAccountRange` | GsStrConfig | `10-120` | 换账号随机等待范围，重启生效 |
-| `AliceUID_CustomPrefixEnabled` | GsBoolConfig | `false` | 启用自定义前缀，重启生效 |
-| `AliceUID_CustomPrefix` | GsStrConfig | `alice` | 1～12位中英文字母/数字/_/-，重启生效 |
-| `AliceUID_DisableDefaultPrefix` | GsBoolConfig | `false` | 自定义开启时禁用nk并更换提示，重启生效 |
 | `AliceUID_CommunityDailyRequests` | GsIntConfig | `30` | 社区每日请求上限 |
 | `DatabaseWeeklyUpdate` | GsBoolConfig | `true` | 每周自动更新公开数据库 |
 | `DatabaseIncludeSkins` | GsBoolConfig | `true` | 数据库包含公开皮肤变体 |
@@ -589,14 +588,13 @@ python tools_alice/build_release.py --plugin-only --build-tag docs
 
 1.0.03的1188通过数字是历史功能基线；1.0.04的测试和资源迁移是上一版基线；当前1.0.05以本轮handoff验证记录为准。
 
-## 17. 1.0.05接口与前缀映射
+## 17. Core原生前缀与旧配置迁移（1.0.12）
 
-- `nikke_commands.resolve_prefixes(enabled,custom,disable)`返回有序前缀元组：关闭自定义为nk；双前缀首项始终nk；独占自定义首项为custom。`configure(config)`在启动时设置一次，`command_prefix()`用于代码里的指令示例。配置保存不热改快照，须完整重启。
-- `bind_triggers(plugin)`在全部SV/权限包装后执行，以原type/keyword/func/block/to_me创建新Core Trigger，替换TL并调用bump_registry_version；不修改权限、命令参数或回调。默认模式沿用Core原注册，双/独占自定义模式由AliceUID三配置控制前缀。
-- 用户可见Python字面量使用command_prefix插值；不会对整条发送内容替换nk，因此昵称、角色名、网址、Cookie等变量保持原值。模板的command_prefix上下文由apply_theme提供；登录页非Jinja，通过受限{{COMMAND_PREFIX}}占位符提供。
-- 前缀限制1～12位ASCII字母/数字、CJK、_或-，区分大小写；拒绝空白、正则、HTML和引号。两开关键严格布尔。请求/换号范围由pacing.parse_range校验，重启生效；每日时刻仍为1.0.04的保存后重排。
-- 原CommunityIntervalSeconds从配置索引移除。ValidatedStringConfig在Core对账之前读取旧值；仅新键缺失且原自定义整数10～300、非默认15时，迁为同值范围。原15采用新默认5-15；新键已存在时由Core保留其值。账本迁移仅增加pacing列，不清空accounts/budgets/actions。
-- 新回归为test_v105_community.py与test_v105_prefix.py；前者用固定时钟/随机源和MockTransport验证间隔、响应后换号、重启/长租约、部分成功和配置迁移；后者用固定Core真实Trigger验证所有注册关键字/别名及权限包装。帮助预览工具preview_v105_help.py涵盖14组双引擎情况，离线禁止网络。
+`nikke_commands.configure(plugin, config_path)` 必须在所有SV注册与StringConfig读取前执行。使用Core公开的 `plugin_config_store.get/set/save` 接口保留完整权限配置，只迁移前缀字段。已有原生prefix、禁用默认前缀或空前缀配置时优先保留Core设置；未定制时把旧CustomPrefix映射到prefix，把DisableDefaultPrefix映射到disable_force_prefix。保存失败中止初始化且恢复内存，不写成功标记。
+
+迁移记录 `prefix_migration_v112.json` 保存旧的三个前缀值与结果，不复制账户配置或凭据。完成后删除旧WebUI控制项，后续不再重放旧值。`command_prefix()` 读取与本次启动注册一致的前缀快照，默认优先nk，禁用默认时使用第一个Core自定义前缀。Core已有配置优先；修改前缀须完整重启，帮助缓存随内容指纹自然失效。
+
+`bind_triggers()` 已移除，不修改 `SV.TL`、不构建 `Trigger`、不调用 `bump_registry_version`。Core原生负责空格解析和注册元数据，四名单包装及 finally 保留。旧版1～12位校验只用于迁移旧数据，不限制Core的新配置。
 
 
 ## 1.0.09：DILDORO实验性推荐与通知隔离
@@ -660,3 +658,15 @@ nikke_solo.cache保存本人账号/区服/Bot/凭据修订隔离的PNG和原子�
 连接暂停固定60秒，继续一次普通回退。如果本次发送将原非False的_supports_recall锁为False，只为该连接保留可重试标记；暂停到期且仍是同一transport时恢复None及计数器，允许下一次正常转发探测。调用前已不支持回执的连接不自动改动。暂停表上限64，随条目淘汰清理重试引用。
 
 离线测试执行冻结Core原函数，控制回执在模拟第20秒/45秒到达，确认实际wait参数为30/60且没有普通回退；验证即时配置变化、并发其他插件10秒隔离、60秒边界恢复、取消清理、权限拒绝和既有完整原图字节。不会因本修复重绘出刀或修改180秒联盟快照。日志只记录时长/确认状态，不重复输出图片Base64。
+
+## 22. AI只读查询（1.0.12）
+
+四个原生to_ai入口：nikke_help、nikke_profile_cmd、nikke_character_cmd、alias_query_command。每个入口提供to_ai描述、covers和aliases；不重复注册ai_tools，不修改Core代码。默认AliceUID_AIQueryEnabled关闭，to_ai描述为空，不注册AI工具。须同时开启插件开关与Core AI并重启完成注册；插件开关可即时关闭调用。普通命令不加载AI引擎；插件仅在Core已创建MockBot时进入AI适配分支。
+
+装饰顺序为 `@sv.on_*(..., to_ai=...)` 在外、`@ai_query(sv)` 在内，确保Core捕获的是已检查权限的函数。原来的启动后Trigger.func包装不能覆盖AI保存的函数引用。AI适配补齐Core命令路径的插件/SV名单、范围、权限以及全局黑名单，再检查AliceUID四名单；每次返回结果时复查。Core权限规则与固定源码handler._sv_authorized做离线等价验证。
+
+资料/练度/别名仅选取显示字段产生摘要，不输出Cookie、Token、openid、原始响应或图片Base64。摘要暂存于当前调用ContextVar，在业务完成绑定核验并提交图片到MockBot时才调用Core ai_return；渲染失败、解绑/换绑定或撤权时不返回暂存摘要。帮助走纯文字指南，避免AI调用转发或等待真实回执。图片由Core资源管理器登记后返回资源ID，最终是否发送由Core AI决定；本插件不绕过Core发送机制。
+
+DILDORO、刷新、登录、解绑、签到等没有to_ai注册。DILDORO代码、模板和缓存均按父版哈希保护；Playwright保留为网站JavaScript交互与真实DOM截图依赖。常规卡片原先已使用render_html_to_bytes，本版不声称新增20倍性能提升。
+
+本版离线契约固定Core `f0fea6f935c34ce05a235352ecdb6f30ba848b43`，源文件与两份官方技能文档的哈希位于开发.references/gscore_v112。测试隔离模型、发送、存储与网络边界，不启动完整Core或调用真实AI服务。实机还需核验Core版本、WebUI迁移、自然语言召回与QQ图片发送。

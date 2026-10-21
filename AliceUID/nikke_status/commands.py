@@ -1,4 +1,5 @@
 """Only the invoking user's account, with binding and policy rechecked at send."""
+from ..nikke_commands import command_prefix
 from gsuid_core.logger import logger
 from gsuid_core.segment import MessageSegment
 from gsuid_core.sv import SV
@@ -34,7 +35,7 @@ async def _query(bot,ev,kind):
     try:
         text=(ev.text or '').strip()
         if text not in ('','刷新'):
-            result=f'用法：nk{"资源查询" if kind=="resources" else "会战血量"} [刷新]。'
+            result=f'用法：{command_prefix()}{"资源查询" if kind=="resources" else "会战血量"} [刷新]。'
         elif not await _allowed(ev):
             result='当前未开放妮姬查询，请联系管理员。'
         else:

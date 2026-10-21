@@ -1,5 +1,6 @@
 """Bot-owner-only alias writes, also covered by the root four-list guard."""
 from ..nikke_commands import command_prefix
+from ..nikke_ai import query as ai_query, summary as ai_summary, description as ai_description
 from gsuid_core.sv import SV
 from ..nikke_resource.service import get_resources
 from .aliases import get_alias_store
@@ -35,6 +36,7 @@ async def query_alias(bot, ev, name):
         resources = get_resources()
         static = resources.load_static()
         context = get_alias_store().lookup(name,static)
+        ai_summary('aliases', context)
         info = static.character(context['name_code'])
         resource_id = info.get('resource_id')
         if type(resource_id) is not int or resource_id <= 0:
@@ -61,6 +63,12 @@ async def alias_query_suffix(bot,ev):
     await query_alias(bot,ev,text)
 
 
-@sv_alias_query.on_command('角色别名查询')
+@sv_alias_query.on_command('角色别名查询',
+    to_ai=ai_description("""查询妮姬角色的正式名称和已有别名，不添加或修改别名，无需账号登录。
+    Args:
+        text: 单个角色名或别名，例如“红莲：暗影”“黑莲”。
+    """), covers=['妮姬角色别名', 'NIKKE角色名称'],
+    aliases=['妮姬·角色叫什么', '妮姬·查角色别名'])
+@ai_query(sv_alias_query)
 async def alias_query_command(bot,ev):
     await query_alias(bot,ev,ev.text or '')

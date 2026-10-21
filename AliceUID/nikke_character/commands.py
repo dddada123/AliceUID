@@ -1,6 +1,7 @@
 """本人角色练度查询：nk爱丽丝练度 / nk练度 爱丽丝。"""
 from __future__ import annotations
 from ..nikke_commands import command_prefix
+from ..nikke_ai import query as ai_query, summary as ai_summary, description as ai_description
 
 from gsuid_core.bot import Bot
 from gsuid_core.logger import logger
@@ -76,6 +77,7 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
         )
         # Draw and resource preparation are owned by the integration layer.
         from .draw import draw_character
+        ai_summary("character", context)
         png = await draw_character(context)
         if not character_queries.context_current(context,bind):
             await bot.send('面板已更新，请重新查询；未发送旧卡片。',at_sender=True)
@@ -108,7 +110,14 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
                 logger.error(f'[AliceUID] 角色查询客户端关闭失败 error_type={type(exc).__name__}')
 
 
-@sv_character.on_command('练度')
+@sv_character.on_command('练度',
+    to_ai=ai_description("""查询当前用户本人持有的妮姬角色练度，展示等级、战力、技能和装备；复用插件缓存。
+    不支持替他人查询，不执行强制刷新。
+    Args:
+        text: 单个角色名或别名，例如“爱丽丝”“红莲：暗影”，不附加刷新、更新或UID。
+    """), covers=['妮姬角色练度', 'NIKKE技能等级', '妮姬角色装备'],
+    aliases=['妮姬·查角色练度', '妮姬·我的角色面板'])
+@ai_query(sv_character)
 async def nikke_character_cmd(bot: Bot, ev: Event):
     await _query(bot, ev, ev.text or '')
 

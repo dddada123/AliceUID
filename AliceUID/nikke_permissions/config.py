@@ -106,21 +106,27 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
 
             def write_config(self):
                 config_lists(self)
+                # Migration runs before StringConfig construction. Remove the
+                # retired UI controls only after their values are backed up.
+                if self.CONFIG_PATH.with_name('prefix_migration_v112.json').exists():
+                    from ..nikke_commands import PREFIX_KEYS
+                    for key in PREFIX_KEYS:
+                        self.config.pop(key, None)
                 return super().write_config()
 
             def set_config(self, key, value):
                 with _CONFIG_LOCK:
-                    from ..nikke_commands import ENABLED_KEY, PREFIX_KEY, DISABLE_KEY, valid_prefix
+                    from ..nikke_commands import PREFIX_KEYS
                     from ..nikke_community.pacing import RANGE_KEYS, parse_range
                     from ..nikke_community.notify_policy import ENABLED, WHITE, BLACK, valid_groups
                     if key == ENABLED and type(value) is not bool:
                         return False
                     if key in (WHITE,BLACK) and not valid_groups(value):
                         return False
-                    if key in (ENABLED_KEY, DISABLE_KEY) and type(value) is not bool:
+                    if key == 'AliceUID_AIQueryEnabled' and type(value) is not bool:
                         return False
-                    if key == PREFIX_KEY and not valid_prefix(value):
-                        return False
+                    if key in PREFIX_KEYS:
+                        return False  # Retired: configure prefixes in Core plugin management.
                     if key in RANGE_KEYS:
                         try:
                             parse_range(value)

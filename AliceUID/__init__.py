@@ -12,9 +12,10 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
             allow_empty_prefix=False,
         )
 
+    from gsuid_core.data_store import get_res_path
+    from .nikke_commands import configure
+    configure(SL.plugins['AliceUID'], get_res_path() / 'AliceUID' / 'config.json')
     from .nikke_config.config import MAIN_PATH, AliceUIDConfig  # noqa: E402
-    from .nikke_commands import configure, bind_triggers
-    configure(AliceUIDConfig)
     from .nikke_permissions.commands import setup as setup_group_permissions  # noqa: E402
     from .nikke_permissions.runtime import set_policy  # noqa: E402
     from .nikke_permissions.access import guard_plugin_triggers, set_group_observer  # noqa: E402
@@ -68,4 +69,3 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
 
     # 必须在全部 SV 和 setup 后扫描真实 Core Trigger，保留原生名单与 finally。
     guard_plugin_triggers(SL.plugins["AliceUID"], policy)
-    bind_triggers(SL.plugins['AliceUID'])

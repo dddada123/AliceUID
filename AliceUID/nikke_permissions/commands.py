@@ -66,11 +66,11 @@ class PermissionCommands:
                 values = (await self.policy.snapshot())[list_name]
                 return label + "：" + ("、".join(values) if values else "空")
             if len(parts) != 2 or parts[0] not in {"添加", "移除"}:
-                return f"命令：nk{label} 添加/移除 号码；号码须为ASCII数字。"
+                return f"命令：{command_prefix()}{label} 添加/移除 号码；号码须为ASCII数字。"
             try:
                 group_key(parts[1])
             except GroupPolicyError:
-                return f"命令：nk{label} 添加/移除 号码；号码须为ASCII数字。"
+                return f"命令：{command_prefix()}{label} 添加/移除 号码；号码须为ASCII数字。"
             await self.policy.update_list(list_name, parts[1], add=parts[0] == "添加")
             return f"已{parts[0]}{label}：{parts[1]}。"
         except GroupPolicyError as exc:

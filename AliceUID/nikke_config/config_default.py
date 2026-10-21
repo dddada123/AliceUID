@@ -12,6 +12,9 @@ from gsuid_core.utils.plugins_config.models import (
 from ..nikke_render.fonts import factory_default, font_options
 
 CONFIG_DEFAULT: Dict[str, GSC] = {
+    "AliceUID_AIQueryEnabled": GsBoolConfig(
+        "允许AI调用只读查询", "默认关闭；开启后须同时启用Core AI并重启完成注册。开放帮助、本人资料、角色练度和角色别名查询；始终遵守Core与AliceUID权限。关闭后立即拒绝AI调用，普通命令不受影响。", False,
+    ),
     "AliceUID_SoloCardTheme": GsStrConfig(
         "个人突袭推荐卡片主题（独立）", "只影响个人突袭推荐卡片，默认暗色；可选亮色或随机，不跟随其他卡片主题。查询时可用亮色/暗色/随机参数临时指定。毛玻璃强度仍使用全局设置。", "dark", options=["light","dark","random"],
     ),
@@ -23,15 +26,6 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
     ),
     "AliceUID_SignNotifyBlacklist": GsListStrConfig(
         "签到通知群黑名单", "仅影响签到群通知；白名单为空时排除这些群。与白名单重叠时按照白名单允许；不改变任何其他业务权限。", [],
-    ),
-    "AliceUID_CustomPrefixEnabled": GsBoolConfig(
-        "启用自定义唤醒指令", "保存后重启Core生效。默认仍使用nk；自定义指令与原有权限检查共用。", False,
-    ),
-    "AliceUID_CustomPrefix": GsStrConfig(
-        "自定义唤醒指令", "1～12个中英文字母或数字，可用_、-；不能含空格、正则或标记。例alice或妮姬，保存后重启Core生效。", "alice",
-    ),
-    "AliceUID_DisableDefaultPrefix": GsBoolConfig(
-        "自定义时禁用默认nk", f"仅启用自定义指令时有效。关闭：{command_prefix()}和自定义均可，帮助仍用nk；开启：仅自定义可用，帮助/提示同步替换。重启Core生效。", False,
     ),
     "AliceUID_CommunitySignTime": GsStrConfig(
         "每日签到时间（北京时间）", "24小时制HH:MM，精确到分钟，例如08:33；保存后更新每日自动任务。社区周期08:00刷新；仅执行已授权账号，手动签到不受定时时刻限制。", "08:33",

@@ -9,12 +9,12 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.11-ff69b4?style=flat-square" alt="Version: 1.0.11"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.12-ff69b4?style=flat-square" alt="Version: 1.0.12"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
-适用于 GsCore 的《胜利女神：NIKKE》插件，提供本人账号绑定、个人资料、角色练度、皮肤图鉴、联盟会战、资源与保管箱查询，以及可选的社区日常任务。当前版本 **1.0.11**，默认使用 `nk` 前缀，也支持后台自定义。
+适用于 GsCore 的《胜利女神：NIKKE》插件，提供本人账号绑定、个人资料、角色练度、皮肤图鉴、联盟会战、资源与保管箱查询，以及可选的社区日常任务。当前版本 **1.0.12**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
 
 [亮点功能](#亮点功能) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -33,6 +33,12 @@
 ### 🧭 通用帮助与长效缓存
 
 `nk帮助` 提供普通用户、Bot主两类通用指南，不展示昵称、UID或区服等个人信息。两张图分别缓存30天，重启可复用，到期首次访问随机主题重建；帮助内容或相关配置变化会提前重建。需要复制命令时使用 `nk帮助 文字`，图片渲染失败也会回退文字。
+
+### 🤖 AI自然语言查询
+
+开启插件「允许AI调用只读查询」及Core AI并完整重启后，可用自然语言查询本人资料、角色练度、角色别名和插件帮助，例如“看看我的妮姬资料”“查爱丽丝练度”“黑莲有哪些别名”。复用原有查询与缓存，仍受Core权限、群聊范围以及AliceUID四名单约束，不接受替他人查询。
+
+后台「允许AI调用只读查询」默认关闭，不注册AI工具；按需开启并重启后生效。关闭后立即停止AI查询，普通指令照常使用。AI帮助返回文字，资料类返回必要数据摘要和图片资源，由Core AI决定最终回复。登录、解绑、社区操作、强制刷新及DILDORO计算未开放AI调用。
 
 ### 🧮 个人突袭编队推荐（实验性）
 
@@ -72,7 +78,7 @@
 
 1. 首次安装或升级前备份原插件及其运行数据。解压安装包，把整个外壳放入 `plugins/AliceUID/`。
 2. 保留以下嵌套结构，不要只拷内层包，也不要将开发工作区的版本目录 当成插件目录。
-3. 在运行 GsCore 的 Python 环境安装插件依赖。使用网页登录或官网日历时，准备 Playwright Chromium。
+3. 在运行 GsCore 的 Python 环境安装插件依赖。使用网页登录、官网日历或DILDORO个人突袭推荐时，准备 Playwright Chromium。
 4. 完整重启 GsCore，在 WebUI 的 AliceUID 配置中检查登录地址、访问名单和主题，再发送 `nk帮助`。
 
 ```text
@@ -95,6 +101,8 @@ plugins/
 python -m pip install -r plugins/AliceUID/requirements.txt
 python -m playwright install chromium
 ```
+
+常规卡片使用Core的 `render_html_to_bytes` 原生渲染。DILDORO需要执行网站JavaScript、导入本人资料、操作推荐界面并截取真实结果；pytakumi不能替代浏览器自动化，因此保留Playwright。官网日历截图与网页登录同样保留浏览器。
 
 从其他 AliceUID 版本升级，继续使用原 `data/AliceUID` 和 `AliceBind`，无须因版本更新重新绑定。不要同时启用多份 AliceUID。
 
@@ -178,13 +186,13 @@ NapCat转发的「转发回执等待秒数」默认 **30秒**，可设 **5～300
 
 ### 自定义唤醒指令
 
-在GsCore的AliceUID设置中启用「自定义唤醒指令」，填写1～12位中英文字母、数字、`_`或`-`，例如 `alice`、`妮姬`，保存后完整重启Core。
+在GsCore的**插件管理 → AliceUID**中配置框架自带的 `prefix` 与 `disable_force_prefix`，保存后完整重启Core。插件默认提供 `force_prefix=["nk"]`；前缀前后的空格由Core识别。
 
-- 默认关闭自定义：只用原 `nk`。
-- 启用自定义、保留默认：例如 `nk登录` 和 `alice登录` 都可用，帮助和提示继续显示 `nk`。
-- 启用自定义且禁用默认：仅 `alice登录` 等可用；图片/文字帮助、区服提示、Cookie失效提示和登录网页均显示 `alice`。
+- 默认：`nk登录`、`nk 个人突袭推荐`。
+- `prefix` 添加 `alice`，保留默认前缀：`nk登录` 和 `alice登录` 均可用，帮助优先显示 `nk`。
+- 添加 `alice` 并开启 `disable_force_prefix`：仅自定义前缀可用，帮助和提示同步显示 `alice`。关闭默认前缀前先设置可用的自定义前缀。
 
-前缀按填写内容区分大小写，不改变角色名、权限或绑定。本文命令表采用默认 `nk`；独占自定义时换成你设置的前缀。
+从1.0.11及更早版本升级时，首次启动会将已启用的旧插件前缀迁移到Core；若Core已有自定义配置，以Core为准并记录提示。迁移只执行一次，原值保存在 `data/AliceUID/prefix_migration_v112.json`，旧的三项插件前缀设置退出WebUI。本文命令采用默认 `nk`，独占自定义时替换为实际前缀。
 
 Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库更新 帮助`；公共资料库默认每周五北京时间02:33增量检查，已有合格素材复用。维护只取公开资料，不使用玩家 Cookie。第一次补齐图库较慢，任务会保存队列并报告剩余项。
 
@@ -213,8 +221,7 @@ Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库�
 | `AliceUID_SignNotifyWhitelist` / `AliceUID_SignNotifyBlacklist` | 签到通知专用名单，独立于查询权限 |
 | `AliceUID_CommunityPaused` | 暂停全部社区任务 |
 | `AliceUID_CommunityRequestRange` / `AliceUID_CommunityAccountRange` | 请求/换号随机秒数范围，默认`5-15` / `10-120`，重启生效 |
-| `AliceUID_CustomPrefixEnabled` / `AliceUID_CustomPrefix` | 自定义前缀开关/内容，重启生效 |
-| `AliceUID_DisableDefaultPrefix` | 自定义启用时是否关闭默认nk并同步帮助文案，重启生效 |
+| `AliceUID_AIQueryEnabled` | 允许Core AI调用四类只读查询，默认关闭，开启后重启，关闭立即生效 |
 | `Database*` | 公共数据库任务数、下载/存储/时间预算及周检开关 |
 
 `AliceUID_ResourceCacheSeconds` 是兼容键，当前成功图片窗口固定300秒。`AliceUID_MasterQQ` 只作主人标记，不提升Core权限。完整配置字段见[开发文档](DEVELOPMENT.md)。
