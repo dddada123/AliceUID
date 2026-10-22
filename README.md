@@ -9,12 +9,12 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.16-ff69b4?style=flat-square" alt="Version: 1.0.16"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.17-ff69b4?style=flat-square" alt="Version: 1.0.17"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
-适用于 GsCore 的《胜利女神：NIKKE》插件，提供会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.0.16**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
+适用于 GsCore 的《胜利女神：NIKKE》插件，提供会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.0.17**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -26,7 +26,7 @@
 
 ### 本人练度全量导出
 
-`nk练度全量导出` 将本人全部妮姬练度导出为 Excel，双角色并排展示，支持爆裂阶段、定位和企业筛选。包含T10装备词条与同类汇总，高阶数字标蓝，15阶黑底亮蓝。
+`nk练度全量导出` 将本人全部妮姬练度导出为 Excel，双角色并排展示，支持爆裂阶段、定位、企业和角色属性联合筛选。属性下拉位于H5，可选燃烧、水冷、铁甲、电击、风压等。包含T10装备词条与同类汇总，高阶数字标蓝，15阶黑底亮蓝；词条数据行采用淡灰／白交替底色。总览保留5行紧凑表头，I2说明、I3导出人数、I4匹配人数。
 
 导出使用本地缓存，注明账号与更新时间；需要最新数据时先发送 `nk刷新面板`。
 

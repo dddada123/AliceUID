@@ -57,11 +57,12 @@ def burst_label(value):
     return {'1': 'Ⅰ', '2': 'Ⅱ', '3': 'Ⅲ', 'AllStep': '全阶段'}.get(str(value), UNKNOWN)
 
 
-def matches(row, burst='全部', role='全部', company='全部'):
+def matches(row, burst='全部', role='全部', company='全部', element='全部'):
     stage = row['burst']
     return ((burst == '全部' or stage == burst or (stage == '全阶段' and burst in ('Ⅰ', 'Ⅱ', 'Ⅲ')))
             and (role == '全部' or row['role'] == role)
-            and (company == '全部' or row['company'] == company))
+            and (company == '全部' or row['company'] == company)
+            and (element == '全部' or row['element'] == element))
 
 
 def _line_values(line):

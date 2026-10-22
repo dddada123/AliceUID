@@ -23,7 +23,7 @@ def build_workbook(data: ExportData) -> bytes:
     book = xlsxwriter.Workbook(stream, {'in_memory': True, 'strings_to_formulas': False,
                                       'strings_to_urls': False, 'strings_to_numbers': False})
     book.set_properties({'title': 'NIKKE练度表', 'subject': '本人本地练度缓存', 'author': 'AliceUID',
-                         'comments': '由 AliceUID 1.0.16 导出；不含登录凭据。', 'created': data.exported_at.replace(tzinfo=None)})
+                         'comments': '由 AliceUID 1.0.17 导出；不含登录凭据。', 'created': data.exported_at.replace(tzinfo=None)})
     book.set_calc_mode('auto')
     overview = book.add_worksheet('练度总览')
     detail = book.add_worksheet('数据明细')
@@ -48,12 +48,24 @@ def build_workbook(data: ExportData) -> bytes:
         integer=fmt(num_format='#,##0'),
         number=fmt(num_format='0.00'),
         percent=fmt(num_format='0.00%'),
-        blank=fmt(font_color='white', bg_color='white', border=0),
+        blank=fmt(font_color='white', bg_color='white', border=1, border_color='white'),
         max_name=fmt(bg_color='#101923', font_color='white'),
         max_value=fmt(bg_color='#101923', font_color='#81C8FF', bold=True),
         rare=fmt(font_color=blue, bold=True),
         muted=fmt(font_color='#8996A5'),
     )
+    # Alternate individual data rows; merged equipment/summary blocks keep their fills.
+    row_styles = {
+        'text': dict(text_wrap=True),
+        'value': dict(bold=True, num_format='0.00%', align='right'),
+        'tier': dict(font_size=9, font_color=gray, num_format='0"阶"', align='center'),
+        'integer': dict(num_format='#,##0'),
+        'number': dict(num_format='0.00'),
+        'percent': dict(num_format='0.00%'),
+    }
+    row_formats = [{key: fmt(bg_color=color, **props) for key, props in row_styles.items()}
+                   for color in ('#F0F2F5', '#FFFFFF')]
+    formats['notice'] = fmt(font_size=9, font_color=gray, text_wrap=True)
     columns = {column.key: index for index, column in enumerate(data.columns)}
     n = len(data.rows)
     last = DATA_FIRST+n
@@ -84,7 +96,7 @@ def build_workbook(data: ExportData) -> bytes:
     detail.freeze_panes(DATA_FIRST,2)
     detail.set_zoom(90)
     merge_text(detail,3,0,3,10,'每名妮姬一行。表头可多选筛选、数值排序；百分比列保存为数字。未知、未提供不计作0。',formats['subtitle'])
-    headers = [{'header': column.label} for column in data.columns]
+    headers = [{'header': column.label, 'header_format': formats['header']} for column in data.columns]
     detail.add_table(DATA_FIRST-1,0,last-1,len(data.columns)-1,{'name':'NikkeDetails','columns':headers,'style':'Table Style Medium 2'})
     detail.set_row(DATA_FIRST-1,42)
     for index, column in enumerate(data.columns):
@@ -92,7 +104,7 @@ def build_workbook(data: ExportData) -> bytes:
         detail.set_column(index,index,width,formats.get(column.kind), {'hidden':True} if column.hidden else {})
     matchcol, rankcol = colname(columns['_match']), colname(columns['_rank'])
     positioncol = colname(columns['_position'])
-    burstcol, rolecol, companycol = (colname(columns[k]) for k in ('burst','role','company'))
+    burstcol, rolecol, companycol, elementcol = (colname(columns[k]) for k in ('burst','role','company','element'))
     for i,row in enumerate(data.rows):
         r = DATA_FIRST+i
         er = r+1
@@ -103,14 +115,16 @@ def build_workbook(data: ExportData) -> bytes:
             kind = column.kind
             if kind == 'affix':
                 kind = 'percent' if row[column.key.replace('_value','_unit')] == 'Percent' else 'number'
-            write_value(detail,r,c,value,formats.get(kind,formats['text']))
+            write_value(detail,r,c,value,row_formats[i % 2].get(kind,row_formats[i % 2]['text']))
         stage = f'INDEX(${burstcol}${DATA_FIRST+1}:${burstcol}${last},ROW()-{DATA_FIRST})'
         role = f'INDEX(${rolecol}${DATA_FIRST+1}:${rolecol}${last},ROW()-{DATA_FIRST})'
         company = f'INDEX(${companycol}${DATA_FIRST+1}:${companycol}${last},ROW()-{DATA_FIRST})'
+        element = f'INDEX(${elementcol}${DATA_FIRST+1}:${elementcol}${last},ROW()-{DATA_FIRST})'
         condition = (f'AND(OR(练度总览!$H$2="全部",{stage}=练度总览!$H$2,'
                      f'AND({stage}="全阶段",OR(练度总览!$H$2="Ⅰ",练度总览!$H$2="Ⅱ",练度总览!$H$2="Ⅲ"))),'
                      f'OR(练度总览!$H$4="全部",{role}=练度总览!$H$4),'
-                     f'OR(练度总览!$H$3="全部",{company}=练度总览!$H$3))')
+                     f'OR(练度总览!$H$3="全部",{company}=练度总览!$H$3),'
+                     f'OR(练度总览!$H$5="全部",{element}=练度总览!$H$5))')
         detail.write_formula(r,columns['_match'],f'=IF({condition},1,0)',None,1)
         current_match = f'INDEX(${matchcol}${DATA_FIRST+1}:${matchcol}${last},ROW()-{DATA_FIRST})'
         detail.write_formula(r,columns['_position'],'=ROW()',None,er)
@@ -129,12 +143,15 @@ def build_workbook(data: ExportData) -> bytes:
     overview.set_column(11,14,10,None,{'hidden':True})
     overview.set_zoom(85)
     overview.freeze_panes(VIEW_FIRST,0)
-    for r in range(1,5):
-        overview.set_row(r,22)
-    for r,label in ((1,'爆裂阶段'),(2,'企业'),(3,'角色定位')):
+    overview.set_row(0,26)
+    overview.set_row(1,28)
+    for r in range(2,5):
+        overview.set_row(r,20)
+    for r,label in ((1,'爆裂阶段'),(2,'企业'),(3,'角色定位'),(4,'角色属性')):
         overview.write_string(r,6,label,formats['label'])
         overview.write_string(r,7,'全部',formats['input'])
-    dropdowns=[('H2',['全部','Ⅰ','Ⅱ','Ⅲ','全阶段','未知']),('H4',['全部','火力型','防御型','辅助型','未知'])]
+    dropdowns=[('H2',['全部','Ⅰ','Ⅱ','Ⅲ','全阶段','未知']),('H4',['全部','火力型','防御型','辅助型','未知']),
+               ('H5',['全部','燃烧','水冷','铁甲','电击','风压','未知'])]
     companies = ['全部']+sorted({str(row['company']) for row in data.rows})
     for i,value in enumerate(companies):
         overview.write_string(i,14,value)
@@ -143,12 +160,13 @@ def build_workbook(data: ExportData) -> bytes:
         overview.data_validation(cell,{'validate':'list','source':choices,'error_title':'请选择列表中的条件',
                                        'error_message':'选择“全部”可取消此条件。','error_type':'stop'})
     overview.data_validation('H3',{'validate':'list','source':'=CompanyChoices','error_type':'stop'})
+    overview.merge_range('I2:K2','全阶段角色同时匹配Ⅰ、Ⅱ、Ⅲ；\n最新全量数据请先刷新面板。',formats['notice'])
+    overview.merge_range('I3:K3',f'已导出 {n} 名',formats['subtitle'])
     overview.merge_range('I4:K4','',formats['label'])
-    overview.write_formula('I4',f'="符合条件 "&COUNTIF({source("_match")},1)&" 名 / 已导出 {n} 名"',formats['label'],f'符合条件 {n} 名 / 已导出 {n} 名')
+    overview.write_formula('I4',f'="符合条件 "&COUNTIF({source("_match")},1)&" 名"',formats['label'],f'符合条件 {n} 名')
     overview.merge_range('A4:F4','12～14阶：蓝色数字    15阶：黑底亮蓝',formats['subtitle'])
-    overview.merge_range('A5:K5','',formats['subtitle'])
-    overview.write_formula('A5',f'=IF(COUNTIF({source("_match")},1)=0,"没有符合条件的妮姬","全阶段角色同时匹配Ⅰ、Ⅱ、Ⅲ；最新全量数据请先刷新面板。")',formats['subtitle'],
-                           '全阶段角色同时匹配Ⅰ、Ⅱ、Ⅲ；最新全量数据请先刷新面板。')
+    overview.merge_range('I5:K5','',formats['subtitle'])
+    overview.write_formula('I5',f'=IF(COUNTIF({source("_match")},1)=0,"没有符合条件的妮姬","")',formats['subtitle'],'')
     for i in range(n):
         overview.write_formula(i,12,f'=IFERROR(MATCH({i+1},{source("_rank")},0),0)',None,i+1)
     def indexed(rownum, col, key, i, cell_format, merge=None):
@@ -178,6 +196,7 @@ def build_workbook(data: ExportData) -> bytes:
         for k in range(12):
             overview.set_row(top+2+k,body_height)
         indexed(top+2,left+4,'_summary',i,formats['summary'],merge=(top+13,left+4))
+        overview.conditional_format(top,left,top+13,left+4,{'type':'formula','criteria':f'={idx}=0','format':formats['blank'],'stop_if_true':True})
         for s,slot in enumerate(('head','torso','arm','leg')):
             gearrow = top+2+s*3
             indexed(gearrow,left,'_'+slot,i,formats['gear'],merge=(gearrow+2,left))
@@ -185,13 +204,12 @@ def build_workbook(data: ExportData) -> bytes:
                 r=gearrow+num-1
                 key=f'{slot}_{num}'
                 for offset,suffix,style in ((1,'name','text'),(2,'value','value'),(3,'level','tier')):
-                    indexed(r,left+offset,key+'_'+suffix,i,formats[style])
+                    indexed(r,left+offset,key+'_'+suffix,i,row_formats[(r-top-2) % 2][style])
                 levelcell=f'${colname(left+3)}{r+1}'
                 overview.conditional_format(r,left+1,r,left+1,{'type':'formula','criteria':f'={levelcell}=15','format':formats['max_name']})
                 overview.conditional_format(r,left+2,r,left+3,{'type':'formula','criteria':f'={levelcell}=15','format':formats['max_value']})
                 overview.conditional_format(r,left+2,r,left+2,{'type':'formula','criteria':f'=AND(ISNUMBER({levelcell}),{levelcell}>=12,{levelcell}<15)','format':formats['rare']})
-                overview.conditional_format(r,left+2,r,left+2,{'type':'formula','criteria':f'=INDEX({source(key+"_unit")},{idx})<>"Percent"','format':formats['number']})
-        overview.conditional_format(top,left,top+13,left+4,{'type':'formula','criteria':f'={idx}=0','format':formats['blank'],'stop_if_true':True})
+                overview.conditional_format(r,left+2,r,left+2,{'type':'formula','criteria':f'=IF({idx}=0,FALSE,INDEX({source(key+"_unit")},{idx})<>"Percent")','format':formats['number']})
         overview.set_row(top+14,12)
     overview.set_landscape()
     overview.set_paper(9)
