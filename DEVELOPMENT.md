@@ -1,6 +1,6 @@
 # AliceUID 开发文档
 
-适用版本：**1.0.12**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+适用版本：**1.0.13**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
 
 用户使用说明见 [README.md](README.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。路径以本文件所在的插件外壳为基准；`AliceUID/nikke_api/client.py` 指外壳下的内层代码。
 
@@ -28,7 +28,7 @@ AliceUID/                       ← 可安装外壳
 [内层入口](AliceUID/__init__.py) 在正常模式下执行：
 
 1. 注册 `Plugins(name="AliceUID", force_prefix=["nk"], allow_empty_prefix=False)`。
-2. 在任何SV与StringConfig初始化前，通过Core PluginConfigStore完成旧前缀的一次性迁移并读取生效前缀；随后建立插件配置与四名单策略。
+2. 在任何SV与StringConfig初始化前，通过Core PluginConfigStore完成旧前缀的一次性迁移，通过Plugins.set同步内存前缀，再调用Core的get_plugin_available_prefix读取帮助文案快照；随后建立插件配置与四名单策略。
 3. 导入 `AliceBind` 模型并尝试挂载Core后台管理；不兼容的管理界面不会阻止普通登录。
 4. 导入各模块命令和登录Web路由；部分模块在 `setup()` 中注册。
 5. 启用日历、数据库命令及周检、社区调度、图鉴命令，绑定会战发送前核验。
@@ -588,11 +588,11 @@ python tools_alice/build_release.py --plugin-only --build-tag docs
 
 1.0.03的1188通过数字是历史功能基线；1.0.04的测试和资源迁移是上一版基线；当前1.0.05以本轮handoff验证记录为准。
 
-## 17. Core原生前缀与旧配置迁移（1.0.12）
+## 17. Core原生前缀与旧配置迁移（1.0.13）
 
 `nikke_commands.configure(plugin, config_path)` 必须在所有SV注册与StringConfig读取前执行。使用Core公开的 `plugin_config_store.get/set/save` 接口保留完整权限配置，只迁移前缀字段。已有原生prefix、禁用默认前缀或空前缀配置时优先保留Core设置；未定制时把旧CustomPrefix映射到prefix，把DisableDefaultPrefix映射到disable_force_prefix。保存失败中止初始化且恢复内存，不写成功标记。
 
-迁移记录 `prefix_migration_v112.json` 保存旧的三个前缀值与结果，不复制账户配置或凭据。完成后删除旧WebUI控制项，后续不再重放旧值。`command_prefix()` 读取与本次启动注册一致的前缀快照，默认优先nk，禁用默认时使用第一个Core自定义前缀。Core已有配置优先；修改前缀须完整重启，帮助缓存随内容指纹自然失效。
+迁移记录 `prefix_migration_v112.json` 保存旧的三个前缀值与结果，不复制账户配置或凭据。完成后删除旧WebUI控制项，后续不再重放旧值。1.0.13在任何SV注册前调用公开的 `plugin.set(prefix=..., disable_force_prefix=..., allow_empty_prefix=...)`，同步已存在的Plugins对象；全新安装先建立Core配置记录。fix1参照XWUID，调用Core公开的 `get_plugin_available_prefix(plugin.name)` 读取已同步对象，移除自定义effective_prefixes算法；`command_prefix()` 返回与本次启动注册一致的前缀快照，默认优先nk，禁用默认时使用第一个Core自定义前缀。Core已有配置优先；修改前缀须完整重启，帮助缓存随内容指纹自然失效。
 
 `bind_triggers()` 已移除，不修改 `SV.TL`、不构建 `Trigger`、不调用 `bump_registry_version`。Core原生负责空格解析和注册元数据，四名单包装及 finally 保留。旧版1～12位校验只用于迁移旧数据，不限制Core的新配置。
 
@@ -670,3 +670,19 @@ nikke_solo.cache保存本人账号/区服/Bot/凭据修订隔离的PNG和原子�
 DILDORO、刷新、登录、解绑、签到等没有to_ai注册。DILDORO代码、模板和缓存均按父版哈希保护；Playwright保留为网站JavaScript交互与真实DOM截图依赖。常规卡片原先已使用render_html_to_bytes，本版不声称新增20倍性能提升。
 
 本版离线契约固定Core `f0fea6f935c34ce05a235352ecdb6f30ba848b43`，源文件与两份官方技能文档的哈希位于开发.references/gscore_v112。测试隔离模型、发送、存储与网络边界，不启动完整Core或调用真实AI服务。实机还需核验Core版本、WebUI迁移、自然语言召回与QQ图片发送。
+
+## 23. 本地Core完整注册链路核对（1.0.13）
+
+依据用户本地仓库提交 `131f64af45c53db879d7f10b6300959a06ac1831`。原始文件及SHA256保存在开发.references/gscore_v113，不修改Core仓库。与前版只分别检查迁移和触发器的方式不同，本版使用原始GsServer.load_plugin/cached_import加载临时plugins/AliceUID，并使用原始PluginConfigStore、Plugins、SV、Event、Trigger和TriggerIndex；这些模块不经AST删改或替身重写。只隔离日志、Bot发送、插件数据库/业务接口和调度等外部边界。
+
+反馈中的“同名Plugins返回对象后不再运行__init__”未在该源码中复现；Python调用现有实例时仍运行其__init__，原始1.0.12两种冷启动已能注册自定义前缀。但1.0.12的configure返回时，帮助快照已更新、对象前缀尚未同步，需要依赖随后SV补载。1.0.13在首次SV之前明确同步这两者。对照测试保留原版真实表现，不把没有复现的冷启动故障写成已证实原因。
+
+后台update_plugin_field使用plugin.set(False, ...)，保存字段不重建Trigger/候选索引。测试先验证保存后仍使用旧触发器，再从磁盘重新加载Core配置与插件，确认新前缀命中、旧前缀退出、服务数量不增加、帮助和登录提示同步。部署者修改前缀后仍须完整重启Core。
+
+测试依赖boltons 26.2.0、msgspec 0.22.0、toml 0.10.2按本地Core的uv.lock固定，仅安装在本版.runtime/core_contract_packages，未修改共享45包环境，不加入插件安装包。测试并非已启动的完整Core服务或QQ实机验收。
+
+### 1.0.13 fix1：与XWUID共用Core的显示前缀接口
+
+XWUID在SV配置加载后调用get_plugin_available_prefix；AliceUID保留迁移兼容和首个SV前同步，在同步完成后调用同一Core接口。仅在启动时取值，避免WebUI保存字段后尚未重建触发器时帮助文案提前切换。用户无需配置新的插件前缀选项，仍在Core插件管理中设置。
+
+已固定XWUID main提交bf74531c9caadbc576613d18bd1cd367bfc93183的相关源码于开发.references/xw_prefix_bf74531。对照测试不执行XWUID数据库、后台循环或迁移操作。新增契约检查验证getter调用时对象已同步，并验证帮助结果确实来自Core接口。

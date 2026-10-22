@@ -24,27 +24,18 @@ def resolve_prefixes(enabled=False, custom='alice', disable=False):
     return (custom,) if disable else tuple(dict.fromkeys(('nk', custom)))
 
 
-def effective_prefixes(settings):
-    custom = settings.get('prefix', [])
-    if isinstance(custom, str):
-        custom = [custom] if custom else []
-    forced = [] if settings.get('disable_force_prefix', False) else ['nk']
-    prefixes = [p for p in forced + custom if p]
-    if settings.get('allow_empty_prefix', False):
-        prefixes.append('')
-    return tuple(dict.fromkeys(prefixes)) or ('',)
-
-
 def configure(plugin, config_path):
     """Run BEFORE any SV or plugin StringConfig is constructed.
 
-    Use the Core config store, then let native SV registration build every Trigger.
+    Migrate the Core config store, hydrate the live Plugins through its public
+    set() method, then let native SV registration build every Trigger.
     Existing Core customizations win. The marker prevents old fields from being
     reapplied after a user subsequently changes Core's own settings.
     """
     global _active
     from gsuid_core.config import plugin_config_store, plugins_sample
     from gsuid_core.logger import logger
+    from gsuid_core.sv import get_plugin_available_prefix
     from ..nikke_resource.cache import atomic_write
     marker = config_path.with_name('prefix_migration_v112.json')
     settings = deepcopy(plugin_config_store.get(plugin.name))
@@ -77,7 +68,25 @@ def configure(plugin, config_path):
         atomic_write(marker, json.dumps(dict(version=1, outcome=outcome, legacy=legacy,
             prefix=settings.get('prefix', []), disable_force_prefix=settings.get('disable_force_prefix', False)),
             ensure_ascii=False).encode('utf-8'))
-    _active = effective_prefixes(settings)
+    # Hydrate the live object before the FIRST SV/decorator. Do not rely on a
+    # later Plugins(**config) call to bring it in sync with the config store.
+    if not settings:
+        settings = deepcopy(plugins_sample)
+        settings.update(name=plugin.name, force_prefix=list(plugin.force_prefix),
+                        alias=list(plugin.alias))
+        plugin_config_store.set(plugin.name, settings)
+    custom = settings.get('prefix', [])
+    if isinstance(custom, str):
+        custom = [custom] if custom else []
+    allow_empty = settings.get('allow_empty_prefix')
+    if allow_empty is None:
+        allow_empty = plugin.allow_empty_prefix
+    plugin.set(prefix=list(custom),
+               disable_force_prefix=settings.get('disable_force_prefix', False),
+               allow_empty_prefix=allow_empty)
+    # Like XWUID, use Core's public getter once the live prefix is ready.
+    # Keep a startup snapshot: saving WebUI settings does not rebuild Triggers.
+    _active = (get_plugin_available_prefix(plugin.name),)
 
 
 def command_prefix():

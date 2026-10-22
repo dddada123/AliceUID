@@ -9,12 +9,12 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.12-ff69b4?style=flat-square" alt="Version: 1.0.12"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.13-ff69b4?style=flat-square" alt="Version: 1.0.13"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
-适用于 GsCore 的《胜利女神：NIKKE》插件，提供会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.0.12**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
+适用于 GsCore 的《胜利女神：NIKKE》插件，提供会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.0.13**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -199,11 +199,13 @@ NapCat转发的「转发回执等待秒数」默认 **30秒**，可设 **5～300
 
 ### 自定义唤醒指令
 
-在GsCore的**插件管理 → AliceUID**中配置框架自带的 `prefix` 与 `disable_force_prefix`，保存后完整重启Core。插件默认提供 `force_prefix=["nk"]`；前缀前后的空格由Core识别。
+在GsCore的**插件管理 → AliceUID**中配置框架自带的 `prefix` 与 `disable_force_prefix`，保存后**完整重启Core**。保存配置本身不会重建已经注册的命令。1.0.13在首个SV注册前，通过Core公开接口同步生效前缀到插件对象，帮助文案通过Core的 `get_plugin_available_prefix()` 读取同一份启动状态。插件默认提供 `force_prefix=["nk"]`；前缀前后的空格由Core识别。
 
 - 默认：`nk登录`、`nk 个人突袭推荐`。
 - `prefix` 添加 `alice`，保留默认前缀：`nk登录` 和 `alice登录` 均可用，帮助优先显示 `nk`。
 - 添加 `alice` 并开启 `disable_force_prefix`：仅自定义前缀可用，帮助和提示同步显示 `alice`。关闭默认前缀前先设置可用的自定义前缀。
+
+从1.0.12升级会保留已有Core前缀及迁移记录，无需重新配置。
 
 从1.0.11及更早版本升级时，首次启动会将已启用的旧插件前缀迁移到Core；若Core已有自定义配置，以Core为准并记录提示。迁移只执行一次，原值保存在 `data/AliceUID/prefix_migration_v112.json`，旧的三项插件前缀设置退出WebUI。本文命令采用默认 `nk`，独占自定义时替换为实际前缀。
 
