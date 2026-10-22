@@ -699,3 +699,29 @@ nightly表按账号/北京时间日期唯一，23:00～24:00为当晚分批采�
 通知按每会话/轮次唯一，发送前重新验证订阅代次、账号绑定、Core插件/SV权限、全局黑名单、AliceUID四名单、路由和免打扰。群消息是文字与原生at段，私聊无群@；按群最多5人分批，跨群同账号共用一次查询。发送结果不明不自动再次@。收菜免打扰不接管任何全局发送入口。
 
 离线回归：tests_alice/test_v114_harvest.py与test_v114_harvest_integration.py；涵盖状态机、Core真实注册、命令开启卡片、群/私聊路由、去重、午夜、连续两晚停查与关闭竞态。实机范围记录于handoff。
+
+
+## 1.0.15 本地练度Excel导出
+
+入口 nikke_export.commands：精确命令“练度全量导出”，block=True，避免Core继续分发通用练度命令；通用练度处理器也保留该关键词的无请求退出。遵循原生前缀，无AI工具注册。
+
+流程：本人AliceBind → wait_for_refresh → binding_lock内读取PanelCache完整快照和epoch → 有界asyncio.to_thread生成 → binding_lock内复核本人绑定版本、Core/插件/SV及四名单、saved_at和epoch → MessageSegment.file(bytes, filename)。不开NikkeClient、不ensure资源、不渲染HTML、不写用户成品文件到磁盘。不支持代查或任意UID。缓存仍按panel_identity包含所有者/平台/账号/区服/凭据版本隔离，失效凭据不自动联网，绑定有效且缓存完整即可离线导出。
+
+model.py调用build_character_context与aggregate_options，保留原有Decimal单位和蓄速/命中正向显示。最终攻防生命无经确认字段，输出“未提供”。未知词条保留文字状态。Excel字符串按字面写入，关闭自动公式/URL识别；UID为文本，文件名替换非法字符。
+
+workbook.py：XlsxWriter>=3.2.9,<4，无宏/外部链接，两张工作表。总览A:E/G:K构成六个视觉区域，词条拆成名称/数值/阶数。明细原生Excel Table；隐藏辅助列用IF/AND/OR/COUNTIFS/ROW计算匹配序号，总览用INDEX/MATCH/IFERROR按序读取。默认结果写入公式缓存，设置auto/fullCalcOnLoad；非动态数组、不依赖FILTER或VBA。排序辅助使用当前ROW与固定范围，避免明细排序后引用旧行。所有条件均在文件内操作，全阶段匹配Ⅰ/Ⅱ/Ⅲ。过滤后尾部预留空白区域保留，未使用宏隐藏工作表行。
+
+默认500名角色、12MB文件上限，同时最多2次生成，同一QQ/平台并发请求不重复。生成取消时等待本地线程完成后释放占用。只使用当前bot发原生文件消息，不转发、不换群、不自动切私聊，不建立新的后台任务。失败日志只含异常类型。发送无确认时不宣称已成功收到。
+
+验证：tests_alice/test_v115_export.py、test_v115_export_integration.py；tools_alice/verify_v115_workbook.mjs使用开发工具导入真实导出文件、重算并渲染，不属于插件运行依赖。QQ上传和具体Excel/WPS客户端不在离线验收范围。
+
+local.py只读并验证本地static/cubes、static/collections元数据，通过NoImages与LocalMetadata复用现有equipment_info；绝不调用下载。保留原始等级，SSR珍藏品显示等级按原面板+1规则，适用角色/武器不匹配时不伪造有效等级。元数据缺失时保留ID和原始等级。
+
+
+## 1.0.16 紧凑表头
+
+仅修改nikke_export/workbook.py的布局与引用。VIEW_FIRST=5（首对角色从第6行开始），冻结前5行，打印重复1～5行。主标题16pt，首行28pt，第2～5行22pt，总计116pt；父版表头210pt，减少约44.8%。
+
+身份信息与时间保留在A2:F2、A3:F3，词条图例A4:F4。G2/G3/G4为爆裂阶段/企业/角色定位；H2/H3/H4为单格下拉；I4:K4显示匹配与导出数量；A5:K5显示原说明或空结果提示。数据明细页维持原有表格/筛选/冻结位置，仅同样缩小主标题。
+
+筛选匹配公式统一引用H2/H3/H4，隐藏选择序号和角色索引逻辑不变。既有test_v115_export中的工作簿契约更新为新坐标，集成测试保留。verify_v116_workbook.mjs使用实际1.0.16示例重算全部筛选与源数据重排并生成预览。

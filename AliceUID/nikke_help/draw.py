@@ -30,6 +30,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}信息 / {command_prefix()}名片', 'description': '读取本人资料缓存；展示战役爬塔、主立绘与当前皮肤'},
             {'command': f'{command_prefix()}爱丽丝练度 / {command_prefix()}爱丽丝面板', 'description': '本人立绘、装备与技能；已有本地数据和图片优先复用'},
             {'command': f'{command_prefix()}刷新爱丽丝面板', 'description': '替换角色名，更新该角色数据并渲染卡片；至少间隔5秒'},
+            {'command': f'{command_prefix()}练度全量导出', 'description': '本人全角色练度导出Excel；本地缓存、双角色并排、表内爆裂/定位/企业筛选'},
             {'command': f'{command_prefix()}卡片', 'description': '读取本人角色与皮肤缓存；每行10个头像，含星级/核心角标'},
             {'command': f'{command_prefix()}刷新信息 / {command_prefix()}刷新面板', 'description': '刷新并缓存本人资料、全部角色练度与皮肤；完成后发送最新信息图'},
             {'command': f'{command_prefix()}出刀', 'description': '出刀、输出与击杀前三；当期共享180秒，休赛期复用已结算记录并检测新赛季'},

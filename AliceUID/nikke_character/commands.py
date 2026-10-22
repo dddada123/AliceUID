@@ -21,7 +21,7 @@ from .service import CharacterCooldown, CharacterDataError, CharacterNotOwned, c
 sv_character = SV('妮姬角色练度', pm=6, priority=3)
 USAGE = (f'用法：{command_prefix()}爱丽丝练度 / {command_prefix()}爱丽丝面板 / {command_prefix()}练度 爱丽丝\n'
          f'强制刷新：{command_prefix()}刷新爱丽丝面板（替换角色名，至少间隔5秒）。\n'
-         '仅查询本人已绑定账号持有的角色；暂不提供全角色列表。')
+         f'仅查询本人已绑定账号持有的角色；全量表格请发送 {command_prefix()}练度全量导出。')
 
 
 def _arguments(text: str) -> str:
@@ -43,6 +43,8 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
     client = None
     try:
         name = _arguments(text)
+        if not refresh and name == '全量导出':
+            return  # Reserved for the exact export command.
         if not refresh and name.endswith(('刷新', '更新')):
             await bot.send(f'单角色更新请使用 {command_prefix()}刷新爱丽丝面板（替换角色名）。', at_sender=True)
             return
