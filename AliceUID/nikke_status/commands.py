@@ -28,6 +28,16 @@ async def _current(ev,bind):
     return current is not None and binding_key(current)==binding_key(bind) and await _allowed(ev)
 
 
+async def _observe_harvest(bind,context):
+    # A successful read must update reminders even if rendering later fails.
+    # Reminder storage failure must never break the resource-query business.
+    try:
+        from ..nikke_harvest.runtime import observe_manual
+        await observe_manual(bind,context)
+    except Exception as exc:
+        logger.warning(f'[AliceUID] harvest observation skipped error_type={type(exc).__name__}')
+
+
 async def _query(bot,ev,kind):
     client=None
     result=None
@@ -46,7 +56,8 @@ async def _query(bot,ev,kind):
                 if not await _current(ev,bind):return
                 if kind=='resources':
                     prepared=await resource_status.prepare_image(client,bind,refresh=text=='刷新',
-                        actor=(ev.user_id,ev.bot_id),still_current=lambda:_current(ev,bind))
+                        actor=(ev.user_id,ev.bot_id),still_current=lambda:_current(ev,bind),
+                        on_snapshot=lambda context:_observe_harvest(bind,context))
                     result=[MessageSegment.image(prepared.image),
                             '成功出图后5分钟内复用缓存图片；没有可用缓存图时重新同步并生成。']
                 else:

@@ -1,6 +1,6 @@
 # AliceUID 开发文档
 
-适用版本：**1.0.13**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+适用版本：**1.0.14**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
 
 用户使用说明见 [README.md](README.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。路径以本文件所在的插件外壳为基准；`AliceUID/nikke_api/client.py` 指外壳下的内层代码。
 
@@ -686,3 +686,16 @@ DILDORO、刷新、登录、解绑、签到等没有to_ai注册。DILDORO代码�
 XWUID在SV配置加载后调用get_plugin_available_prefix；AliceUID保留迁移兼容和首个SV前同步，在同步完成后调用同一Core接口。仅在启动时取值，避免WebUI保存字段后尚未重建触发器时帮助文案提前切换。用户无需配置新的插件前缀选项，仍在Core插件管理中设置。
 
 已固定XWUID main提交bf74531c9caadbc576613d18bd1cd367bfc93183的相关源码于开发.references/xw_prefix_bf74531。对照测试不执行XWUID数据库、后台循环或迁移操作。新增契约检查验证getter调用时对象已同步，并验证帮助结果确实来自Core接口。
+
+
+## 1.0.14 收菜提醒
+
+`nikke_harvest`分为planner、store、service、runtime、commands。账号共享进度与会话订阅分离，SQLite位于MAIN_PATH/harvest.sqlite3；从Core共享scheduler注册aliceuid-harvest（30秒本地扫描，max_instances=1/coalesce），只有到期且已授权的账号请求上游。账号锁、持久化租约及原AccountReads共同限制重复请求。
+
+`ResourceStatusService.query(fresh=True)`提供提醒专用新鲜数据入口；默认参数与资源卡300秒图片复用行为不变。资源上下文新增fetched_at_epoch。开启命令单独使用原draw_status渲染同类资源卡，后台fetch不调用渲染器。手动查询通过prepare_image的on_snapshot回调，在数据读取成功、渲染之前更新已开启的共享预测及待执行时间；渲染失败也不丢失已获得的新数据。缓存图片命中不触发回调；旧时间戳被拒绝，提醒模块异常隔离，不影响原资源卡。等待MAX时仅重排那一次检查，手动已查到MAX则取消多余后台查询，不自动授权或恢复停用账号。
+
+nightly表按账号/北京时间日期唯一，23:00～24:00为当晚分批采样窗口；原始100%才算MAX，相邻两个有效夜晚触发AUTO_STOPPED，不能用旧缓存、失败或午夜后的样本补填。关闭账号取消各群/私聊的业务待发消息，一次性停用说明用独立事件收据。重开只恢复命令所在会话。
+
+通知按每会话/轮次唯一，发送前重新验证订阅代次、账号绑定、Core插件/SV权限、全局黑名单、AliceUID四名单、路由和免打扰。群消息是文字与原生at段，私聊无群@；按群最多5人分批，跨群同账号共用一次查询。发送结果不明不自动再次@。收菜免打扰不接管任何全局发送入口。
+
+离线回归：tests_alice/test_v114_harvest.py与test_v114_harvest_integration.py；涵盖状态机、Core真实注册、命令开启卡片、群/私聊路由、去重、午夜、连续两晚停查与关闭竞态。实机范围记录于handoff。

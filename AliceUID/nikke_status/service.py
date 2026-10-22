@@ -88,7 +88,7 @@ class ResourceStatusService:
         while sum(len(value[1]) for value in self._ready.values())>self.MAX_IMAGE_BYTES:
             self._ready.popitem(last=False)
 
-    async def prepare_image(self,client,bind,*,refresh=False,actor=None,renderer=None,still_current=None):
+    async def prepare_image(self,client,bind,*,refresh=False,actor=None,renderer=None,still_current=None,on_snapshot=None):
         """Single-flight fetch -> render -> ready. Missing images always fetch anew.
 
         A send failure keeps the successfully rendered image for the next send;
@@ -114,6 +114,8 @@ class ResourceStatusService:
             try:
                 if still_current is not None and not await still_current():
                     raise StatusDataError('绑定或查询权限已变化，已停止生成图片。')
+                if on_snapshot is not None:
+                    await on_snapshot(copy.deepcopy(context))
                 if renderer is None:
                     from .draw import draw_status
                     renderer=draw_status
@@ -134,13 +136,17 @@ class ResourceStatusService:
             self._prune_ready()
             return ResourceCard(image,False)
 
-    async def query(self,client,bind,*,refresh=False,actor=None):
+    def peek(self,bind,actor=None):
+        cached=self._cache.get(self.owner_key(bind,actor))
+        return copy.deepcopy(cached[1]) if cached else None
+
+    async def query(self,client,bind,*,refresh=False,actor=None,fresh=False):
         """Data cache only. Production commands commit the window via prepare_image."""
         check_client(client,bind)
         key=self.owner_key(bind,actor)
         async with self._locks.setdefault(key,asyncio.Lock()):
             cached=self._cache.get(key)
-            if cached and 0<=self.clock()-cached[0]<self.cache_ttl():
+            if not fresh and cached and 0<=self.clock()-cached[0]<self.cache_ttl():
                 return copy.deepcopy(cached[1])
             self._check_failure(key)
             epoch=self._epochs.get(key,0)

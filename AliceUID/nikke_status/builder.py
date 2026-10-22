@@ -94,6 +94,7 @@ def build_resources(basic, daily, *, bind, region, fetched_at, ttl):
             if not 0<=decimal<=1:raise StatusDataError('保管箱容量比例超出范围。')
             storage=decimal*100
     return dict(identity(bind,region,fetched_at,ttl),kind='resources',title='我的资源',items=items,
+                fetched_at_epoch=fetched_at,
                 storage_text='MAX' if storage==100 else f'{storage:.1f}%' if storage is not None else '未知',
                 storage_width=format(storage,'f') if storage is not None else '0',
                 storage_known=storage is not None,

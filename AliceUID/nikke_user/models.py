@@ -72,6 +72,8 @@ class AliceBind(Bind, table=True):
                 if bind is None or hashlib.sha256(bind.cookie_enc.encode()).hexdigest() != expected_revision:
                     raise ValueError('绑定已变化，请刷新管理页后重新确认')
             revoke_binding(bind)
+            from ..nikke_harvest.runtime import revoke_binding as revoke_harvest
+            revoke_harvest(bind)
             result = await cls._delete_binding_rows(user_id, bot_id)
             if result != 0 or await cls.get_bind(user_id, bot_id) is not None:
                 raise RuntimeError("绑定删除未完成")

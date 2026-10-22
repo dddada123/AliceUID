@@ -154,6 +154,9 @@ async def _invalidate_replaced(existing):
     def community():
         from ..nikke_community.runtime import revoke_binding
         revoke_binding(existing)
+    def harvest():
+        from ..nikke_harvest.runtime import revoke_binding
+        revoke_binding(existing)
     def status():
         from ..nikke_status.service import resource_status
         from ..nikke_union.service import union_queries
@@ -162,7 +165,7 @@ async def _invalidate_replaced(existing):
     def solo():
         from ..nikke_solo.cache import invalidate_binding
         invalidate_binding(existing)
-    for cleanup in (character, roster, community, status, solo):
+    for cleanup in (character, roster, community, harvest, status, solo):
         try:
             cleanup()
         except Exception as exc:

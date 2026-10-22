@@ -63,7 +63,13 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
     setup_community(policy=policy)
     from .nikke_community.notify_policy import register as register_notify_commands
     register_notify_commands(AliceUIDConfig)
-    set_group_observer(observe_group)
+    from .nikke_harvest.commands import sv_harvest
+    from .nikke_harvest.runtime import setup as setup_harvest, observe_route
+    setup_harvest(sv_harvest)
+    def observe_conversation(ev):
+        observe_group(ev)
+        observe_route(ev)
+    set_group_observer(observe_conversation)
     setup_roster(policy=policy)
     _union_commands.set_before_send(_query_before_send)
 

@@ -9,12 +9,12 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.13-ff69b4?style=flat-square" alt="Version: 1.0.13"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.14-ff69b4?style=flat-square" alt="Version: 1.0.14"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
-适用于 GsCore 的《胜利女神：NIKKE》插件，提供会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.0.13**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
+适用于 GsCore 的《胜利女神：NIKKE》插件，提供会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.0.14**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -40,6 +40,20 @@
 用 `nk资源查询` 集中查看八类资源与保管箱容量，并预估达到 **90%容量** 和 **满仓** 的北京时间，方便安排上线收取资源的时间。容量超过70%显示橙色、超过90%显示红色，满量显示MAX，接近满仓的状态一眼可见。
 
 满仓时间按本次快照及24小时回满假设估算，未知容量不作推断；颜色提示显示在查询图内，不主动推送或自动领取资源。成功出图后固定复用 **5分钟**，附带“刷新”也不绕过，读取不续期；失败只短暂冷却，发送失败可重发已有图。
+
+### ⏰ 本人收菜提醒
+
+在需要接收提醒的群聊或私聊发送 `nk开启收菜提醒`，成功开启时返回一次资源查询卡片；后续普通、睡前、满仓和自动关闭提醒全部为文字。默认关闭，A群、B群与私聊分别开启/关闭，同一账号共用后台查询和预测。
+
+- `nk关闭收菜提醒`：只关闭当前会话，最后一个会话关闭后停止账号检查。
+- `nk收菜提醒状态`：查看当前会话开关、快照与预计时间，不请求游戏接口。
+- `nk收菜免打扰 00:00-08:00`：设置当前会话的北京时间时段；支持跨午夜，输入 `关闭` 取消免打扰。仅限制收菜主动消息，不影响资源查询、签到和其他业务。
+
+默认在预计90%时核对一次，实际85%～95%才提醒；此后只在预计MAX再检查一次，同会话同轮普通/睡前/满仓最多提示一次。23点确认凌晨00:00～08:00满仓风险后可发睡前提醒；每群按最多5人分组检查、每条最多@5人，建议收菜的文字只在末尾出现一次。私聊仅发本人的内容。
+
+MAX检查后仍高容量的账号，借每日23点静默恢复检查接续；连续两个相邻北京时间日期的23点批次新鲜数据都为MAX，自动关闭该账号全部会话提醒并停止检查。本人重新开启只恢复当前会话。两个夜间样本不代表已证明48小时未收菜；失败、未知与漏检不会充作MAX。
+
+免打扰期间不补发积压提醒；90%在免打扰内而MAX在08点之后时，可能跳过本轮普通提醒。时间基于24小时回满模型估算，不自动领取游戏资源。手动 `nk资源查询` 取得新数据时会同步共享预测并调整待执行的检查；命中图片缓存不额外查询，也不会覆盖较新的后台快照。
 
 ### 🗓️ 社区签到
 
@@ -152,6 +166,8 @@ nk资源查询
 | `nk出刀详情` / `nk出刀缺刀` / `nk出刀尾刀` | 本人队伍、未完成名单、尾刀统计 |
 | `nk会战血量 [刷新]` | 联盟阶段及 BOSS 血量 |
 | `nk资源查询 [刷新]` | 本人资源与保管箱状态 |
+| `nk开启收菜提醒` / `nk关闭收菜提醒` | 当前群聊或私聊的本人收菜提醒开关 |
+| `nk收菜提醒状态` / `nk收菜免打扰 00:00-08:00` | 本地状态与当前会话免打扰时段 |
 | `nk个人突袭推荐 [亮色/暗色/随机]` | 查看本人编队推荐，优先复用五天缓存 |
 | `nk个人突袭推荐刷新 [亮色/暗色/随机]` | 重新导入养成数据并计算推荐 |
 | `nk日历` / `nk日历 帮助` | 官网当前默认活动日历及范围说明 |
