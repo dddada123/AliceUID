@@ -36,17 +36,30 @@ class CommunityScheduler:
             return job
         return register_scheduler(self, self.scheduler, time_value=value)
 
-    async def tick(self):
+    async def retry_tick(self):
+        await self.tick(retries_only=True)
+
+    async def tick(self, retries_only=False):
         if self._lock.locked():
             return
         async with self._lock:
             if not self.commands.enabled():
+                self.commands.service.store.cancel_pending(self.commands.service.clock(),'全局社区暂停，本周期待重试已取消')
                 return
             batch_day = cycle_day(self.commands.service.clock())
             rows = list(await self.list_bindings())
             service = self.commands.service
             owners = {service.owner(str(actor), str(bot), str(revision)) for actor, bot, revision in rows}
             service.store.reconcile(owners)
+            due = service.store.due_runs(service.clock()) if retries_only else None
+            if due is not None:
+                current=[]
+                for item in due:
+                    if item['day'] != batch_day:
+                        service.store.finish_run(item,service.clock(),cancelled=True)
+                    else:
+                        current.append(item['owner'])
+                rows=[r for r in rows if service.owner(str(r[0]),str(r[1]),str(r[2])) in current]
             processed = set()
             for actor, bot, revision in rows:
                 if cycle_day(service.clock()) != batch_day:
@@ -61,6 +74,7 @@ class CommunityScheduler:
                         continue
                     binding = await self.commands.load_binding(str(actor), str(bot))
                     if binding is None:
+                        service.unavailable(str(actor),str(bot),str(revision))
                         continue
                     if (str(binding.actor_id), str(binding.bot_id), binding.revision) != (str(actor), str(bot), str(revision)):
                         continue
@@ -77,6 +91,7 @@ class CommunityScheduler:
                             await binding.client.close()
                     finally:
                         if not cancelled:
+                            service.store.mark_processed(service.owner(str(actor),str(bot),str(revision)),batch_day)
                             processed.add((str(actor),str(bot)))
                             await self._notify(batch_day,processed)
             await self._notify(batch_day,processed)
@@ -100,6 +115,8 @@ def register_scheduler(runner: CommunityScheduler, scheduler=None, *, time_value
     runner.scheduler = scheduler
     value = normalized_time(runner.sign_time() if time_value is None else time_value)
     hour, minute = clock_parts(value)
+    scheduler.add_job(runner.retry_tick, 'interval', seconds=60, id=JOB_ID+'-retries',
+                      name='AliceUID签到重试与通知检查', replace_existing=True, max_instances=1, coalesce=True)
     return scheduler.add_job(runner.tick, 'cron', hour=hour, minute=minute, timezone='Asia/Shanghai',
                              id=JOB_ID, name=f'AliceUID每日签到（{value}北京时间）',
                              replace_existing=True, max_instances=1, coalesce=True,

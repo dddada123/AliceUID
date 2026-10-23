@@ -11,13 +11,14 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .api import CommunityError
+from .lifecycle import Lifecycle
 
 
 def digest(*parts: str) -> str:
     return hashlib.sha256("\0".join(str(p) for p in parts).encode()).hexdigest()
 
 
-class CommunityStore:
+class CommunityStore(Lifecycle):
     def __init__(self, path: str | Path):
         self.path = str(path)
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -59,6 +60,8 @@ class CommunityStore:
                        'group_key TEXT, actor_id TEXT, seen_at REAL NOT NULL, PRIMARY KEY(group_key,actor_id))')
             if not any(db.execute(f'SELECT 1 FROM {table} LIMIT 1').fetchone() for table in ('accounts','budgets','actions')):
                 db.execute("INSERT OR IGNORE INTO metadata VALUES('cycle_bjt08_v104','fresh')")
+
+            self.init_lifecycle(db)
 
     def migrate_cycle(self, day, utc_day=None):
         """Retain guards when moving old 23:00 ledgers to the 08:00 period.
@@ -117,6 +120,7 @@ class CommunityStore:
             row = db.execute('SELECT owner FROM accounts WHERE account=?',(account,)).fetchone()
             if row is None or row['owner'] != owner:
                 raise CommunityError('绑定授权已变化，签到记录未写入新绑定')
+            db.execute("UPDATE accounts SET fail_count=0,fail_day='' WHERE account=? AND owner=?",(account,owner))
             db.execute('INSERT INTO signin_confirmations(account,day,owner,confirmed_at,source) VALUES(?,?,?,?,?) '
                        'ON CONFLICT(account,day) DO UPDATE SET owner=excluded.owner,confirmed_at=excluded.confirmed_at,source=excluded.source',
                        (account,day,owner,now,source))
@@ -172,7 +176,8 @@ class CommunityStore:
             # Re-enabling does not erase today's attempts, run marker, or pacing.
             db.execute("""INSERT INTO accounts(account,owner,enabled,likes) VALUES(?,?,?,?)
                 ON CONFLICT(account) DO UPDATE SET enabled=excluded.enabled,
-                owner=excluded.owner,likes=excluded.likes,paused='',manual_lease=0""", (account, owner, int(enabled), int(likes)))
+                owner=excluded.owner,likes=excluded.likes,paused='',manual_lease=0,lease='',lease_until=0,
+                generation=accounts.generation+1,fail_count=0,fail_day='',auto_disabled=''""", (account, owner, int(enabled), int(likes)))
 
     def disable_likes(self, account: str, owner: str):
         with self.transaction() as db:
@@ -186,13 +191,13 @@ class CommunityStore:
     def revoke(self, owner: str):
         """Call BEFORE unbind/rebind; preserve ledgers while erasing consent."""
         with self.transaction() as db:
-            db.execute("UPDATE accounts SET enabled=0,likes=0,manual_lease=0,paused='绑定已变更' WHERE owner=?", (owner,))
+            db.execute("UPDATE accounts SET enabled=0,likes=0,manual_lease=0,lease='',lease_until=0,generation=generation+1,auto_disabled='',paused='绑定已变更' WHERE owner=?", (owner,))
 
     def reconcile(self, active_owners: set[str]):
         with self.transaction() as db:
             for row in db.execute("SELECT account,owner FROM accounts").fetchall():
                 if row["owner"] not in active_owners:
-                    db.execute("UPDATE accounts SET enabled=0,likes=0,manual_lease=0,paused='绑定已变更' WHERE account=?", (row["account"],))
+                    db.execute("UPDATE accounts SET enabled=0,likes=0,manual_lease=0,lease='',lease_until=0,generation=generation+1,auto_disabled='',paused='绑定已变更' WHERE account=?", (row["account"],))
 
     def acquire(self, account: str, owner: str, lease: str, now: float, day: str, *, manual=False) -> bool:
         with self.transaction() as db:
@@ -211,9 +216,10 @@ class CommunityStore:
                 db.execute("UPDATE accounts SET last_day=? WHERE account=? AND lease=?", (day, account, lease))
             db.execute("UPDATE accounts SET lease='',lease_until=0,manual_lease=0 WHERE account=? AND lease=?", (account, lease))
 
-    def pause(self, account: str, reason: str, owner: str):
+    def pause(self, account: str, reason: str, owner: str, generation=None):
         with self.transaction() as db:
-            db.execute("UPDATE accounts SET paused=? WHERE account=? AND owner=?", (reason, account, owner))
+            db.execute("UPDATE accounts SET paused=? WHERE account=? AND owner=?" + (" AND generation=?" if generation is not None else ""),
+                       (reason, account, owner, generation) if generation is not None else (reason, account, owner))
 
     def reserve(self, account: str, lease: str, owner: str, day: str, now: float, interval: float,
                 max_requests: int, action: tuple[str, str] | None = None, *, switch_interval=0) -> tuple[str, float]:
@@ -265,3 +271,9 @@ class CommunityStore:
         with self.transaction() as db:
             db.execute("UPDATE actions SET outcome=? WHERE account=? AND kind=? AND target=? AND day=?",
                        (day + ':ok', account, kind, digest(target), "ever" if kind == "like" else day))
+
+    def release_unsent(self, account, day, action):
+        if action and action[0]=='signin':
+            with self.transaction() as db:
+                db.execute("DELETE FROM actions WHERE account=? AND kind='signin' AND target=? AND day=? AND outcome=?",
+                           (account,digest(action[1]),day,day+':reserved'))

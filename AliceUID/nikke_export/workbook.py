@@ -23,7 +23,7 @@ def build_workbook(data: ExportData) -> bytes:
     book = xlsxwriter.Workbook(stream, {'in_memory': True, 'strings_to_formulas': False,
                                       'strings_to_urls': False, 'strings_to_numbers': False})
     book.set_properties({'title': 'NIKKE练度表', 'subject': '本人本地练度缓存', 'author': 'AliceUID',
-                         'comments': '由 AliceUID 1.0.17 导出；不含登录凭据。', 'created': data.exported_at.replace(tzinfo=None)})
+                         'comments': '由 AliceUID 1.0.18 导出；不含登录凭据。', 'created': data.exported_at.replace(tzinfo=None)})
     book.set_calc_mode('auto')
     overview = book.add_worksheet('练度总览')
     detail = book.add_worksheet('数据明细')

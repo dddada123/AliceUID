@@ -22,7 +22,7 @@ async def _load_binding(actor_id, bot_id):
         return None
     from ..nikke_user.service import load_client
     from .commands import Binding
-    client, bind = await load_client(actor_id, bot_id)
+    client, bind = await load_client(actor_id, bot_id, community=True)
     if not get_policy().user_allowed(actor_id):
         if client is not None:
             await client.close()
@@ -76,6 +76,7 @@ def setup_community(*, policy=None):
         from ..nikke_user.auth_state import expired, known_invalid
         _runtime.runner.notifier = GroupNotifier(_runtime.service, _report_bindings, _send_summary, _summary_allowed,
                                                  invalid=lambda row: expired(row) or known_invalid(row))
+    _runtime.commands.local_control = local_community_control
     _runtime.service.user_allowed = policy.user_allowed
     _runtime.service.binding_current = _binding_current
     return _runtime
@@ -148,7 +149,7 @@ async def _summary_allowed(route):
     from gsuid_core.gss import gss
     from ..nikke_config.config import AliceUIDConfig
     from .notify_policy import notify_allowed
-    if not notify_allowed(AliceUIDConfig,route['group_id']):
+    if not notify_allowed(AliceUIDConfig,route['group_id'],route['bot_id'],route['self_id']):
         return False
     # Only the exact observed connection, never the first connected bot.
     from gsuid_core.sv import SL
@@ -172,3 +173,86 @@ async def _send_summary(route, text):
         return None
     return await transport.target_send(text, 'group', route['group_id'], route['bot_id'],route['self_id'],
                                        group_id=route['group_id'],at_sender=False,wait_recall=True)
+
+
+def recovery_store():
+    if _runtime is not None:
+        return _runtime.service.store
+    from ..nikke_config.config import MAIN_PATH
+    from .store import CommunityStore
+    return CommunityStore(MAIN_PATH/'community.sqlite3')
+
+
+def capture_login_recovery(bind):
+    try:
+        from .notifications import identity
+        from .service import CommunityService
+        account,owner=identity(CommunityService,bind)
+        return recovery_store().recovery_snapshot(account,owner)
+    except Exception:
+        return {'unavailable':True}
+
+
+def restore_login_recovery(snapshot, bind):
+    from .notifications import identity
+    from .service import CommunityService
+    from .cycle import cycle_day
+    import time
+    try:
+        store=recovery_store()
+        _,owner=identity(CommunityService,bind)
+        if snapshot and snapshot.get('unavailable'):
+            raise ValueError('recovery snapshot unavailable')
+        restored=store.transfer_login(snapshot,owner,cycle_day(time.time()))
+        if snapshot and snapshot['restore'] and not restored:
+            text='登录已成功，自动签到授权发生变化，恢复未确认；请查看自动社区状态。'
+        elif restored:
+            text=f'已恢复此前开启的自动签到，每日北京时间{configured_sign_time()}执行；全局暂停或权限限制仍生效。'
+        else:
+            text='自动签到保持关闭；未自动开启此前未授权或手动关闭的任务。'
+        store.login_notice(owner,text)
+        return text
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning('AliceUID login succeeded; community recovery unconfirmed')
+        return '登录已成功，自动签到恢复未确认，请查看自动社区状态。'
+
+
+async def login_recovery_notice(actor_id,bot_id):
+    try:
+        from ..nikke_user.models import AliceBind
+        from .notifications import identity
+        from .service import CommunityService
+        bind=await AliceBind.get_bind(actor_id,bot_id)
+        if bind is None:return ''
+        _,owner=identity(CommunityService,bind)
+        return recovery_store().login_notice(owner) or '自动签到恢复未确认，请查看自动社区状态。'
+    except Exception:
+        return '自动签到恢复未确认，请查看自动社区状态。'
+
+
+async def local_community_control(actor_id, bot_id, option):
+    """Closing/status must remain available even when a cookie cannot build a client."""
+    from ..nikke_permissions.runtime import get_policy
+    from ..nikke_user.models import AliceBind
+    from ..nikke_user.service import binding_lock
+    from .notifications import identity
+    from .service import CommunityService
+    if not get_policy().user_allowed(actor_id):
+        return '当前用户无权使用AliceUID。'
+    async with binding_lock(actor_id,bot_id):
+        bind=await AliceBind.get_bind(actor_id,bot_id)
+        if bind is None:return f'请先发送{command_prefix()}登录绑定本人账号。'
+        account,owner=identity(CommunityService,bind)
+        store=recovery_store();state=store.state(account)
+        if state.get('owner')!=owner:return '当前绑定尚未开启自动社区。'
+        if option in ('关闭','关'):
+            store.consent(account,owner,False)
+            return '自动社区已关闭（签到、浏览及点赞均关闭）；重新登录也不会自动恢复本次手动关闭。'
+        paused='无' if not state['paused'] else state['paused']
+        return (f'自动社区：{"开启" if state["enabled"] else "关闭"}\n'
+                f'点赞：{"开启" if state["likes"] else "关闭"}\n'
+                f'连续失败：{state["fail_count"]}/3个签到周期\n'
+                f'系统停用：{"连续三天失败" if state["auto_disabled"] else "无"}\n'
+                f'暂停：{paused}\n每日自动时间：北京时间{configured_sign_time()}\n'
+                f'命令：{command_prefix()}自动社区 开启/关闭/状态。')

@@ -28,6 +28,37 @@ class Store:
                 CREATE TABLE IF NOT EXISTS leases (account TEXT PRIMARY KEY, until REAL);
             ''')
 
+            # Upgrade legacy per-cycle dedup keys without forgetting sent receipts.
+            for row in db.execute('SELECT id,payload FROM notices').fetchall():
+                note = json.loads(row['payload'])
+                if note['kind'] == 'stop' or 'cycle' in note:
+                    continue
+                try:
+                    note['cycle'] = int(row['id'].rsplit(':', 1)[1])
+                except (ValueError, IndexError):
+                    continue
+                kind = note['kind']
+                if kind == 'normal' and Decimal(note.get('snapshot', {}).get('p', '0')) >= 99:
+                    kind = note['kind'] = 'full'
+                note['id'] = f'{note["sub"]}:{note["cycle"]}:{kind}'
+                db.execute('UPDATE OR IGNORE notices SET id=?,payload=? WHERE id=?',
+                           (note['id'], encode(note), row['id']))
+
+            db.execute('CREATE TABLE IF NOT EXISTS harvest_migrations (name TEXT PRIMARY KEY)')
+            if not db.execute("SELECT 1 FROM harvest_migrations WHERE name='stages_v118'").fetchone():
+                for row in db.execute('SELECT key,payload FROM accounts').fetchall():
+                    acc=json.loads(row['payload']);snap=acc.get('snapshot')
+                    if not snap:continue
+                    if acc['phase']=='WAIT_MAX' and acc.get('due')==snap['full']:
+                        acc['due']=snap['full']+60
+                    elif acc['phase']=='WAIT_REARM':
+                        missing=any(not db.execute("SELECT 1 FROM notices WHERE id=? AND status<>'discarded'",
+                            (f'{sub[0]}:{acc["cycle"]}:full',)).fetchone() for sub in
+                            db.execute('SELECT id FROM subscriptions WHERE account=? AND enabled=1',(row['key'],)).fetchall())
+                        if missing:acc.update(phase='WAIT_MAX',due=snap['full']+60)
+                    db.execute('UPDATE accounts SET payload=? WHERE key=?',(encode(acc),row['key']))
+                db.execute("INSERT INTO harvest_migrations VALUES('stages_v118')")
+
     @contextmanager
     def tx(self):
         db = sqlite3.connect(self.path, timeout=5)
@@ -79,10 +110,11 @@ class Store:
             return db.execute("INSERT INTO notices VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status='ready',payload=excluded.payload WHERE notices.status='discarded'",
                               (notice['id'], notice['sub'], notice['account'], 'ready', encode(notice))).rowcount == 1
 
-    def seen(self, sid, cycle):
+    def seen(self, sid, cycle, kind=None):
         with self.tx() as db:
-            row = db.execute('SELECT status FROM notices WHERE id=?', (f'{sid}:{cycle}',)).fetchone()
-            return row is not None and row[0] != 'discarded'
+            keys = [f'{sid}:{cycle}:{k}' for k in ((kind,) if kind else ('normal','bed','full'))]
+            return any(db.execute("SELECT 1 FROM notices WHERE id=? AND status<>'discarded'", (key,)).fetchone()
+                       for key in keys)
 
     def ready(self):
         with self.tx() as db:

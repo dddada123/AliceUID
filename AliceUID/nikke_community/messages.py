@@ -16,6 +16,11 @@ def result_message(result):
     elif kind == 'completed':
         parts.append('金币余额暂不可用')
     message = ' '.join(parts)
+    if kind == 'retry_pending':
+        return message+'\n'+result['reason']+'；后台将静默重试，当前不重复提交，请稍候查看签到状态。'
+    if kind == 'failed':
+        action='已因连续三天失败自动关闭，请本人重新登录或重新开启。' if result.get('auto_stopped') else ('下个签到周期继续。' if result.get('auto_enabled') else '自动签到未开启，请本人核对结果。')
+        return message+'\n'+result['reason']+f'；连续失败{result.get("streak",0)}/3天。'+action
     if kind == 'paused':
         return message + '\n后续任务已暂停⚠️ ' + result['reason'] + '；未自动重试。'
     if kind == 'cycle_changed':

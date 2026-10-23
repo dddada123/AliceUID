@@ -121,7 +121,7 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                     from ..nikke_community.notify_policy import ENABLED, WHITE, BLACK, valid_groups
                     if key == ENABLED and type(value) is not bool:
                         return False
-                    if key in (WHITE,BLACK) and not valid_groups(value):
+                    if key in (WHITE,BLACK):
                         return False
                     if key == 'AliceUID_AIQueryEnabled' and type(value) is not bool:
                         return False
@@ -157,8 +157,17 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                         except GroupPolicyError:
                             return False
                     previous = copy.deepcopy(self.config)
+                    operation = None
+                    notify_policy = None
+                    if key == ENABLED and previous[key].data != value:
+                        from ..nikke_community.notify_policy import policy_for
+                        notify_policy = policy_for(self)
+                        operation = notify_policy.prepare(value)
                     try:
                         result = super().set_config(key, value)
+                        if operation:
+                            if result:notify_policy.finish(operation)
+                            else:notify_policy.cancel(operation)
                         if result and key == 'AliceUID_CommunitySignTime':
                             from ..nikke_community.runtime import apply_sign_schedule
                             try:
@@ -174,6 +183,12 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                         return result
                     except Exception:
                         self.config = previous
+                        if operation:
+                            try:
+                                super().write_config()
+                                notify_policy.cancel(operation)
+                            except Exception:
+                                pass  # Durable pending operation reconciles against saved config on restart.
                         raise
         _VALIDATED_TYPE = _ValidatedStringConfig
     path = Path(CONFIG_PATH[-1] if isinstance(CONFIG_PATH, list) else CONFIG_PATH)
@@ -198,6 +213,19 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
     if legacy is not None:
         for name, key in CONFIG_KEYS.items():
             defaults[key].data = legacy[name]
+    if source.exists():
+        original = json.loads(source.read_text('utf-8'))
+        from ..nikke_community.notify_policy import ENABLED, WHITE, BLACK, valid_groups
+        from ..nikke_community.notify_state import NotificationPolicy
+        enabled=original.get(ENABLED,{}).get('data',True)
+        white=original.get(WHITE,{}).get('data',[]);black=original.get(BLACK,{}).get('data',[])
+        if type(enabled) is not bool or not valid_groups(white) or not valid_groups(black):
+            raise GroupPolicyError('签到通知配置格式异常，请先检查旧配置')
+        if WHITE in original or BLACK in original:
+            backup=path.with_name('notification_config_before_v118.json')
+            if not backup.exists():
+                backup.write_text(json.dumps(original,ensure_ascii=False,indent=2),'utf-8')
+        NotificationPolicy(path.with_name('community.sqlite3'),enabled,white,black)
     instance = _VALIDATED_TYPE(config_name, CONFIG_PATH, defaults)
     if not isinstance(instance, _VALIDATED_TYPE):
         raise GroupPolicyError("此配置已由原生StringConfig初始化；必须先使用ValidatedStringConfig")

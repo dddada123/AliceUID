@@ -73,9 +73,9 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
         ]})
     if permission == 0:
         sections.append({'title': '数据库与全局管理', 'tag': 'Bot 主', 'description': 'GsCore Bot主权限；周五02:33北京时间自动增量检查。', 'items': [
-            {'command': f'{command_prefix()}签到群通知 开启/关闭/状态', 'description': 'Bot主设置全局群签到通知，不影响签到执行或其他功能'},
-            {'command': f'{command_prefix()}签到通知白名单 添加/移除 群号', 'description': '非空时只通知这些群；与通知黑名单重叠时白名单优先'},
-            {'command': f'{command_prefix()}签到通知黑名单 添加/移除 群号', 'description': '只限制签到通知；白名单为空时排除这些群，两表均支持状态查询'},
+            {'command': f'{command_prefix()}签到群通知 开启/关闭/状态', 'description': 'Bot主设置当前群通知，仅本群生效，不影响签到执行'},
+            {'command': f'{command_prefix()}开启签到群通知 / 关闭签到群通知', 'description': 'Bot主在群内单独开关通知，其他群不受影响'},
+            {'command': f'{command_prefix()}全群签到通知 开启/关闭/状态', 'description': '一次性批量应用全部群，之后仍可单独修改各群'},
             {'command': f'{command_prefix()}签到查询 [页码]', 'description': '本群绑定/近期使用账号的本周期签到记录；本地确认结果，非实时全员名单'},
             {'command': '后台：每日签到时间', 'description': '北京时间HH:MM，默认08:33；保存后更新调度，手动签到仍可立即执行'},
             {'command': f'{command_prefix()}数据库更新', 'description': '后台补公开基础及皮肤头像 / 半身像 / 立绘'},
@@ -104,7 +104,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
         'regions': [f'{command_prefix()}登录日服', f'{command_prefix()}登录国际服', f'{command_prefix()}登录北美服', f'{command_prefix()}登录韩服', f'{command_prefix()}登录东南亚服'],
         'steps': steps, 'sections': sections, 'hero_art': _hero_art(),
         'cookie_hint': f'请使用已有游戏邮箱；凭据失效用{command_prefix()}重新登录/重新登陆，无需先解绑。不要在群里发送密码、验证码或Cookie。',
-        'limit_hint': '社区请求默认随机5～15秒，换号随机等待10～120秒，Bot主可在后台自定义；08:00划分周期，每周期最多30次请求；成功不重复，异常暂停。UID登记不提供匿名练度授权。',
+        'limit_hint': '社区请求默认随机5～15秒，换号随机等待10～120秒，Bot主可在后台自定义；08:00划分周期，每周期最多30次请求；成功不重复，短期故障有限重试，连续三天失败自动关闭。UID登记不提供匿名练度授权。',
         'database_hint': '公共库每周五02:33（北京时间）增量检查，仅Bot主维护；皮肤显示按本人接口，静态清单不代表拥有。',
         'footer': f'选错区服或换号：先 {command_prefix()}解绑，再选区服重新登录。港澳台登录流程暂未支持。',
     }

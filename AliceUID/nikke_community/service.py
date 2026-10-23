@@ -91,12 +91,66 @@ class CommunityService:
         state = self.store.state(self.identity(client))
         if actor_id is not None and state.get('owner') != self.owner(actor_id, bot_id, binding_revision):
             return {'enabled': 0, 'likes': 0, 'paused': '当前绑定尚未授权', 'last_day': ''}
-        return {k: state[k] for k in ("enabled", "likes", "paused", "last_day")}
+        return {k: state.get(k, 0 if k=="fail_count" else "") for k in ("enabled", "likes", "paused", "last_day", "fail_count", "auto_disabled")}
 
-    async def run(self, client, actor_id: str, bot_id: str, binding_revision: str, *, manual=False, signin_only=False) -> dict:
+    async def run(self, client, actor_id, bot_id, binding_revision, *, manual=False, signin_only=False):
+        account, owner = self.identity(client), self.owner(actor_id,bot_id,binding_revision)
+        day, now = self.prepare_cycle(), self.clock()
+        if not self.allowed() or not self.user_allowed(actor_id):
+            return {'result':'skipped','actions':0}
+        if self.store.signin_status(account,owner,day)['confirmed']:
+            return {'result':'skipped','actions':0}
+        previous=self.store.result(account,owner,day)
+        if (not manual and previous and previous['generation']==self.store.state(account).get('generation')
+                and previous['status']=='retry' and now>previous['first_at']+1200):
+            final=self.store.finish_run(previous,now,reason=previous['reason']+'；重试窗口已结束',category=previous['category'])
+            if final:
+                return dict(result='failed',actions=0,reason=final['reason'],attempts=final['attempts'],
+                            streak=final['streak'],auto_stopped=bool(final['auto_stopped']),auto_enabled=bool(self.store.state(account).get('enabled')))
+            return {'result':'skipped','actions':0}
+        token=self.store.start_run(account,owner,day,now,manual=manual)
+        if token is None:
+            return {'result':'skipped','actions':0}
+        try:
+            result=await self._execute(client,actor_id,bot_id,binding_revision,manual=manual,signin_only=signin_only,expected_generation=token["generation"])
+        except asyncio.CancelledError:
+            self.store.finish_run(token,self.clock(),cancelled=True,reason='任务中断，本周期未继续执行')
+            raise
+        if self.binding_current is not None and not await self.binding_current(actor_id,bot_id,binding_revision):
+            self.store.finish_run(token,self.clock(),cancelled=True)
+            return {'result':'skipped','actions':0}
+        success=bool(result.get('signin_confirmed') or self.store.signin_status(account,owner,day)['confirmed'])
+        cancelled=(result['result'] in ('skipped','cycle_changed') or result.get('category')=='policy'
+                   or not self.allowed() or not self.user_allowed(actor_id))
+        reason=result.get('reason') or ('请求预算已用尽，签到尚未确认' if result['result']=='daily_limit' else '本轮尚未确认签到成功')
+        final=self.store.finish_run(token,self.clock(),success=success,cancelled=cancelled,
+                reason=reason if not success or result.get('reason') else '',
+                category=result.get('category','unconfirmed'),retryable=bool(result.get('retryable') or (not success and result['result']=='completed' and self.store.signin_status(account,owner,day).get('uncertain'))))
+        if final is None:
+            return {'result':'skipped','actions':0}
+        if final['status']=='cancelled' and cycle_day(self.clock())!=day:
+            return dict(result, result='cycle_changed')
+        if not success and not cancelled:
+            result.update(result='retry_pending' if final['status']=='retry' else 'failed',reason=reason,
+                          attempts=final['attempts'],streak=final['streak'],auto_stopped=bool(final['auto_stopped']),
+                          next_at=final['next_at'],auto_enabled=bool(self.store.state(account).get('enabled')))
+        return result
+
+    def unavailable(self, actor_id, bot_id, revision, reason='本地凭据已过期、缺失或不可解析，请本人重新登录'):
+        owner=self.owner(actor_id,bot_id,revision)
+        day=self.prepare_cycle()
+        for state in self.store.owner_accounts(owner):
+            token=self.store.start_run(state['account'],owner,day,self.clock())
+            if token:
+                self.store.finish_run(token,self.clock(),reason=reason,category='credentials')
+
+    async def _execute(self, client, actor_id: str, bot_id: str, binding_revision: str, *, manual=False, signin_only=False, expected_generation=None) -> dict:
         async with self._serial:
             account = self.identity(client)
             owner = self.owner(actor_id, bot_id, binding_revision)
+            generation = self.store.state(account).get("generation",0)
+            if generation != expected_generation:
+                return {"result":"skipped","actions":0}
             lease = uuid.uuid4().hex
             day = self.prepare_cycle()
             if self.store.signin_status(account, owner, day)['confirmed']:
@@ -113,11 +167,13 @@ class CommunityService:
                 return dict(result=kind, actions=completed, counts=dict(counts), signin_confirmed=signin_confirmed, **values)
             try:
                 if client.credentials.expired:
-                    raise CommunityError("登录已失效，请重新登录后手动开启")
+                    raise CommunityError("本地凭据已过期，请本人重新登录", category="credentials")
 
                 async def request(method, path, *, body=None, params=None, action=None):
                     interval = self.uniform(self.policy.min_interval, self.policy.max_interval)
                     while True:
+                        if self.store.state(account).get("generation") != generation:
+                            raise CommunityError("自动任务授权已变化，本轮已取消")
                         if self.binding_current is not None and not await self.binding_current(actor_id,bot_id,binding_revision):
                             raise CommunityError('绑定已变更，社区任务已停止')
                         if not self.user_allowed(actor_id):
@@ -138,6 +194,12 @@ class CommunityService:
                             return None
                         try:
                             data = await api.request(method, path, body=body, params=params)
+                        except CommunityError as exc:
+                            if exc.not_sent:
+                                self.store.release_unsent(account, day, action)
+                            if cycle_day(self.clock()) != day:
+                                self.store.carry_boundary_guard(account,cycle_day(self.clock()),action)
+                            raise
                         except (Exception, asyncio.CancelledError):
                             current_day = cycle_day(self.clock())
                             if current_day != day:
@@ -215,14 +277,15 @@ class CommunityService:
             except CycleBoundary:
                 return outcome('cycle_changed')
             except CommunityError as exc:
-                self.store.pause(account, str(exc), owner)
-                return outcome('paused', reason=str(exc))
+                if exc.category == 'policy':
+                    self.store.pause(account, str(exc), owner, generation)
+                return outcome('paused', reason=str(exc),category=exc.category,retryable=exc.retryable)
             except asyncio.CancelledError:
-                self.store.pause(account, "任务中断，结果未确认，请人工检查", owner)
+                self.store.pause(account, "任务中断，结果未确认，请人工检查", owner, generation)
                 raise
             except Exception:
                 reason = "内部异常，结果未确认，请人工检查"
-                self.store.pause(account, reason, owner)
+                self.store.pause(account, reason, owner, generation)
                 return outcome('paused', reason=reason)
             finally:
                 self.store.release(account, lease, day, finished=finished)

@@ -56,15 +56,22 @@ def group_report_text(service, bindings, *, bot_id, group_id, page=1, sign_time=
             owner = service.owner(actor, bot_id, revision)
             state = service.store.state(account)
             receipt = service.store.signin_status(account, owner, day)
+            run=service.store.result(account,owner,day)
+            if run and run['generation']!=state.get('generation'):run=None
             if state.get('owner') != owner:
                 label = '未授权'
             elif receipt['confirmed']:
                 label = '已签到'
                 detail = datetime.fromtimestamp(receipt['confirmed_at'], BJT).strftime('%H:%M')
-                if state.get('paused'):
-                    detail += '，后续任务暂停'
+                if state.get('paused') or (run and run['reason']):
+                    detail += '，后续任务暂停：'+(state.get('paused') or run['reason'])
                 if credential_invalid(row):
                     detail += '，凭据需更新'
+            elif run and run['status']=='retry':
+                label,detail='后台重试',run['reason']
+            elif run and run['status']=='failed':
+                label='自动关闭' if run['auto_stopped'] else ('未确认' if receipt.get('uncertain') else '签到失败')
+                detail=run['reason']+f'；共{run["attempts"]}轮，连续{run["streak"]}/3天'
             elif credential_invalid(row):
                 label, detail = '登录失效', f'请本人{command_prefix()}重新登录'
             elif state.get('paused'):

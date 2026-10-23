@@ -41,10 +41,10 @@ async def execute(bot, ev, action):
                 snap = acc['snapshot']
                 text = (f'[AliceUID]收菜提醒已开启\n指挥官，已在{where}开启您的收菜提醒。\n'
                         f'最近查询容量（{moment(snap["at"], svc.clock())}）：{percent(snap)}%。\n'
-                        + ('资源保管箱已达到MAX。\n' if Decimal(snap['p']) == 100 else
+                        + ('资源保管箱已达到满仓提醒阈值（99%及以上）。\n' if Decimal(snap['p']) >= 99 else
                            f'预计{moment(snap["t90"], svc.clock())}达到90%，{moment(snap["full"], svc.clock())}达到MAX。\n')
                         + f'收菜提醒免打扰时段：{sub["quiet"] or "关闭"}（北京时间）。\n'
-                        + '连续两天23点检查均为MAX时，将自动关闭该账号的全部收菜提醒。')
+                        + '90%和满仓每轮分别提醒一次，满仓提醒采用99%容差。连续两天23点检查均为实际MAX时，将自动关闭该账号的全部收菜提醒。')
             async with svc.send_lock:
                 async with binding_lock(ev.user_id, ev.bot_id):
                     current = svc.store.sub(sub['id'])
@@ -78,7 +78,7 @@ async def execute(bot, ev, action):
                     text += f'\n最近查询：{moment(snap["at"], svc.clock())}，容量{percent(snap)}%。'
                     text += f'\n预计MAX：{moment(snap["full"], svc.clock())}。'
                 if acc and sub['enabled']:
-                    phases = {'WAIT_90':'等待90%检查','WAIT_MAX':'仅等待一次MAX检查','WAIT_REARM':'等待23点静默恢复检查','PAUSED':'已暂停，请重新登录或开启','INITIALIZING':'初始化中'}
+                    phases = {'WAIT_90':'等待90%检查','WAIT_MAX':'等待满仓复查（预计时间后1分钟，99%及以上提醒）','WAIT_REARM':'等待23点静默恢复检查','PAUSED':'已暂停，请重新登录或开启','INITIALIZING':'初始化中'}
                     text += '\n当前阶段：'+phases.get(acc['phase'], acc['phase'])+'。'
                     if acc.get('due') is not None:
                         text += f'\n下次检查：{moment(acc["due"], svc.clock())}。'

@@ -429,6 +429,9 @@ async def nikke_api_status(payload: TokenPayload):
         "relogin": bool(session.replace_revision),
         "expiry_hint": expiry_notice(session.cookie_expire) if session.status == 'success' else '',
     }
+    if session.status == 'success' and session.replace_revision:
+        from ..nikke_community.runtime import login_recovery_notice
+        data['expiry_hint'] += '\n' + await login_recovery_notice(session.user_id,session.bot_id)
     if session.status == "captcha" and session.captcha_png:
         data["captcha"] = base64.b64encode(session.captcha_png).decode("ascii")
         data["captcha_piece"] = session.captcha_piece

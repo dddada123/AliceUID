@@ -26,6 +26,7 @@ class CommunityCommands:
         self.service, self.load_binding, self.enabled = service, load_binding, enabled
         self.sign_time, self.group_report = sign_time, group_report
         self.binding_hint = binding_hint
+        self.local_control = None
 
     async def handle(self, actor_id: str, bot_id: str, argument: str) -> str:
         option = argument.strip()
@@ -33,7 +34,12 @@ class CommunityCommands:
         if option not in valid:
             return (f"{command_prefix()}自动社区 开启/关闭/状态；{command_prefix()}自动社区 点赞开启/点赞关闭。\n"
                     "开启即授权当前绑定账号每日签到及浏览；点赞需另行开启；不自动评论。\n"
-                    "请求与换号采用后台设置的随机间隔；每日最多30请求、签到1次、浏览5帖、点赞5帖；异常暂停。")
+                    "请求与换号采用后台设置的随机间隔；每日最多30请求、签到1次、浏览5帖、点赞5帖；连续三个签到周期失败后自动关闭。")
+        if option in {'关闭','关','状态'} and self.local_control is not None:
+            try:
+                return await self.local_control(str(actor_id),str(bot_id),option)
+            except Exception:
+                return '自动社区本地状态读取或保存失败，请稍后重试。'
         binding = await self.load_binding(str(actor_id), str(bot_id))
         if binding is None:
             return await self.binding_hint(actor_id,bot_id) if self.binding_hint else "请先登录并绑定账号。"
@@ -44,6 +50,8 @@ class CommunityCommands:
             state = self.service.status(client, actor_id, bot_id, binding.revision)
             if option == "状态":
                 return (f"自动社区：{'开启' if state['enabled'] else '关闭'}\n"
+                        f"连续失败：{state.get('fail_count',0)}/3个签到周期\n"
+                        f"系统停用：{'连续三天失败' if state.get('auto_disabled') else '无'}\n"
                         f"点赞：{'开启' if state['likes'] else '关闭'}\n"
                         f"暂停：{state['paused'] or '无'}\n"
                         f"每日自动时间：北京时间{normalized_time(self.sign_time())}\n"
@@ -61,7 +69,7 @@ class CommunityCommands:
             if option in {"开启", "开"}:
                 self.service.configure(client, actor_id, bot_id, binding.revision, enabled=True)
                 return (f"已授权当前账号每日自动签到及浏览；每天北京时间{normalized_time(self.sign_time())}开始按账号依次执行。"
-                        "社区周期从08:00开始；点赞关闭，不自动评论。异常将暂停，需人工检查后重新开启。")
+                        "社区周期从08:00开始；点赞关闭，不自动评论。短期异常后台有限重试，连续三个签到周期失败后自动关闭。")
             if not state["enabled"]:
                 return f"请先发送 {command_prefix()}自动社区 开启，授权当前账号。"
             if state["paused"]:
@@ -118,7 +126,7 @@ class CommunityCommands:
             if self.service.binding_current is not None and not await self.service.binding_current(actor_id,bot_id,binding.revision):
                 return None
             kind = result['result']
-            if kind in ('completed', 'paused', 'cycle_changed', 'unconfirmed'):
+            if kind in ('completed', 'paused', 'cycle_changed', 'unconfirmed', 'failed', 'retry_pending'):
                 return finish(result_message(result))
             if kind == 'daily_limit':
                 return finish('本周期请求预算已用尽，未继续发送签到或互动请求。')

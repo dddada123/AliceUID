@@ -86,6 +86,13 @@ async def save_login(
             raise _BindingRejected('原绑定已变化，或登录的不是同账号同区服；未替换原Cookie。')
         if still_current is not None and not still_current():
             raise _BindingRejected("登录链接已失效，请重新获取绑定链接")
+        recovery = None
+        if replace_revision:
+            try:
+                from ..nikke_community.runtime import capture_login_recovery
+                recovery = capture_login_recovery(existing)
+            except Exception:
+                recovery = {'unavailable': True}
         encrypted = get_cipher().encrypt(cookie)
         master = is_master(user_id)
         if replace_revision:
@@ -97,6 +104,12 @@ async def save_login(
                 raise BindingPersistenceError('重新登录的Cookie保存未确认')
             # Old renders and old automatic jobs must not publish under the new
             # credential revision. Do not reset any community budget ledger.
+            # Transfer only the verified same-account authorization before invalidating old jobs.
+            try:
+                from ..nikke_community.runtime import restore_login_recovery
+                restore_login_recovery(recovery, stored)
+            except Exception:
+                pass  # A confirmed login must not be reclassified as a failed login.
             await _invalidate_replaced(existing)
             _start_login_prefetch(stored, group_id)
             return 0
@@ -185,12 +198,12 @@ async def set_public(user_id: str, bot_id: str, public: bool) -> bool:
         return True
 
 
-async def load_client(user_id: str, bot_id: str) -> tuple[Optional[NikkeClient], Optional[AliceBind]]:
+async def load_client(user_id: str, bot_id: str, *, community=False) -> tuple[Optional[NikkeClient], Optional[AliceBind]]:
     bind = await AliceBind.get_bind(user_id, bot_id)
     if not bind:
         return None, None
     from .auth_state import expired, known_invalid, mark_invalid
-    if expired(bind) or known_invalid(bind):
+    if expired(bind) or (known_invalid(bind) and not community):
         return None, bind
     if not bind.cookie_enc:
         return None, bind
@@ -206,7 +219,7 @@ async def load_client(user_id: str, bot_id: str) -> tuple[Optional[NikkeClient],
     region = REGIONS.get(int(bind.area_id or 0))
     if region is None or cred.game_id != region.game_id:
         return None, bind
-    return NikkeClient(cred, region, on_auth_failure=lambda code: mark_invalid(bind,code)), bind
+    return NikkeClient(cred, region, on_auth_failure=None if community else lambda code: mark_invalid(bind,code)), bind
 
 
 def bind_summary(bind: AliceBind) -> str:

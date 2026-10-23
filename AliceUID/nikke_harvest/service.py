@@ -6,7 +6,7 @@ from decimal import Decimal
 import logging
 import time
 from .planner import (TZ, DEFAULT_QUIET, account_key, revision, night_next, pre_next,
-                      quiet, quiet_value, bedtime)
+                      quiet, quiet_value, bedtime, at_next, minutes)
 
 
 class HarvestService:
@@ -38,14 +38,16 @@ class HarvestService:
                 acc['cycle'] += 1
         acc['snapshot'] = snap
         acc['error'] = ''
-        if p < 85:
+        if p < 90:
             acc.update(phase='WAIT_90', due=snap['t90'])
-        elif p == 100 or final:
+        elif p >= 99:
             acc.update(phase='WAIT_REARM', due=None)
         else:
-            acc.update(phase='WAIT_MAX', due=snap['full'])
-        if old_phase == 'WAIT_MAX' and not final and not collected and p < 100:
-            acc.update(phase='WAIT_MAX', due=snap['full'])
+            acc.update(phase='WAIT_MAX', due=snap['full']+60)
+        if old_phase == 'WAIT_MAX' and not final and not collected and p < 99:
+            acc.update(phase='WAIT_MAX', due=snap['full']+60)
+        if acc['phase'] == 'WAIT_MAX' and final:
+            acc['due'] = max(acc['due'], snap['at'] + 60)
         return acc
 
     async def enable(self, route, bind):
@@ -91,8 +93,9 @@ class HarvestService:
                 if not self.live(acc) or not current or not current['enabled'] or current['generation'] != sub['generation']:
                     raise ValueError('收菜提醒已关闭，本次开启已取消。')
                 # An opening card is already a notification for this conversation.
-                if Decimal(acc['snapshot']['p']) >= 85 or bedtime(now, acc['snapshot']['full'], sub['quiet']):
-                    note = self.notice(acc, sub, 'normal')
+                if Decimal(acc['snapshot']['p']) >= 90 or bedtime(now, acc['snapshot']['full'], sub['quiet']):
+                    kind = 'full' if Decimal(acc['snapshot']['p']) >= 99 else ('normal' if Decimal(acc['snapshot']['p']) >= 90 else 'bed')
+                    note = self.notice(acc, sub, kind)
                     self.store.enqueue(note)
                     self.store.mark(note['id'], 'confirmed')
                 return acc, sub, image, True
@@ -131,9 +134,9 @@ class HarvestService:
 
     def notice(self, acc, sub, kind):
         now = self.clock()
-        event = f'{sub["id"]}:{acc["cycle"]}' if kind != 'stop' else f'{sub["id"]}:stop:{acc["generation"]}'
+        event = f'{sub["id"]}:{acc["cycle"]}:{kind}' if kind != 'stop' else f'{sub["id"]}:stop:{acc["generation"]}'
         return dict(id=event, account=acc['key'], generation=acc['generation'], sub=sub['id'],
-                    sub_generation=sub['generation'], kind=kind, snapshot=acc.get('snapshot'),
+                    sub_generation=sub['generation'], kind=kind, cycle=acc['cycle'], snapshot=acc.get('snapshot'),
                     created=now, expires=now+300)
 
     def events(self, acc, subs, now):
@@ -184,11 +187,11 @@ class HarvestService:
                 sub['pre_due'] = pre_next(now, sub['quiet'])
                 self.store.save_sub(sub)
         snap = acc.get('snapshot')
-        risk = snap and any(bedtime(now, snap['full'], s['quiet']) and not self.store.seen(s['id'], acc['cycle']) for s in active)
+        risk = snap and any(bedtime(now, snap['full'], s['quiet']) and not self.store.seen(s['id'], acc['cycle'], 'bed') and not self.store.seen(s['id'], acc['cycle'], 'full') for s in active)
         recovery = acc['phase'] == 'WAIT_REARM' or acc.get('full_nights', 0) > 0
         query = bool(events & {'ninety', 'max'}) or bool(risk) or ('night' in events and night_window and recovery)
         if events == {'ninety'} and all(quiet(now, s['quiet']) for s in active):
-            acc.update(phase='WAIT_MAX', due=snap['full'])
+            acc.update(phase='WAIT_MAX', due=snap['full']+60)
             self.store.save_account(acc, acc['generation'])
             return
         if not query:
@@ -206,7 +209,9 @@ class HarvestService:
             if getattr(exc, 'harvest_auth', False):
                 acc.update(phase='PAUSED', due=None)
             elif 'ninety' in events and snap:
-                acc.update(phase='WAIT_MAX', due=snap['full'])
+                acc.update(phase='WAIT_MAX', due=snap['full']+60)
+            elif 'max' in events:
+                acc.update(phase='WAIT_MAX', due=now+300)
             else:
                 acc.update(phase='WAIT_REARM', due=None)
             self.store.save_account(acc, acc['generation'])
@@ -230,21 +235,30 @@ class HarvestService:
         p = Decimal(new['p'])
         bed_sent = False
         for sub in self.store.subs(acc['key']):
-            if quiet(self.clock(), sub['quiet']) or self.store.seen(sub['id'], acc['cycle']):
+            if quiet(self.clock(), sub['quiet']):
                 continue
             kind = None
-            if bedtime(self.clock(), new['full'], sub['quiet']) and p < 100:
-                kind = 'bed'
-            elif 'ninety' in events and 85 <= p <= 95:
-                kind = 'normal'
-            elif events & {'ninety', 'max'} and p == 100:
+            if p >= 99:
                 kind = 'full'
-            if kind:
+            elif 'ninety' in events and p >= 90:
+                kind = 'normal'
+            elif bedtime(self.clock(), new['full'], sub['quiet']) and p < 99:
+                kind = 'bed'
+            if kind and not self.store.seen(sub['id'], acc['cycle'], kind):
                 self.store.enqueue(self.notice(acc, sub, kind))
                 bed_sent |= kind == 'bed'
+        self.defer_full(acc, self.store.subs(acc['key']))
         if bed_sent:
-            acc.update(phase='WAIT_MAX', due=new['full'])
-            self.store.save_account(acc, acc['generation'])
+            acc.update(phase='WAIT_MAX', due=new['full']+60)
+        self.store.save_account(acc, acc['generation'])
+
+    def defer_full(self, acc, subs):
+        if Decimal(acc['snapshot']['p']) < 99:
+            return
+        times = [at_next(self.clock(), minutes(s['quiet'].split('-')[1])) for s in subs
+                 if quiet(self.clock(), s['quiet']) and not self.store.seen(s['id'], acc['cycle'], 'full')]
+        if times:
+            acc.update(phase='WAIT_MAX', due=min(times))
 
     async def observe(self, key, rev, snap):
         """Accept real manual reads without creating consent or sending a message."""
@@ -261,15 +275,19 @@ class HarvestService:
                 self.plan(acc, snap)
             else:
                 acc['snapshot'] = snap
-                if p == 100:
-                    # This manual read already performed the MAX check.
+                if p >= 99:
+                    # A fresh manual observation can satisfy the MAX read, not its notification.
                     acc.update(phase='WAIT_REARM', due=None)
+                    for sub in self.store.subs(key):
+                        if not quiet(self.clock(), sub['quiet']) and not self.store.seen(sub['id'], acc['cycle'], 'full'):
+                            self.store.enqueue(self.notice(acc, sub, 'full'))
+                    self.defer_full(acc, self.store.subs(key))
                 elif acc['phase'] == 'WAIT_MAX':
                     # Move the one pending check; never add an intermediate poll.
-                    acc['due'] = snap['full']
+                    acc['due'] = snap['full']+60
                 elif acc['phase'] == 'WAIT_90':
                     acc.update(phase='WAIT_90' if p < 90 else 'WAIT_MAX',
-                               due=snap['t90'] if p < 90 else snap['full'])
+                               due=snap['t90'] if p < 90 else snap['full']+60)
             self.store.save_account(acc, acc['generation'])
 
     async def valid_notice(self, note):
@@ -281,7 +299,7 @@ class HarvestService:
         if note['kind'] == 'stop':
             if acc['phase'] != 'AUTO_STOPPED' or sub['reason'] != 'two_full_nights':
                 return None
-        elif not sub['enabled'] or not self.live(acc) or acc['cycle'] != int(note['id'].rsplit(':', 1)[1]):
+        elif not sub['enabled'] or not self.live(acc) or acc['cycle'] != note['cycle']:
             return None
         if not await self.allowed(sub, acc):
             return None
