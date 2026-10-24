@@ -25,10 +25,23 @@ body{background:{{ theme.page }};color:{{ theme.ink }}}
 .help-page .label{margin:16px 0 12px;color:{{ theme.accent }}}
 .help-page .region-hint{margin-top:12px;margin-bottom:0}
 .help-page .command,.help-page .step-command{overflow-wrap:anywhere}
+/* Content-sized bands prevent a long module from stretching an unrelated short card. */
+.hero{height:auto;padding:22px 30px}.hero h1{font-size:34px;margin:7px 0}.hero p{margin:0 0 12px}
+.sections{display:flex;flex-direction:column;gap:16px;margin-top:18px}
+.section-band{display:flex;align-items:flex-start;gap:16px;width:952px}
+.section{flex:none;min-width:0;padding:20px 22px}.section.half{width:468px}.section.wide{width:952px}
+.section-header{margin-bottom:6px}.section h2{font-size:21px}.description{margin-bottom:8px}
+.item-row{display:flex;align-items:flex-start;gap:24px;width:100%;border-bottom:1px solid {{ theme.line }}}
+.item-row:last-child{border-bottom:none}.section .item{flex:1;min-width:0;padding:10px 0;border-bottom:none}
+.section .item:last-child{padding-bottom:10px}.section .item-row:last-child .item{padding-bottom:0}
+.section.wide .item-row.single .item{flex:none;width:441px}
+.section .command{font-size:15px;line-height:1.5;overflow-wrap:anywhere}
+.section .explain{font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+.notice{margin-top:16px}.notice p{margin:3px 0}
 </style></head><body><div class="help-page">
 <div class="hero">{% if hero_art %}<img class="hero-art" src="{{ hero_art }}" alt="NIKKE"><div class="hero-shade"></div>{% endif %}<div class="hero-content"><div class="eyebrow">AliceUID · COMMAND GUIDE</div><h1>指挥官，从这里开始</h1><p>绑定你的区服，查看个人资料与展示队伍。</p><span class="role">{{ role }}指令 · 当前可用功能</span></div></div>
 <div class="label">QUICK START / 三步开始</div><div class="steps">{% for step in steps %}<div class="step"><div class="step-number">{{ step.number }}</div><div class="step-command">{{ step.command }}</div><p>{{ step.description }}</p></div>{% endfor %}</div>
 <div class="regions">{% for command in regions %}<span class="region"><span>{{ command }}</span></span>{% endfor %}</div><div class="region-hint">「登录」也可写成「登陆」，含区服登录和重新登录。选择角色所在区服，不会自动换区。</div>
-<div class="sections">{% for section in sections %}<div class="section"><div class="section-header"><h2>{{ section.title }}</h2><span class="tag">{{ section.tag }}</span></div><p class="description">{{ section.description }}</p>{% for item in section['items'] %}<div class="item"><div class="command">{{ item.command }}</div><div class="explain">{{ item.description }}</div></div>{% endfor %}</div>{% endfor %}</div>
+<div class="sections">{% for band in section_bands %}<div class="section-band">{% for section in band %}<section class="section {{ 'wide' if section.wide else 'half' }}" data-module="{{ section.title }}" data-count="{{ section['items']|length }}"><div class="section-header"><h2>{{ section.title }}</h2><span class="tag">{{ section.tag }} · {{ section['items']|length }}条</span></div><p class="description">{{ section.description }}</p><div class="section-items">{% for row in section.rows %}<div class="item-row{% if row|length == 1 %} single{% endif %}">{% for item in row %}<div class="item"><div class="command">{{ item.command }}</div><div class="explain">{{ item.description }}</div></div>{% endfor %}</div>{% endfor %}</div></section>{% endfor %}</div>{% endfor %}</div>
 <div class="notice"><div class="notice-title">使用提醒</div><p>{{ footer }}</p><p>{{ cookie_hint }}</p><p>{{ limit_hint }}</p><p>{{ database_hint }}</p></div><div class="footer"><span><b>{{ command_prefix }}帮助 文字</b> · 获取可复制的文字版</span><span>AliceUID · 通用指南 · 图片缓存30天</span></div>
 {% include 'brand_credit.html' %}</div></body></html>

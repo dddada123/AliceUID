@@ -209,8 +209,8 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         "数据库单次后台运行分钟上限", "后台连续补全的时间预算，达到后保存剩余任务，可手动继续或等下次周检", 30, 180,
     ),
     "AliceUID_EnableWriteOps": GsBoolConfig(
-        "其他写操作（兼容预留）",
-        f"预留给后续CDK等功能；当前自动社区由 {command_prefix()}自动社区 开启 按账号授权，整体暂停请用暂停所有社区任务",
+        "允许本人CDK兑换",
+        f"默认关闭；开启后，{command_prefix()}兑换码 对绑定用户自动兑换，带码及单源命令也可兑换。{command_prefix()}查询兑换码 始终只读；8小时汇总仅维护目录。与自动社区授权、签到预算独立。",
         False,
     ),
 }

@@ -1,6 +1,22 @@
 # AliceUID 开发文档
 
-适用版本：**1.0.14**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+适用版本：**1.0.20**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+
+### 1.0.20 帮助模块与布局
+
+仅 `nikke_help/draw.py`、`nikke_help/cache.py` 与 `templates/help.html` 改动帮助显示。context按七模块整理，普通身份不构造两个Bot主模块；原命令保留，签到说明按用户追加要求删除“任何”两字，其余逐条说明完全保留。section_bands将<=7条模块两两配对，>7条独占一行；大模块按items顺序每两个切为一行，确保DOM和视觉都是左→右→下一行。渲染采用明确的flex行与卡片宽度，避免原生渲染器的跨列兼容差异。
+
+半宽468 CSS px，通栏952，页面仍1000；长卡行内两格自然高度，短卡不被同排较高卡拉伸。保持正文字号15、说明12、既有渲染DPI和字体/主题。CACHE_VERSION更新为1.0.20:help-modules-1，模板变化立即失效旧图；完整PNG与发送链路不变。
+
+### 1.0.19 CDK 增量说明
+
+实现位于 `AliceUID/nikke_cdk/`：parser处理GameWith DOM与板块/期限；api负责匿名来源与官方CDK局部请求头；catalog负责单飞刷新和8小时/4小时/每日首刷；store保存 `MAIN_PATH/cdk.sqlite3`；service只为经本人核验的角色串行兑换；commands/runtime接入原生Core注册与调度。只读命令为 `查询兑换码`；`兑换码` 内部按正文有无区分汇总/单码，避免前缀竞争。
+
+官方端点：POST `/api/game/direct/Game/GetCdkRedemption`（公共列表）、`/api/game/proxy/Game/GetCdkRedemption`（本人列表）、`RecordCdkRedemption`（正文仅cdkey）、`GetCdkRedemptionHistory`（page_num/page_size）。CDK公共参数局部覆盖为game_id=16、area_id=global、intl_game_id=29080，保持旧客户端其他接口请求头不变。官网保存角色必须与绑定game_id/area_id/role_id一致。
+
+目录、来源快照、共享停用、本人回执及租约共用一个SQLite。领取以真实账号/产品/区服/角色的哈希键识别，不存Cookie；成功与已领取跨命令保留。提交前落盘submitting，成功后先记success再回消息；崩溃/超时留下的submitting/uncertain只查官方近期历史，无法确认就不重发。没有官方幂等键，不能声称服务端严格exactly-once。1302009为不在时间窗口，只有明确过期证据才记expired，其余共享暂停；地区/次数/认证错误不记全局过期。
+
+公开目录仅含当前支持的29080产品，港澳台仍未开放登录。每次展示和提交前按当前时间过滤截止期限。来源失败保留24小时内最后成功快照，失败不推进完整汇总时间；后台与Bot主刷新不触发兑换。lxml为显式运行依赖。维护与测试细节见 `AliceUID/nikke_cdk/MAINTENANCE.md`。
 
 用户使用说明见 [README.md](README.md)，版本变化见 [CHANGELOG.md](CHANGELOG.md)。路径以本文件所在的插件外壳为基准；`AliceUID/nikke_api/client.py` 指外壳下的内层代码。
 

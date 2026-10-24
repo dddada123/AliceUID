@@ -26,17 +26,31 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
         permission = 6
     permission = 0 if permission == 0 else 6
     sections = [
-        {'title': '查询与角色练度', 'tag': '常用查询', 'description': '名片与练度需登录；官方日历无需绑定。', 'items': [
+        {'title': '账号与 UID', 'tag': '本人账号', 'description': '登录绑定、凭据维护与UID登记；仅操作本人。', 'items': [
+            {'command': f'{command_prefix()}我的账号', 'description': '查看登录绑定、区服与Cookie有效期'},
+            {'command': f'{command_prefix()}重新登录 / {command_prefix()}重新登陆', 'description': '同账号同区服更新Cookie；失败保留原绑定，成功后需重新开启自动社区'},
+            {'command': f'{command_prefix()}解绑', 'description': '退出登录绑定，撤销自动社区并使旧链接失效'},
+            {'command': f'{command_prefix()}公开 / {command_prefix()}隐藏', 'description': '设置公开标记；本版尚无群排行'},
+            {'command': f'{command_prefix()}绑定UID', 'description': '查看社区标识 / 游戏UID / 分享链接三种登记用法'},
+            {'command': f'{command_prefix()}我的UID / {command_prefix()}解绑UID', 'description': '查看或清除UID登记；不代表登录或账号归属'},
+            {'command': f'{command_prefix()}导入cookie 日服 Cookie内容', 'description': '高级导入仅限私聊，区服必须明确选择'}
+        ]},
+        {'title': '社区功能', 'tag': '社区日常', 'description': '签到、浏览及点赞；保持原有授权、周期与预算规则。', 'items': [
+            {'command': f'{command_prefix()}签到', 'description': '立即为本人签到；已开启全量时按该模式执行。本周期已成功则不发社区请求'},
+            {'command': f'{command_prefix()}开启全量签到', 'description': '仅为本人开启每日签到、浏览及点赞，立即执行并返回结果；不自动评论'},
+            {'command': f'{command_prefix()}自动社区 状态', 'description': '查看开关、暂停原因和上次完成日期'},
+            {'command': f'{command_prefix()}自动社区 开启', 'description': f'授权签到与浏览；每天北京时间{sign_time}开始，08:00为周期分界'},
+            {'command': f'{command_prefix()}自动社区 关闭', 'description': '停止自动签到、浏览与点赞'},
+            {'command': f'{command_prefix()}自动社区 点赞开启', 'description': '单独授权点赞，不会自动评论'},
+            {'command': f'{command_prefix()}自动社区 点赞关闭', 'description': '只撤销点赞；已暂停的任务保持暂停'}
+        ]},
+        {'title': '个人查询', 'tag': '本人功能', 'description': '资料、角色练度、收菜与个人突袭；日历和别名查询无需绑定。', 'items': [
             {'command': f'{command_prefix()}信息 / {command_prefix()}名片', 'description': '读取本人资料缓存；展示战役爬塔、主立绘与当前皮肤'},
             {'command': f'{command_prefix()}爱丽丝练度 / {command_prefix()}爱丽丝面板', 'description': '本人立绘、装备与技能；已有本地数据和图片优先复用'},
             {'command': f'{command_prefix()}刷新爱丽丝面板', 'description': '替换角色名，更新该角色数据并渲染卡片；至少间隔5秒'},
             {'command': f'{command_prefix()}练度全量导出', 'description': '本人全角色练度导出Excel；本地缓存、双角色并排、表内爆裂/定位/企业筛选'},
             {'command': f'{command_prefix()}卡片', 'description': '读取本人角色与皮肤缓存；每行10个头像，含星级/核心角标'},
             {'command': f'{command_prefix()}刷新信息 / {command_prefix()}刷新面板', 'description': '刷新并缓存本人资料、全部角色练度与皮肤；完成后发送最新信息图'},
-            {'command': f'{command_prefix()}出刀', 'description': '出刀、输出与击杀前三；当期共享180秒，休赛期复用已结算记录并检测新赛季'},
-            {'command': f'{command_prefix()}出刀速查 Day2 / {command_prefix()}出刀 Day1', 'description': '选择会战阶段；Day1只统计BOSS击杀进度'},
-            {'command': f'{command_prefix()}出刀详情 / {command_prefix()}出刀缺刀 / {command_prefix()}出刀尾刀', 'description': '本人队伍、未完成名单及尾刀；当前名单对照上期时明确标注来源'},
-            {'command': f'{command_prefix()}会战血量 [刷新]', 'description': '联盟阶段与BOSS血量；休赛期展示上一期，卡片注明赛季与状态'},
             {'command': f'{command_prefix()}开启收菜提醒 / {command_prefix()}关闭收菜提醒', 'description': '当前群聊或私聊独立开关；开启发一次资源卡，后续纯文字；连续两晚23点MAX自动停查'},
             {'command': f'{command_prefix()}收菜提醒状态', 'description': '查看本会话订阅、共享快照和下一检查；不请求游戏接口'},
             {'command': f'{command_prefix()}收菜免打扰 00:00-08:00', 'description': '仅收菜提醒，北京时间；支持跨午夜，输入关闭取消；不影响签到及其他业务'},
@@ -46,52 +60,48 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}个人突袭推荐刷新 [亮色/暗色/随机]', 'description': '练度变化时重新导入并计算，成功后更新本人五天缓存'},
             {'command': f'{command_prefix()}日历 帮助', 'description': '查看截图范围与缓存说明；暂不支持历史月份'},
             {'command': f'{command_prefix()}红莲暗影别名查询 / {command_prefix()}黑莲别名查询', 'description': '头像卡片展示角色本名与别名；支持简繁和省略符号'},
-            {'command': f'{command_prefix()}角色别名查询 红莲：暗影', 'description': '另一种别名查询写法，不要求登录'},
+            {'command': f'{command_prefix()}角色别名查询 红莲：暗影', 'description': '另一种别名查询写法，不要求登录'}
         ]},
-        {'title': '账号与 UID', 'tag': '仅本人操作', 'description': 'UID登记与登录凭据分别保存，不混用。', 'items': [
-            {'command': f'{command_prefix()}我的账号', 'description': '查看登录绑定、区服与Cookie有效期'},
-            {'command': f'{command_prefix()}重新登录 / {command_prefix()}重新登陆', 'description': '同账号同区服更新Cookie；失败保留原绑定，成功后需重新开启自动社区'},
-            {'command': f'{command_prefix()}解绑', 'description': '退出登录绑定，撤销自动社区并使旧链接失效'},
-            {'command': f'{command_prefix()}公开 / {command_prefix()}隐藏', 'description': '设置公开标记；本版尚无群排行'},
-            {'command': f'{command_prefix()}绑定UID', 'description': '查看社区标识 / 游戏UID / 分享链接三种登记用法'},
-            {'command': f'{command_prefix()}我的UID / {command_prefix()}解绑UID', 'description': '查看或清除UID登记；不代表登录或账号归属'},
-            {'command': f'{command_prefix()}导入cookie 日服 Cookie内容', 'description': '高级导入仅限私聊，区服必须明确选择'},
+        {'title': '联盟查询', 'tag': '联盟与会战', 'description': '联盟出刀、缺刀、尾刀及会战血量。', 'items': [
+            {'command': f'{command_prefix()}出刀', 'description': '出刀、输出与击杀前三；当期共享180秒，休赛期复用已结算记录并检测新赛季'},
+            {'command': f'{command_prefix()}出刀速查 Day2 / {command_prefix()}出刀 Day1', 'description': '选择会战阶段；Day1只统计BOSS击杀进度'},
+            {'command': f'{command_prefix()}出刀详情 / {command_prefix()}出刀缺刀 / {command_prefix()}出刀尾刀', 'description': '本人队伍、未完成名单及尾刀；当前名单对照上期时明确标注来源'},
+            {'command': f'{command_prefix()}会战血量 [刷新]', 'description': '联盟阶段与BOSS血量；休赛期展示上一期，卡片注明赛季与状态'}
         ]},
-        {'title': '社区日常', 'tag': '默认关闭', 'description': '只操作自己的登录账号；关闭授权不重置每日预算。', 'items': [
-            {'command': f'{command_prefix()}签到', 'description': '立即为本人签到；已开启全量时按该模式执行。本周期已成功则不发任何社区请求'},
-            {'command': f'{command_prefix()}开启全量签到', 'description': '仅为本人开启每日签到、浏览及点赞，立即执行并返回结果；不自动评论'},
-            {'command': f'{command_prefix()}自动社区 状态', 'description': '查看开关、暂停原因和上次完成日期'},
-            {'command': f'{command_prefix()}自动社区 开启', 'description': f'授权签到与浏览；每天北京时间{sign_time}开始，08:00为周期分界'},
-            {'command': f'{command_prefix()}自动社区 关闭', 'description': '停止自动签到、浏览与点赞'},
-            {'command': f'{command_prefix()}自动社区 点赞开启', 'description': '单独授权点赞，不会自动评论'},
-            {'command': f'{command_prefix()}自动社区 点赞关闭', 'description': '只撤销点赞；已暂停的任务保持暂停'},
-        ]},
+        {'title': '兑换码', 'tag': 'CDK', 'description': '官方与GameWith当前码，同码合并；查询不兑换，领取需本人登录与授权。', 'items': [
+            {'command': f'{command_prefix()}查询兑换码', 'description': '无需绑定，只列两源当前码、来源和报酬详情，始终不兑换'},
+            {'command': f'{command_prefix()}兑换码', 'description': '列出两源码；已绑定用户自动兑换本人未领取项，需Bot主开启CDK兑换'},
+            {'command': f'{command_prefix()}兑换码ABCDEFG', 'description': '将ABCDEFG换成单个兑换码；只操作本人，成功附可用的第三方报酬说明'},
+            {'command': f'{command_prefix()}兑换官方兑换码 / {command_prefix()}第三方兑换码', 'description': '仅兑换对应来源的当前码；第三方历史区不参与'}
+        ]}
     ]
-    if permission <= 3:
-        sections.append({'title': '本群状态', 'tag': '群管理员', 'description': '群管理员可查看状态；所有名单修改仅Bot主。', 'items': [
-            {'command': f'{command_prefix()}群查询 状态', 'description': '查看本群实际查询权限，不能绕过Bot主名单'},
-        ]})
     if permission == 0:
-        sections.append({'title': '数据库与全局管理', 'tag': 'Bot 主', 'description': 'GsCore Bot主权限；周五02:33北京时间自动增量检查。', 'items': [
-            {'command': f'{command_prefix()}签到群通知 开启/关闭/状态', 'description': 'Bot主设置当前群通知，仅本群生效，不影响签到执行'},
-            {'command': f'{command_prefix()}开启签到群通知 / 关闭签到群通知', 'description': 'Bot主在群内单独开关通知，其他群不受影响'},
-            {'command': f'{command_prefix()}全群签到通知 开启/关闭/状态', 'description': '一次性批量应用全部群，之后仍可单独修改各群'},
-            {'command': f'{command_prefix()}签到查询 [页码]', 'description': '本群绑定/近期使用账号的本周期签到记录；本地确认结果，非实时全员名单'},
-            {'command': '后台：每日签到时间', 'description': '北京时间HH:MM，默认08:33；保存后更新调度，手动签到仍可立即执行'},
-            {'command': f'{command_prefix()}数据库更新', 'description': '后台补公开基础及皮肤头像 / 半身像 / 立绘'},
-            {'command': f'{command_prefix()}数据库更新 状态 / 帮助', 'description': '查看队列/预算/失败；未完成不报全成功'},
-            {'command': f'{command_prefix()}更新资源', 'description': '兼容旧命令，同样进入增量数据库任务'},
-            {'command': f'{command_prefix()}群查询 开启 / 关闭', 'description': 'Bot主操作本群名单；白名单非空仍须在内'},
-            {'command': f'{command_prefix()}群策略 状态', 'description': '两表空默认允许；白名单先限定再判黑'},
-            {'command': f'{command_prefix()}群黑名单 / {command_prefix()}群白名单', 'description': '添加 / 移除 群号；同群号跨两表拒绝保存'},
-            {'command': f'{command_prefix()}用户黑名单 / {command_prefix()}用户白名单', 'description': '添加 / 移除 QQ号；黑用户禁全部Nikke指令与登录'},
-            {'command': f'{command_prefix()}红莲：暗影新增别名黑莲', 'description': f'添加全局角色别名；可省略符号，如 {command_prefix()}红莲暗影新增别名黑莲'},
-            {'command': f'{command_prefix()}红莲暗影注册别名黑莲', 'description': '与新增别名相同；旧的「角色名别名别名」写法已停用'},
-            {'command': '后台：AliceUID 用户绑定管理', 'description': '查看绑定摘要与脱敏导出；修改凭据需通过登录流程，解绑走专用接口'},
-            {'command': '后台：主题与卡片语言', 'description': '亮色/暗色/随机毛玻璃，简繁可选；出刀缓存按秒调整'},
-            {'command': '后台：全局毛玻璃强度', 'description': '0～100%，默认20%；只模糊背景，修改后下次出图生效'},
-            {'command': f'{command_prefix()}账号列表', 'description': '查看绑定摘要，不展示账号凭据'},
-        ]})
+        sections.extend([
+            {'title': '数据库与全局管理', 'tag': '仅 Bot 主', 'description': '公开数据库、账号与用户权限，以及全局外观维护。', 'items': [
+                {'command': f'{command_prefix()}刷新兑换码', 'description': '手动维护官方+GameWith共享缓存；不兑换。00/08/16点静默更新，按需缓存4小时'},
+                {'command': '后台：每日签到时间', 'description': '北京时间HH:MM，默认08:33；保存后更新调度，手动签到仍可立即执行'},
+                {'command': f'{command_prefix()}数据库更新', 'description': '后台补公开基础及皮肤头像 / 半身像 / 立绘'},
+                {'command': f'{command_prefix()}数据库更新 状态 / 帮助', 'description': '查看队列/预算/失败；未完成不报全成功'},
+                {'command': f'{command_prefix()}更新资源', 'description': '兼容旧命令，同样进入增量数据库任务'},
+                {'command': f'{command_prefix()}用户黑名单 / {command_prefix()}用户白名单', 'description': '添加 / 移除 QQ号；黑用户禁全部Nikke指令与登录'},
+                {'command': f'{command_prefix()}红莲：暗影新增别名黑莲', 'description': f'添加全局角色别名；可省略符号，如 {command_prefix()}红莲暗影新增别名黑莲'},
+                {'command': f'{command_prefix()}红莲暗影注册别名黑莲', 'description': '与新增别名相同；旧的「角色名别名别名」写法已停用'},
+                {'command': '后台：AliceUID 用户绑定管理', 'description': '查看绑定摘要与脱敏导出；修改凭据需通过登录流程，解绑走专用接口'},
+                {'command': '后台：主题与卡片语言', 'description': '亮色/暗色/随机毛玻璃，简繁可选；出刀缓存按秒调整'},
+                {'command': '后台：全局毛玻璃强度', 'description': '0～100%，默认20%；只模糊背景，修改后下次出图生效'},
+                {'command': f'{command_prefix()}账号列表', 'description': '查看绑定摘要，不展示账号凭据'}
+            ]},
+            {'title': '群组查询', 'tag': '仅 Bot 主', 'description': '群查询状态、签到记录与通知，以及群名单维护。', 'items': [
+                {'command': f'{command_prefix()}群查询 状态', 'description': '查看本群实际查询权限，不能绕过Bot主名单'},
+                {'command': f'{command_prefix()}签到群通知 开启/关闭/状态', 'description': 'Bot主设置当前群通知，仅本群生效，不影响签到执行'},
+                {'command': f'{command_prefix()}开启签到群通知 / 关闭签到群通知', 'description': 'Bot主在群内单独开关通知，其他群不受影响'},
+                {'command': f'{command_prefix()}全群签到通知 开启/关闭/状态', 'description': '一次性批量应用全部群，之后仍可单独修改各群'},
+                {'command': f'{command_prefix()}签到查询 [页码]', 'description': '本群绑定/近期使用账号的本周期签到记录；本地确认结果，非实时全员名单'},
+                {'command': f'{command_prefix()}群查询 开启 / 关闭', 'description': 'Bot主操作本群名单；白名单非空仍须在内'},
+                {'command': f'{command_prefix()}群策略 状态', 'description': '两表空默认允许；白名单先限定再判黑'},
+                {'command': f'{command_prefix()}群黑名单 / {command_prefix()}群白名单', 'description': '添加 / 移除 群号；同群号跨两表拒绝保存'}
+            ]}
+        ])
     steps = [
         {'number': '01', 'command': f'{command_prefix()}登录', 'description': '登录/登陆均可；先看区服选项，再选角色所在区服'},
         {'number': '02', 'command': '打开登录链接', 'description': '默认账号密码，也可切换邮箱验证码'},
@@ -121,10 +131,37 @@ def help_text(context: dict) -> str:
     return '\n'.join(lines)
 
 
+def section_bands(sections: list[dict]) -> list[list[dict]]:
+    """Half-width small modules; wide modules contain left-to-right item pairs."""
+    bands, pending = [], []
+    for section in sections:
+        items = section['items']
+        if not items:
+            continue
+        wide = len(items) > 7
+        columns = 2 if wide else 1
+        prepared = dict(section, wide=wide,
+                        rows=[items[i:i + columns] for i in range(0, len(items), columns)])
+        if wide:
+            if pending:
+                bands.append(pending)
+                pending = []
+            bands.append([prepared])
+        else:
+            pending.append(prepared)
+            if len(pending) == 2:
+                bands.append(pending)
+                pending = []
+    if pending:
+        bands.append(pending)
+    return bands
+
+
 def render_help_html(context: dict) -> str:
     items=sum(len(section.get('items',[])) for section in context.get('sections',[]))
     scene_height=max(2200,900+items*90)
-    return _ENV.get_template('help.html').render(**apply_theme(context, context.get("card_theme"),scene_height=scene_height))
+    prepared = dict(context, section_bands=section_bands(context['sections']))
+    return _ENV.get_template('help.html').render(**apply_theme(prepared, context.get("card_theme"),scene_height=scene_height))
 
 
 async def draw_help(context: dict) -> bytes:
