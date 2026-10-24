@@ -20,6 +20,7 @@ def setup(policy, scheduler=None):
     from ..nikke_commands import command_prefix
     from ..nikke_user.models import AliceBind
     from ..nikke_user.service import load_client
+    from ..nikke_message import send_with_forward
     if scheduler is None:
         from gsuid_core.aps import scheduler
     store = Store(MAIN_PATH / 'cdk.sqlite3')
@@ -35,11 +36,16 @@ def setup(policy, scheduler=None):
     async def load(ev):
         return await load_client(ev.user_id, ev.bot_id)
 
+    async def profile(ev):
+        return await AliceBind.get_bind(ev.user_id, ev.bot_id)
+
     def enabled():
         return AliceUIDConfig.get_config('AliceUID_EnableWriteOps').data is True
 
     _commands = Commands(catalog, Redemptions(store), load=load, allowed=allowed,
-                         current=current, enabled=enabled, prefix=command_prefix)
+                         current=current, enabled=enabled, prefix=command_prefix,
+                         forward=send_with_forward, profile=profile,
+                         result_forward_enabled=lambda: AliceUIDConfig.get_config('AliceUID_CDKResultForward').data is True)
     register(_commands)
 
     async def refresh():

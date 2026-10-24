@@ -9,12 +9,12 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.20-ff69b4?style=flat-square" alt="Version: 1.0.20"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.25-ff69b4?style=flat-square" alt="Version: 1.0.25"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
-适用于 GsCore 的《胜利女神：NIKKE》插件，提供 CDK 查询与本人兑换、会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.0.20**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
+适用于 GsCore 的《胜利女神：NIKKE》插件，提供 CDK 查询、成员成功验证补码与本人兑换、会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.0.25**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -28,23 +28,28 @@
 
 `nk帮助` 按账号与UID、社区功能、个人查询、联盟查询、兑换码、数据库与全局管理、群组查询归类。超过7条的模块横跨两列，内部按左一条、右一条逐行阅读；7条及以下使用半宽卡片。普通用户仅生成前五个模块，Bot主额外显示管理与群组模块，不留隐藏占位。
 
-本版只调整帮助模块和排版，原有38条普通用户、58条Bot主指令完整保留；签到说明仅删除“任何”两字以保持一行，其他逐条说明保留，业务与权限不变。帮助缓存版本已更新，安装重启后首次帮助会重新生成，无需等待30天过期。可发送 `nk帮助 文字` 获取可复制指南。
+沿用1.0.20七模块排版，新增成员补码与速查说明后，普通版40条、Bot主版60条；原签到说明的两字精简保留。帮助缓存版本已更新，安装重启后首次帮助会重新生成，无需等待30天过期。可发送 `nk帮助 文字` 获取可复制指南。
 
-### CDK 查询与本人兑换
+### 兑换码三源共享与便捷补录
 
-| 指令 | 行为 |
+汇总官方、GameWith 和成员补充码。成员贡献即时共享，GameWith 后续补全报酬和期限，现有码名与排列保持稳定。本人通过插件明确兑换成功后，**48小时内可补入共享库存**，无需再次兑换；已领取提示和超时后的历史确认不算成功凭证。
+
+| 指令 | 用途 |
 |---|---|
-| `nk查询兑换码` | 无需绑定；仅查询官方与GameWith当前码，同码合并，显示已收录的报酬详情，始终不兑换 |
-| `nk兑换码` | 先列码；已绑定且开启CDK兑换时，自动尝试本人尚未领取项；未绑定只列码 |
-| `nk兑换码ABCDEFG` | 把ABCDEFG换成自己找到的单个兑换码，也支持命令后加空格 |
-| `nk兑换官方兑换码` / `nk第三方兑换码` | 仅兑换对应来源当前码，第三方历史区不参与 |
-| `nk刷新兑换码` | 仅Bot主，手动汇总两源并更新缓存，不兑换 |
+| `nk查询兑换码` | 只读查看当前码与报酬，无需绑定 |
+| `nk兑换码速查` | 每行一码，直接发送 |
+| `nk兑换码` / `nk兑换码ABCDE` | 尝试本人未领码，或兑换指定码 |
+| `nk增加兑换码ABCDE` | 本次成功入库；已有本人48小时内成功记录则直接补录 |
+| `nk兑换官方兑换码` / `nk第三方兑换码` | 尝试对应来源的当前码 |
+| `nk刷新兑换码` | Bot主更新公开来源，不兑换 |
 
-Bot主需先在后台开启 **允许本人CDK兑换**（原兼容键 `AliceUID_EnableWriteOps`，默认关闭）。该开关不影响只读查询、公开缓存更新或现有签到授权。每条兑换核对本人当前绑定及官网保存角色；未绑定、凭据失效或角色不一致不会提交。
+识别到第三方期限后，**延后24小时退出可用库存**；官方明确确认无效、不存在或过期则立即停用。成员记录、详情及领取去重跨重启保留。
 
-每天首次 `nk兑换码` 立即汇总两源，其后不足4小时使用缓存，达到4小时后的首次调用再刷新；无人调用不会因4小时到期额外抓站。北京时间00/08/16点静默更新目录。只读查询复用相同4小时目录窗口。当前无有效码会明确说明。
+兑换回执仅列逐码结果和统计：`兑换成功✅` / `已领取✅`；报酬在查询详情中查看。
 
-来源相同的码合并为一项；本人成功/已领取记录、确认过期状态持久保存，跨来源和重启不重复提交。兑换成功如有GameWith报酬说明一并返回，否则只返回码和结果；奖励说明来自第三方，实际到账以游戏为准。网络结果不明不盲目重试。来源：[官方](https://www.blablalink.com/cdk)、[GameWith](https://gamewith.jp/nikke/article/show/371014)。
+**查询详情转发默认开启，兑换结果转发默认关闭**，可在后台分别设置。转发首条说明用途并列出指挥官、区服和UID，不带@；速查及简短回执始终直发。
+
+兑换需本人有效绑定，并由Bot主开启“允许本人CDK兑换”。公开目录每8小时静默汇总，按需缓存4小时，每日首次无参兑换更新。来源：[官方](https://www.blablalink.com/cdk)、[GameWith](https://gamewith.jp/nikke/article/show/371014)；实际领取以官方结果为准。
 
 ### 本人练度全量导出
 
@@ -144,6 +149,8 @@ python -m playwright install chromium
 
 ## 快速开始
 
+网页登录使用账号密码；邮箱验证码选项暂未开放，页面保留置灰选项与提示。
+
 ```text
 nk登陆日服
 nk我的账号
@@ -240,7 +247,7 @@ Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库�
 | WebUI 配置 | 作用 |
 |---|---|
 | `AliceUID_LoginUrl` | 用户能访问的 Core 登录页面基地址，反向代理需转发 `/nikke/` 路由 |
-| `AliceUID_LoginMode` | `browser` 网页密码/邮箱，或 `cookie` 仅私聊导入 |
+| `AliceUID_LoginMode` | `browser` 网页账号密码，或 `cookie` 仅私聊导入 |
 | `AliceUID_LoginForward` | 登录/重新登录链接转发，默认开启，保留已有值 |
 | `AliceUID_HelpForward` | 帮助图片转发，默认开启 |
 | `AliceUID_RosterForward` | 完整阵容卡片转发，默认开启 |

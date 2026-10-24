@@ -29,7 +29,7 @@ from .browser import CaptchaChallenge, LoginError, login
 from .session import sessions
 from .expiry import expiry_notice
 from ..nikke_permissions.runtime import get_policy
-from .email_flow import cooldown, valid_email
+from .email_flow import cooldown, valid_email, email_login_available, EMAIL_LOGIN_NOTICE
 
 
 def _owner_allowed(session):
@@ -43,6 +43,15 @@ def _owner_allowed(session):
 
 def _denied():
     return JSONResponse({"ok": False, "status": "denied", "msg": "当前用户无权使用AliceUID，请联系Bot主"}, status_code=403)
+
+
+def _email_unavailable(session=None):
+    if session is not None and session.mode == 'email' and session.status != 'success':
+        session.cancel()
+        session.code_deadline = 0
+        session.status = 'failed'
+        session.error = EMAIL_LOGIN_NOTICE
+    return JSONResponse({'ok': False, 'msg': EMAIL_LOGIN_NOTICE}, status_code=503)
 
 TEMPLATE = Path(__file__).parent.parent / "templates" / "login.html"
 ASSET_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico", ".css", ".js"}
@@ -110,7 +119,12 @@ class CookiePayload(BaseModel):
 def _render(token: str, area_label: str, ttl: int) -> str:
     text = TEMPLATE.read_text(encoding="utf-8")
     mode = "cookie" if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" else "browser"
-    return text.replace("{{TOKEN}}", html.escape(token)).replace("{{REGION}}", html.escape(area_label)).replace("{{TTL}}", str(ttl // 60)).replace("{{MODE}}", mode).replace('{{COMMAND_PREFIX}}', command_prefix())
+    return (text.replace("{{TOKEN}}", html.escape(token)).replace("{{REGION}}", html.escape(area_label))
+            .replace("{{TTL}}", str(ttl // 60)).replace("{{MODE}}", mode).replace('{{COMMAND_PREFIX}}', command_prefix())
+            .replace('{{EMAIL_LOGIN_AVAILABLE}}', 'true' if email_login_available() else 'false')
+            .replace('{{EMAIL_TAB_DISABLED}}', '' if email_login_available() else 'disabled aria-disabled="true"')
+            .replace('{{EMAIL_NOTICE_HIDDEN}}', 'hidden' if email_login_available() else '')
+            .replace('{{EMAIL_LOGIN_NOTICE}}', html.escape(EMAIL_LOGIN_NOTICE)))
 
 
 @app.get("/nikke/assets/{filename}")
@@ -183,6 +197,8 @@ async def nikke_api_mode(payload: ModePayload):
         return JSONResponse({"ok": False, "msg": "登录会话已失效"}, status_code=410)
     if payload.mode not in ("email", "password", "cancel"):
         return JSONResponse({"ok": False, "msg": "登录方式无效"})
+    if payload.mode == 'email' and not email_login_available():
+        return _email_unavailable(session)
     if payload.generation is not None and payload.generation != session.generation:
         return JSONResponse({"ok": False, "msg": "登录方式已更新", "generation": session.generation})
     if session.status == "success":
@@ -204,6 +220,8 @@ async def nikke_api_email_send(payload: EmailPayload):
         return _denied()
     if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie":
         return JSONResponse({"ok": False, "msg": "当前仅允许 Cookie 导入"}, status_code=403)
+    if not email_login_available():
+        return _email_unavailable(session)
     if not session:
         return JSONResponse({"ok": False, "msg": "登录会话已失效"}, status_code=410)
     if session.area_id not in REGIONS or session.status not in ("created", "failed", "awaiting_code"):
@@ -247,6 +265,8 @@ async def nikke_api_email_verify(payload: CodePayload):
             return _denied()
         if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie":
             return JSONResponse({"ok": False, "msg": "当前仅允许 Cookie 导入"}, status_code=403)
+        if not email_login_available():
+            return _email_unavailable(session)
         if not session or session.status != "awaiting_code" or payload.generation != session.generation:
             return JSONResponse({"ok": False, "msg": "当前验证码已失效，请重新发送"})
         if time.time() >= session.code_deadline:
@@ -274,9 +294,18 @@ async def _run_login(token: str, account: str, password: str, *, mode="password"
     generation = session.generation if generation is None else generation
     if generation != session.generation:
         return
+    if mode == 'email' and not email_login_available():
+        _email_unavailable(session)
+        account = password = ''
+        return
     mailbox_digest = cooldown.mailbox_key(account) if mode == "email" else ""
     def current():
-        return sessions.get(token) is session and session.generation == generation and _owner_allowed(session)
+        if sessions.get(token) is not session or session.generation != generation or not _owner_allowed(session):
+            return False
+        if mode == 'email' and not email_login_available():
+            _email_unavailable(session)
+            return False
+        return True
 
     async def watchdog():
         while current():
@@ -415,6 +444,8 @@ async def nikke_api_status(payload: TokenPayload):
         return _denied()
     if not session:
         return JSONResponse({"status": "expired", "error": "登录会话已失效"})
+    if session.mode == 'email' and session.status != 'success' and not email_login_available():
+        _email_unavailable(session)
     session.heartbeat_at = time.time()
     data = {
         "generation": session.generation,

@@ -71,6 +71,16 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         "仅AliceUID的NapCat转发等待消息ID回执，默认30秒，可设5～300秒；保存后下一次转发生效。等待不包含图片渲染。超时普通回退一次，暂停本连接转发60秒；迟到成功仍可能重复。",
         30, 300,
     ),
+    "AliceUID_CDKForward": GsBoolConfig(
+        "兑换码查询详情用转发消息",
+        "默认开启，仅控制详细列表；速查直发。首条说明内容并显示本人指挥官、区服和UID，转发不带@。保留旧版详情开关设置，关闭或不可用时普通发送。",
+        True,
+    ),
+    "AliceUID_CDKResultForward": GsBoolConfig(
+        "兑换结果用转发消息",
+        "默认关闭，与查询详情独立。结果仅列逐码状态与统计，报酬在查询详情中查看。开启后，超过600字或12行的结果合并转发，简短回执仍直发。首条显示用途、指挥官、区服和UID，不带@；沿用原回执等待与失败回退。",
+        False,
+    ),
     "AliceUID_LoginForward": GsBoolConfig(
         "登录链接用转发消息（实验性）",
         "实验性功能，默认开启，首次登录/重新登录共用，二维码独立。NapCat未确认发送时自动回退一次普通消息，并暂停本连接转发60秒。开启后若看不到消息，请关闭此功能回退普通模式。保留已有配置值。",
@@ -99,7 +109,7 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
     ),
     "AliceUID_LoginMode": GsStrConfig(
         "登录方式",
-        "browser=网页默认账号密码，可切换邮箱验证码；cookie=仅私聊手动导入Cookie，不开放两种网页登录",
+        "browser=网页账号密码登录；邮箱验证码选项暂不开放。cookie=仅私聊手动导入Cookie，不开放网页登录。",
         "browser",
         options=["browser", "cookie"],
     ),

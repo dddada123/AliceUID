@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from .models import PRODUCT, day_at, merged
+from .models import PRODUCT, PARSER_VERSION, day_at, merged, code_key
 from .api import fetch_public
 
 
@@ -14,7 +14,9 @@ class Catalog:
 
     def needs(self, now, first=False, scheduled=False):
         checked = self.store.meta('catalog_checked_at')
-        return (checked is None or now < checked
+        snapshots = self.store.snapshots()
+        incompatible = any(s.get('parser_version') != PARSER_VERSION for s in snapshots.values())
+        return (checked is None or now < checked or incompatible
                 or (first and self.store.meta('first_user_refresh_day') != day_at(now))
                 or now - checked >= (28800 if scheduled else 14400))
 
@@ -75,7 +77,8 @@ class Catalog:
     def report(self, action='cached'):
         now = self.clock()
         snapshots = self.store.snapshots()
-        items, warnings = merged(snapshots, now, self.store.blocked(PRODUCT))
+        items, warnings = merged(snapshots, now, self.store.blocked(PRODUCT),
+                                 self.store.members(PRODUCT), self.store.details(PRODUCT), self.store.inventory(PRODUCT))
         for item in items:
             if not item.get('reward'):
                 item['reward'] = self.reward(item['code'])
@@ -89,8 +92,11 @@ class Catalog:
 
     def reward(self, code):
         from .models import clean
+        detail = self.store.detail(PRODUCT, code)
+        if detail and clean(detail.get('reward')):
+            return clean(detail['reward'])
         source = self.store.snapshots().get('gamewith', {})
         for item in source.get('items', []):
-            if item.get('code') == code:
+            if code_key(item['code']) == code_key(code):
                 return clean(item.get('reward', ''))
         return ''

@@ -7,7 +7,7 @@ import time
 
 from ..nikke_api.client import NikkeApiError, NikkeLoginRequired
 from . import api
-from .models import PRODUCT, identity, code_text, clean
+from .models import PRODUCT, identity, code_text, clean, retirement_at, code_key, code_lookup
 
 ERRORS = {
     1302002: '兑换参数异常', 1302003: '兑换码无效', 1302004: '游戏产品不匹配',
@@ -49,7 +49,7 @@ class Redemptions:
     async def confirm(self, client, account, code):
         try:
             rows = await self.read_history(client)
-            if any(isinstance(r, dict) and r.get('cdk') == code
+            if any(isinstance(r, dict) and isinstance(r.get('cdk'), str) and r['cdk'].casefold() == code_key(code)
                    and (r.get('status') is True or (type(r.get('status')) is int and r['status'] == 1)) for r in rows):
                 self.store.record(account, code, 'claimed', '官方记录确认本账号已领取', self.clock())
                 return True
@@ -57,7 +57,7 @@ class Redemptions:
             pass
         return False
 
-    async def run(self, client, bind, items, *, current, enabled):
+    async def run(self, client, bind, items, *, current, enabled, contribute=False):
         account = identity(bind)
         lease_key = 'account:' + account
         token = self.store.acquire(lease_key, self.clock())
@@ -65,25 +65,35 @@ class Redemptions:
             return [dict(code='', status='stopped', result='本账号已有兑换任务，本次未重复提交')]
         results = []
         seen, sent = set(), False
+        def source_expired(item):
+            detail = self.store.detail(PRODUCT, item['code']) or {}
+            end = retirement_at(detail if detail.get('expires_at') else item)
+            return end is not None and self.clock() >= end
         try:
             for item in items:
                 code = code_text(item['code'])
-                if code in seen:
+                key = code_key(code)
+                if key in seen:
                     continue
-                seen.add(code)
+                seen.add(key)
                 if not await current() or not enabled():
                     results.append(dict(code=code, status='stopped', result='绑定、权限或兑换开关已变化，剩余项未尝试'))
                     break
-                blocked = self.store.blocked(PRODUCT).get(code)
+                blocked = code_lookup(self.store.blocked(PRODUCT), code)
                 if blocked:
                     results.append(dict(code=code, status='skipped', result=blocked['reason']))
                     continue
-                if item.get('expires_at') and self.clock() >= item['expires_at']:
-                    results.append(dict(code=code, status='skipped', result='来源标注期限已过'))
+                if source_expired(item):
+                    results.append(dict(code=code, status='skipped', result='第三方期限已过24小时，已退出可用库存'))
                     continue
                 receipt = self.store.receipt(account, code)
                 if receipt and receipt['state'] in ('success', 'claimed'):
-                    results.append(dict(code=code, status='claimed', result='本账号已领取，本次未重复提交'))
+                    row = dict(code=code, status='claimed', result='本账号已领取，本次未重复提交')
+                    if contribute:
+                        pool_status = self.store.contribute_recent(account, PRODUCT, code, self.clock())
+                        if pool_status is not None:
+                            row.update(pool_status=pool_status, result='本人48小时内兑换成功记录已验证，本次未重复提交')
+                    results.append(row)
                     continue
                 if receipt and receipt['state'] in ('submitting', 'uncertain'):
                     confirmed = await self.confirm(client, account, code)
@@ -100,11 +110,11 @@ class Redemptions:
                 await self.role_matches(client, bind)
                 if not await current() or not enabled():
                     raise OwnedError('绑定、权限或兑换开关已变化，剩余项未尝试')
-                if code in self.store.blocked(PRODUCT):
+                if code_lookup(self.store.blocked(PRODUCT), code):
                     results.append(dict(code=code, status='skipped', result='共享状态已停用此码，未提交'))
                     continue
-                if item.get('expires_at') and self.clock() >= item['expires_at']:
-                    results.append(dict(code=code, status='skipped', result='来源标注期限已过'))
+                if source_expired(item):
+                    results.append(dict(code=code, status='skipped', result='第三方期限已过24小时，已退出可用库存'))
                     continue
                 if not self.store.claim(account, code, token, self.clock()):
                     raise OwnedError('本地提交状态变化，已停止防止重复请求')
@@ -114,15 +124,19 @@ class Redemptions:
                 except NikkeApiError as exc:
                     status = 'failed'
                     result = ERRORS.get(exc.code, '官方返回未知结果，已停止本轮') + f'（{exc.code}）'
-                    uncertain = exc.code in UNCERTAIN or exc.code >= 500 or exc.code not in ERRORS
-                    if exc.code == 1302016:
+                    uncertain = (getattr(exc, 'network_uncertain', False) or api.network_message(exc.msg) or exc.code in UNCERTAIN
+                                 or 500 <= exc.code < 600 or exc.code not in ERRORS)
+                    if uncertain:
+                        status = 'uncertain'
+                        result = '官方或网络结果未确认，未停用此码' + f'（{exc.code}）'
+                    elif exc.code == 1302016:
                         status = 'claimed'
                     elif exc.code == 1302009:
                         expired = getattr(exc, 'confirmed_expired', False)
                         result = '官方确认兑换码已过期' if expired else result
                         self.store.block(PRODUCT, code, 'expired' if expired else 'out_of_window', result, self.clock())
-                    elif uncertain:
-                        status = 'uncertain'
+                    elif exc.code in (1302003, 1302015):
+                        self.store.block(PRODUCT, code, 'invalid', result, self.clock())
                     self.store.record(account, code, status, result, self.clock())
                     if uncertain and await self.confirm(client, account, code):
                         status, result = 'claimed', '官方记录确认本账号已领取'
@@ -135,15 +149,18 @@ class Redemptions:
                     results.append(dict(code=code, status='uncertain', result='提交结果未确认，未重试'))
                     break
                 else:
-                    self.store.record(account, code, 'success', '兑换成功', self.clock())
-                    results.append(dict(code=code, status='success', result='兑换成功', reward=clean(item.get('reward', ''))))
+                    pool_status = self.store.complete_success(account, PRODUCT, code, self.clock(), contribute=contribute)
+                    row = dict(code=code, status='success', result='兑换成功', reward=clean(item.get('reward', '')))
+                    if contribute:
+                        row['pool_status'] = pool_status
+                    results.append(row)
         except (OwnedError, NikkeApiError) as exc:
             reason = str(exc) if isinstance(exc, OwnedError) else ERRORS.get(exc.code, '角色核验请求失败')
             results.append(dict(code='', status='stopped', result=reason))
         finally:
             self.store.release(lease_key, token)
-        processed = {r['code'] for r in results if r.get('code')}
-        remaining = len({i['code'] for i in items} - processed)
+        processed = {code_key(r['code']) for r in results if r.get('code')}
+        remaining = len({code_key(i['code']) for i in items} - processed)
         if remaining:
             results.append(dict(code='', status='remaining', result=f'其余{remaining}个码未尝试'))
         return results

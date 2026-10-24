@@ -65,6 +65,7 @@
   .btn.ghost{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.28);color:#fff}
   .btn.ghost:hover{background:rgba(255,255,255,.14)}
   .modes{display:flex;gap:8px;margin-top:12px}.modes button{margin-top:0;font-size:13px}.modes [aria-selected=true]{background:var(--pink)}
+  .modes .btn:disabled,.modes .btn:disabled:hover{color:rgba(255,255,255,.55);background:rgba(128,128,128,.12);border-color:rgba(255,255,255,.16)}
   [hidden]{display:none!important}
   .hint{font-size:11.5px;color:rgba(255,255,255,.66);line-height:1.7;margin-top:16px}
   .status{display:none;margin-top:16px;padding:11px 13px;border-radius:10px;font-size:12.5px;line-height:1.6}
@@ -118,8 +119,9 @@
     <p class="hint">本链接仅绑定 <b>{{REGION}}</b>。查不到该服角色时会提示失败，不会自动换区。选错请回聊天发送 {{COMMAND_PREFIX}}登录，重新选择区服。</p>
     <div class="modes" role="tablist" aria-label="登录方式">
       <button class="btn ghost" id="mode-password" type="button" role="tab" aria-selected="true">账号密码</button>
-      <button class="btn ghost" id="mode-email" type="button" role="tab" aria-selected="false">邮箱验证码</button>
+      <button class="btn ghost" id="mode-email" type="button" role="tab" aria-selected="false" aria-describedby="email-unavailable" {{EMAIL_TAB_DISABLED}}>邮箱验证码</button>
     </div>
+    <p class="hint" id="email-unavailable" {{EMAIL_NOTICE_HIDDEN}}>{{EMAIL_LOGIN_NOTICE}}</p>
     <label for="account" id="account-label">Blablalink 邮箱</label>
     <input id="account" type="email" autocomplete="username" placeholder="you@example.com" required>
     <div id="password-fields">
@@ -182,11 +184,17 @@
 <script>
 const TOKEN = "{{TOKEN}}";
 const LOGIN_MODE = "{{MODE}}";
+const EMAIL_LOGIN_AVAILABLE = {{EMAIL_LOGIN_AVAILABLE}};
 const $ = (id) => document.getElementById(id);
 const statusBox = $("status");
 let successShown = false;
 let authMode = "password", generation = 0, viewEpoch = 0, activeStatus = "created", resendUntil = 0, changingMode = false, starting = false;
+function setModeButtonsDisabled(busy) {
+  $("mode-password").disabled = busy;
+  $("mode-email").disabled = busy || !EMAIL_LOGIN_AVAILABLE;
+}
 function showMode(mode) {
+  if (mode === "email" && !EMAIL_LOGIN_AVAILABLE) mode = "password";
   authMode = mode;
   $("password-fields").hidden = mode !== "password";
   $("email-fields").hidden = mode !== "email";
@@ -204,11 +212,12 @@ function clearSecrets() { $("password").value = ""; $("email-code").value = ""; 
 function updateCooldown() {
   const remaining = Math.max(0, Math.ceil((resendUntil - Date.now()) / 1000));
   const busy = ["sending_code", "logging_in", "captcha", "success", "expired"].includes(activeStatus);
-  $("send-code").disabled = LOGIN_MODE === "cookie" || changingMode || busy || remaining > 0;
+  $("send-code").disabled = !EMAIL_LOGIN_AVAILABLE || LOGIN_MODE === "cookie" || changingMode || busy || remaining > 0;
   $("send-code").textContent = activeStatus === "sending_code" ? "发送中…" : remaining ? `重新发送（${remaining}秒）` : "发送邮箱验证码";
 }
 setInterval(updateCooldown, 1000);
 async function switchMode(mode) {
+  if (mode === "email" && !EMAIL_LOGIN_AVAILABLE) return;
   if (LOGIN_MODE === "cookie" || successShown || changingMode || starting) return;
   changingMode = true;
   $("submit").disabled = $("cancel-login").disabled = true;
@@ -217,7 +226,7 @@ async function switchMode(mode) {
   if (timer) clearTimeout(timer);
   clearSecrets(); capData = null;
   $("captcha").classList.remove("show");
-  $("mode-email").disabled = $("mode-password").disabled = true;
+  setModeButtonsDisabled(true);
   try {
     const r = await post("/nikke/api/mode", {token:TOKEN, mode, generation});
     if (epoch !== viewEpoch) return;
@@ -226,7 +235,7 @@ async function switchMode(mode) {
     showMode(r.mode); $("cancel-login").hidden = true;
     setStatus("已取消上一操作。" + (r.mode === "email" ? "请输入邮箱并点击发送验证码。" : "请输入账号密码。"), "info");
   } catch (_) { setStatus("切换失败，请检查连接后重试。", "err"); }
-  finally { changingMode = false; $("cancel-login").disabled = false; $("mode-email").disabled = $("mode-password").disabled = false; updateCooldown(); poll(); }
+  finally { changingMode = false; $("cancel-login").disabled = false; setModeButtonsDisabled(false); updateCooldown(); poll(); }
 }
 $("mode-email").addEventListener("click", () => switchMode("email"));
 $("mode-password").addEventListener("click", () => switchMode("password"));
@@ -238,8 +247,9 @@ window.addEventListener("pagehide", () => {
   }
 });
 $("send-code").addEventListener("click", async () => {
+  if (!EMAIL_LOGIN_AVAILABLE) return;
   if (LOGIN_MODE === "cookie" || changingMode || starting || !$("account").reportValidity()) return;
-  starting = true; $("mode-email").disabled = $("mode-password").disabled = true;
+  starting = true; setModeButtonsDisabled(true);
   const epoch = ++viewEpoch;
   if (timer) clearTimeout(timer);
   clearSecrets(); $("send-code").disabled = true;
@@ -253,7 +263,7 @@ $("send-code").addEventListener("click", async () => {
     generation = r.generation; $("account").readOnly = true;
     $("cancel-login").hidden = false;
   } catch (_) { activeStatus = "failed"; setStatus("发送结果未确认，请等待冷却后手动重试，不会自动重发。", "err"); }
-  finally { starting = false; $("mode-email").disabled = $("mode-password").disabled = false; if (epoch === viewEpoch) { updateCooldown(); poll(); } }
+  finally { starting = false; setModeButtonsDisabled(false); if (epoch === viewEpoch) { updateCooldown(); poll(); } }
 });
 $("stay").addEventListener("click", () => $("success-dialog").close());
 
@@ -275,8 +285,9 @@ async function post(url, body) {
 
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
+  if (authMode === "email" && !EMAIL_LOGIN_AVAILABLE) return;
   if (LOGIN_MODE === "cookie" || changingMode || starting) return;
-  starting = true; $("mode-email").disabled = $("mode-password").disabled = true;
+  starting = true; setModeButtonsDisabled(true);
   const epoch = ++viewEpoch;
   if (timer) clearTimeout(timer);
   $("submit").disabled = true;
@@ -296,7 +307,7 @@ $("form").addEventListener("submit", async (e) => {
     activeStatus = "logging_in"; $("cancel-login").hidden = false;
     $("account").readOnly = true; $("email-code").disabled = true;
   } catch (_) { $("submit").disabled = false; setStatus("网络连接失败，请检查连接后重试。", "err"); }
-  finally { clearSecrets(); body.password = body.code = ""; starting = false; $("mode-email").disabled = $("mode-password").disabled = false; if (epoch === viewEpoch) poll(); }
+  finally { clearSecrets(); body.password = body.code = ""; starting = false; setModeButtonsDisabled(false); if (epoch === viewEpoch) poll(); }
 });
 
 let capData = null, capScale = 1, capDragging = false, capStartX = 0, capStartLeft = 0;
@@ -542,6 +553,7 @@ async function poll() {
 }
 
 showMode("password");
+setModeButtonsDisabled(false);
 if (LOGIN_MODE === "cookie") {
   $("mode-email").disabled = $("mode-password").disabled = $("send-code").disabled = $("submit").disabled = true;
   $("form").style.display = "none";

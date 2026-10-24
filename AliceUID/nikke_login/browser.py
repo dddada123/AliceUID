@@ -448,6 +448,10 @@ async def login(
     on_code: Optional[Callable[[], Awaitable[str]]] = None,
 ) -> LoginResult:
     """登录并返回可用凭证。"""
+    if on_code is not None:
+        from .email_flow import email_login_available, EMAIL_LOGIN_NOTICE
+        if not email_login_available():
+            raise LoginError(EMAIL_LOGIN_NOTICE)
     if area_id not in REGIONS:
         raise LoginError("请明确选择受支持的区服；港澳台服暂未支持")
     from playwright.async_api import async_playwright

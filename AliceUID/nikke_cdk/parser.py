@@ -18,7 +18,21 @@ def norm(text):
 
 
 def text_of(element):
-    return clean(''.join(element.itertext()))
+    def pieces(node):
+        if node.text:
+            yield node.text
+        for child in node:
+            if child.tag in ('p', 'div', 'li'):
+                yield '\n'
+            if child.tag == 'br':
+                yield '\n'
+            else:
+                yield from pieces(child)
+            if child.tail:
+                yield child.tail
+            if child.tag in ('p', 'div', 'li'):
+                yield '\n'
+    return clean(''.join(pieces(element)))
 
 
 def deadline(note, section, modified, now):

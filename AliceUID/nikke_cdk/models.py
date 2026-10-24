@@ -10,7 +10,9 @@ SHANGHAI = ZoneInfo('Asia/Shanghai')
 TOKYO = ZoneInfo('Asia/Tokyo')
 PRODUCT = '29080'
 SOURCE_URL = 'https://gamewith.jp/nikke/article/show/371014'
-PARSER_VERSION = 1
+PARSER_VERSION = 2
+EXPIRY_GRACE = 24 * 3600
+RECENT_SUCCESS = 48 * 3600
 
 
 def code_text(value):
@@ -20,6 +22,15 @@ def code_text(value):
     if not 1 <= len(code) <= 32 or not re.fullmatch(r'[A-Za-z0-9_-]+', code):
         raise ValueError('请输入单个1～32位兑换码（字母、数字、下划线或连接符），不要附带空格或换行')
     return code
+
+
+def code_key(value):
+    return code_text(value).casefold()
+
+
+def code_lookup(mapping, code):
+    key = code_key(code)
+    return next((value for name, value in mapping.items() if code_key(name) == key), None)
 
 
 def clean(value, limit=1200):
@@ -48,15 +59,32 @@ def revision(bind):
     return hashlib.sha256((identity(bind) + str(bind.cookie_enc)).encode()).hexdigest()
 
 
-def eligible(item, now):
+def retirement_at(item):
+    return item['expires_at'] + EXPIRY_GRACE if item.get('expires_at') else None
+
+
+def eligible(item, now, *, grace=0):
     return (item.get('state') == 'candidate'
-            and (not item.get('expires_at') or now < item['expires_at'])
+            and (not item.get('expires_at') or now < item['expires_at'] + grace)
             and (not item.get('valid_from') or now >= item['valid_from']))
 
 
-def merged(snapshots, now, blocked):
+def merged(snapshots, now, blocked, members=(), details=None, inventory=()):
     result = {}
     warnings = []
+    if details is None:
+        details = {r['code']: r for r in snapshots.get('gamewith', {}).get('items', [])}
+    details = {code_key(k): v for k, v in details.items()}
+    blocked_keys = {code_key(k) for k in blocked}
+    members = list(members)
+    member_names = {code_key(row['code']): row['code'] for row in reversed(members)}
+    known = {row['code_key']: row for row in inventory}
+
+    def available(code):
+        key = code_key(code)
+        end = retirement_at(details.get(key, {}))
+        return key not in blocked_keys and (end is None or now < end)
+
     for source in ('official', 'gamewith'):
         snapshot = snapshots.get(source)
         if not snapshot:
@@ -67,21 +95,35 @@ def merged(snapshots, now, blocked):
             warnings.append(('官方' if source == 'official' else 'GameWith') + '缓存已超时或需要重新解析')
             continue
         for row in snapshot['items']:
-            if not eligible(row, now) or row['code'] in blocked:
+            if not eligible(row, now, grace=EXPIRY_GRACE if source == 'gamewith' else 0) or not available(row['code']):
                 continue
-            code = row['code']
+            code = code_key(row['code'])
             if code not in result:
-                result[code] = dict(code=code, sources=[], reward='', expires_at=None)
+                display = known.get(code, {}).get('code') or member_names.get(code) or row['code']
+                result[code] = dict(code=display, sources=[], reward='', expires_at=None)
             item = result[code]
-            item['sources'].append(source)
+            if source not in item['sources']:
+                item['sources'].append(source)
             if source == 'gamewith':
                 item['reward'] = clean(row.get('reward', ''))
                 item['expires_at'] = row.get('expires_at')
-    # A source-only casing variation is not proof of a second distinct code.
-    cases = {}
-    for code in result:
-        cases.setdefault(code.casefold(), []).append(code)
-    ambiguous = {c for values in cases.values() if len(values) > 1 for c in values}
-    if ambiguous:
-        warnings.append('存在大小写冲突的兑换码，已暂缓自动列入')
-    return [v for k, v in result.items() if k not in ambiguous], warnings
+    for row in members:
+        code = code_key(row['code'])
+        if not available(code):
+            continue
+        if code not in result:
+            result[code] = dict(code=known.get(code, {}).get('code') or row['code'], sources=[], reward='', expires_at=None)
+        item = result[code]
+        if 'member' not in item['sources']:
+            item['sources'].append('member')
+        item['verified_at'] = max(item.get('verified_at', 0), row['last_verified'])
+    for code, item in result.items():
+        detail = details.get(code, {})
+        if clean(detail.get('reward')):
+            item['reward'] = clean(detail['reward'])
+        if detail.get('expires_at'):
+            item['expires_at'] = detail['expires_at']
+            item['retire_at'] = retirement_at(detail)
+    # Source refreshes enrich existing stock without renaming or reordering it.
+    ordered = sorted(result, key=lambda k: known.get(k, {}).get('position', float('inf')))
+    return [result[key] for key in ordered], warnings

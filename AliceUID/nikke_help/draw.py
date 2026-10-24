@@ -68,10 +68,12 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}出刀详情 / {command_prefix()}出刀缺刀 / {command_prefix()}出刀尾刀', 'description': '本人队伍、未完成名单及尾刀；当前名单对照上期时明确标注来源'},
             {'command': f'{command_prefix()}会战血量 [刷新]', 'description': '联盟阶段与BOSS血量；休赛期展示上一期，卡片注明赛季与状态'}
         ]},
-        {'title': '兑换码', 'tag': 'CDK', 'description': '官方与GameWith当前码，同码合并；查询不兑换，领取需本人登录与授权。', 'items': [
-            {'command': f'{command_prefix()}查询兑换码', 'description': '无需绑定，只列两源当前码、来源和报酬详情，始终不兑换'},
-            {'command': f'{command_prefix()}兑换码', 'description': '列出两源码；已绑定用户自动兑换本人未领取项，需Bot主开启CDK兑换'},
+        {'title': '兑换码', 'tag': 'CDK', 'description': '官方、GameWith与成员验证码，同码合并；只操作本人，查询始终不兑换。', 'items': [
+            {'command': f'{command_prefix()}查询兑换码', 'description': '无需绑定，分块列出当前码、来源和报酬详情，始终不兑换'},
+            {'command': f'{command_prefix()}兑换码速查', 'description': '无需绑定，只列当前兑换码，不显示报酬，不执行兑换'},
+            {'command': f'{command_prefix()}兑换码', 'description': '列出当前码；已绑定用户自动兑换本人未领取项，需Bot主开启CDK兑换'},
             {'command': f'{command_prefix()}兑换码ABCDEFG', 'description': '将ABCDEFG换成单个兑换码；只操作本人，成功附可用的第三方报酬说明'},
+            {'command': f'{command_prefix()}增加兑换码ABCDEFG', 'description': '成员可用：本人成功后入库，48小时内成功记录可补录'},
             {'command': f'{command_prefix()}兑换官方兑换码 / {command_prefix()}第三方兑换码', 'description': '仅兑换对应来源的当前码；第三方历史区不参与'}
         ]}
     ]

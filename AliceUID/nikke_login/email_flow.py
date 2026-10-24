@@ -12,6 +12,13 @@ from urllib.parse import urlsplit
 EMAIL_FORM = "#loginCodeForm"
 EMAIL_ACCOUNT = "#loginCodeForm_account"
 EMAIL_CODE = '#loginCodeForm input[placeholder="電郵驗證碼"]'
+EMAIL_LOGIN_AVAILABLE = False
+EMAIL_LOGIN_NOTICE = '暂时不开放邮箱验证码登录接口，故障排查中。'
+
+
+def email_login_available():
+    """Release gate; retain the complete adapter while the failure is investigated."""
+    return EMAIL_LOGIN_AVAILABLE
 
 
 class EmailCooldown:
@@ -95,6 +102,9 @@ class EmailResponses:
 
 
 async def send_email_code(page, ctx, account, deadline, on_captcha, wait_official):
+    if not email_login_available():
+        from .browser import LoginError
+        raise LoginError(EMAIL_LOGIN_NOTICE)
     feedback = EmailResponses(page)
     try:
         await open_email_form(page, account)
@@ -113,6 +123,9 @@ async def send_email_code(page, ctx, account, deadline, on_captcha, wait_officia
 
 async def submit_email_code(page, code):
     try:
+        if not email_login_available():
+            from .browser import LoginError
+            raise LoginError(EMAIL_LOGIN_NOTICE)
         await page.fill(EMAIL_CODE, code)
         async with page.expect_request(
             lambda request: request.url.split('?')[0] == 'https://li-sg.intlgame.com/account/loginwithcode',

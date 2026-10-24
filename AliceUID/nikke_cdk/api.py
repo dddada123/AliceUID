@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import httpx
 from email.utils import parsedate_to_datetime
 
@@ -44,6 +45,12 @@ def headers():
                 intl_game_id=PRODUCT, language='zh-TW', env='prod'), separators=(',', ':'))}
 
 
+def network_message(value):
+    return bool(re.search(
+        r'time[ -]?out|timed\s*out|network|connection|gateway|网络|網路|超时|超時|逾時|连接|連線|タイムアウト|接続',
+        str(value or ''), re.I))
+
+
 def envelope(response, endpoint):
     if response.status_code == 401:
         raise NikkeLoginRequired(401, '登录已失效', endpoint)
@@ -64,7 +71,8 @@ def envelope(response, endpoint):
         expiry = msg in {'兑换码已过期', '兌換碼已過期', '兑换码已过期。',
                          'cdkey expired', 'cdkey has expired', 'redemption code has expired'}
         exc = NikkeApiError(code, '官方未完成兑换', endpoint)
-        exc.confirmed_expired = expiry and code == 1302009
+        exc.network_uncertain = network_message(msg)
+        exc.confirmed_expired = expiry and code == 1302009 and not exc.network_uncertain
         raise exc
     return data.get('data') or {}
 
@@ -140,7 +148,7 @@ async def fetch_public(source, now):
                     raise ValueError('官方产品标识变化')
                 items.append(dict(code=code_text(row.get('cdk')), state='candidate', reward=''))
             return dict(items=items, title='官方推荐', checked_at=now, parser_version=PARSER_VERSION)
-        async with http.stream('GET', SOURCE_URL, headers={'user-agent': 'AliceUID/1.0.19 CDK catalog',
+        async with http.stream('GET', SOURCE_URL, headers={'user-agent': 'AliceUID/1.0.23 CDK catalog',
                                                         'accept': 'text/html'}) as response:
             check_source(response, now)
             if 'text/html' not in response.headers.get('content-type', ''):
