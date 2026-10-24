@@ -9,7 +9,7 @@ from email.utils import parsedate_to_datetime
 
 from ..nikke_api.client import NikkeApiError, NikkeLoginRequired
 from .models import PRODUCT, SOURCE_URL, PARSER_VERSION, code_text, clean
-from .parser import parse_gamewith
+from .parser import parse_gamewith, parse_official
 
 BASE = 'https://api.blablalink.com'
 PATH = '/api/game/proxy/Game/'
@@ -134,21 +134,8 @@ async def fetch_public(source, now):
                     chunks.append(chunk)
                 await response.aclose()
                 data = envelope(httpx.Response(response.status_code, content=b''.join(chunks)), 'public')
-            rows = data.get('cdk_redemption_list')
-            if not isinstance(rows, list) or len(rows) > 200 or data.get('is_last_page') is False:
-                raise ValueError('官方目录结构或分页变化')
-            items = []
-            for row in rows:
-                if not isinstance(row, dict):
-                    raise ValueError('官方条目结构变化')
-                product = str(row.get('intl_game_id') or PRODUCT)
-                if product in ('29157', 'HMT'):
-                    continue
-                if product not in (PRODUCT, 'GLOBAL'):
-                    raise ValueError('官方产品标识变化')
-                items.append(dict(code=code_text(row.get('cdk')), state='candidate', reward=''))
-            return dict(items=items, title='官方推荐', checked_at=now, parser_version=PARSER_VERSION)
-        async with http.stream('GET', SOURCE_URL, headers={'user-agent': 'AliceUID/1.0.23 CDK catalog',
+            return parse_official(data, now)
+        async with http.stream('GET', SOURCE_URL, headers={'user-agent': 'AliceUID/1.0.26 CDK catalog',
                                                         'accept': 'text/html'}) as response:
             check_source(response, now)
             if 'text/html' not in response.headers.get('content-type', ''):

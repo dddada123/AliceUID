@@ -6,11 +6,57 @@ import unicodedata
 from datetime import datetime, timedelta
 
 from lxml import html
-from .models import TOKYO, code_text, clean
+from .models import TOKYO, PRODUCT, PARSER_VERSION, code_text, clean
 
 
 class ParseError(ValueError):
     pass
+
+
+def official_window(row):
+    """Official availability fields are Unix seconds, independent of browser timezone."""
+    dates = {}
+    for source, target in [('valid_time_start', 'valid_from'), ('valid_time_end', 'expires_at')]:
+        value = row.get(source)
+        if value is None or value == '' or type(value) is int and value == 0 or value == '0':
+            continue
+        if (type(value) not in (int, str) or not str(value).isascii()
+                or not str(value).isdigit()):
+            raise ParseError('官方期限格式变化')
+        value = int(value)
+        if not 946684800 <= value < 4133980800:
+            raise ParseError('官方期限超出支持范围')
+        dates[target] = value
+    if dates.get('valid_from') and dates.get('expires_at') and dates['valid_from'] > dates['expires_at']:
+        raise ParseError('官方起止期限异常')
+    return dates
+
+
+def parse_official(data, now):
+    if not isinstance(data, dict):
+        raise ParseError('官方目录结构变化')
+    rows = data.get('cdk_redemption_list')
+    if not isinstance(rows, list) or len(rows) > 200 or data.get('is_last_page', True) is not True:
+        raise ParseError('官方目录结构或分页变化')
+    if 'total' in data and (type(data['total']) is not int or data['total'] != len(rows)):
+        raise ParseError('官方目录数量不完整')
+    items = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ParseError('官方条目结构变化')
+        product = row.get('intl_game_id')
+        if product is None or product == '':
+            product = PRODUCT
+        if type(product) not in (str, int):
+            raise ParseError('官方产品标识变化')
+        products = {p.strip() for p in str(product).split(',')}
+        if not products or products - {PRODUCT, '29157', 'GLOBAL', 'HMT'}:
+            raise ParseError('官方产品标识变化')
+        if not products & {PRODUCT, 'GLOBAL'}:
+            continue
+        items.append(dict(code=code_text(row.get('cdk')), state='candidate', reward='',
+                          expiry_source='official', **official_window(row)))
+    return dict(items=items, title='官方推荐', checked_at=now, parser_version=PARSER_VERSION)
 
 
 def norm(text):

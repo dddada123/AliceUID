@@ -67,8 +67,11 @@ class Redemptions:
         seen, sent = set(), False
         def source_expired(item):
             detail = self.store.detail(PRODUCT, item['code']) or {}
-            end = retirement_at(detail if detail.get('expires_at') else item)
-            return end is not None and self.clock() >= end
+            window = {**item, **{k: v for k, v in detail.items() if v is not None}}
+            end = retirement_at(window)
+            now = self.clock()
+            return ((end is not None and now >= end)
+                    or (window.get('valid_from') and now < window['valid_from']))
         try:
             for item in items:
                 code = code_text(item['code'])
@@ -84,7 +87,7 @@ class Redemptions:
                     results.append(dict(code=code, status='skipped', result=blocked['reason']))
                     continue
                 if source_expired(item):
-                    results.append(dict(code=code, status='skipped', result='第三方期限已过24小时，已退出可用库存'))
+                    results.append(dict(code=code, status='skipped', result='不在已知有效期内或已过5分钟宽限，本次未兑换'))
                     continue
                 receipt = self.store.receipt(account, code)
                 if receipt and receipt['state'] in ('success', 'claimed'):
@@ -114,7 +117,7 @@ class Redemptions:
                     results.append(dict(code=code, status='skipped', result='共享状态已停用此码，未提交'))
                     continue
                 if source_expired(item):
-                    results.append(dict(code=code, status='skipped', result='第三方期限已过24小时，已退出可用库存'))
+                    results.append(dict(code=code, status='skipped', result='不在已知有效期内或已过5分钟宽限，本次未兑换'))
                     continue
                 if not self.store.claim(account, code, token, self.clock()):
                     raise OwnedError('本地提交状态变化，已停止防止重复请求')

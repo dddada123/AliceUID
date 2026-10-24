@@ -10,8 +10,8 @@ SHANGHAI = ZoneInfo('Asia/Shanghai')
 TOKYO = ZoneInfo('Asia/Tokyo')
 PRODUCT = '29080'
 SOURCE_URL = 'https://gamewith.jp/nikke/article/show/371014'
-PARSER_VERSION = 2
-EXPIRY_GRACE = 24 * 3600
+PARSER_VERSION = 3
+EXPIRY_GRACE = 5 * 60
 RECENT_SUCCESS = 48 * 3600
 
 
@@ -75,6 +75,15 @@ def merged(snapshots, now, blocked, members=(), details=None, inventory=()):
     if details is None:
         details = {r['code']: r for r in snapshots.get('gamewith', {}).get('items', [])}
     details = {code_key(k): v for k, v in details.items()}
+    # Pure callers may not use Store.details(); never let GW replace a known official window.
+    for row in snapshots.get('official', {}).get('items', []):
+        key = code_key(row['code'])
+        detail = dict(details.get(key, {}))
+        if detail.get('expiry_source') != 'official' and row.get('expires_at'):
+            detail.update(expires_at=row['expires_at'], expiry_source='official')
+        if row.get('valid_from') and not detail.get('official_valid_from'):
+            detail.update(valid_from=row['valid_from'], official_valid_from=row['valid_from'])
+        details[key] = detail
     blocked_keys = {code_key(k) for k in blocked}
     members = list(members)
     member_names = {code_key(row['code']): row['code'] for row in reversed(members)}
@@ -82,8 +91,10 @@ def merged(snapshots, now, blocked, members=(), details=None, inventory=()):
 
     def available(code):
         key = code_key(code)
-        end = retirement_at(details.get(key, {}))
-        return key not in blocked_keys and (end is None or now < end)
+        detail = details.get(key, {})
+        end = retirement_at(detail)
+        return (key not in blocked_keys and (end is None or now < end)
+                and (not detail.get('valid_from') or now >= detail['valid_from']))
 
     for source in ('official', 'gamewith'):
         snapshot = snapshots.get(source)
@@ -91,11 +102,17 @@ def merged(snapshots, now, blocked, members=(), details=None, inventory=()):
             warnings.append(('官方' if source == 'official' else 'GameWith') + '暂无可用缓存')
             continue
         age = max(0, now - snapshot['checked_at'])
-        if age > 86400 or snapshot.get('parser_version') != PARSER_VERSION:
+        if age > 86400 or snapshot.get('parser_version') not in (2, PARSER_VERSION):
             warnings.append(('官方' if source == 'official' else 'GameWith') + '缓存已超时或需要重新解析')
             continue
+        if snapshot.get('parser_version') != PARSER_VERSION:
+            warnings.append(('官方' if source == 'official' else 'GameWith') + '缓存待补充新版信息；暂保留已知可用码')
         for row in snapshot['items']:
-            if not eligible(row, now, grace=EXPIRY_GRACE if source == 'gamewith' else 0) or not available(row['code']):
+            detail = details.get(code_key(row['code']), {})
+            window = row
+            if detail.get('expiry_source') == 'official':
+                window = {**row, 'expires_at': detail['expires_at'], 'valid_from': detail.get('valid_from')}
+            if not eligible(window, now, grace=EXPIRY_GRACE) or not available(row['code']):
                 continue
             code = code_key(row['code'])
             if code not in result:
@@ -107,6 +124,15 @@ def merged(snapshots, now, blocked, members=(), details=None, inventory=()):
             if source == 'gamewith':
                 item['reward'] = clean(row.get('reward', ''))
                 item['expires_at'] = row.get('expires_at')
+    # Leaving the recommendation page is not an expiry verdict. A persisted official
+    # window keeps existing inventory available until its actual retirement boundary.
+    for code, known_row in known.items():
+        detail = details.get(code, {})
+        if detail.get('expiry_source') != 'official' or not detail.get('expires_at') or not available(known_row['code']):
+            continue
+        item = result.setdefault(code, dict(code=known_row['code'], sources=[], reward='', expires_at=None))
+        if 'official' not in item['sources']:
+            item['sources'].insert(0, 'official')
     for row in members:
         code = code_key(row['code'])
         if not available(code):
@@ -123,7 +149,10 @@ def merged(snapshots, now, blocked, members=(), details=None, inventory=()):
             item['reward'] = clean(detail['reward'])
         if detail.get('expires_at'):
             item['expires_at'] = detail['expires_at']
+            item['expiry_source'] = detail.get('expiry_source', 'gamewith')
             item['retire_at'] = retirement_at(detail)
+        if detail.get('valid_from'):
+            item['valid_from'] = detail['valid_from']
     # Source refreshes enrich existing stock without renaming or reordering it.
     ordered = sorted(result, key=lambda k: known.get(k, {}).get('position', float('inf')))
     return [result[key] for key in ordered], warnings

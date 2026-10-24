@@ -9,12 +9,12 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.25-ff69b4?style=flat-square" alt="Version: 1.0.25"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.26-ff69b4?style=flat-square" alt="Version: 1.0.26"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
-适用于 GsCore 的《胜利女神：NIKKE》插件，提供 CDK 查询、成员成功验证补码与本人兑换、会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.0.25**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
+适用于 GsCore 的《胜利女神：NIKKE》插件，提供 CDK 查询、成员成功验证补码与本人兑换、会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.0.26**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -24,15 +24,9 @@
 
 ## 亮点功能
 
-### 七模块帮助指南
+### 兑换码便捷查询与兑换
 
-`nk帮助` 按账号与UID、社区功能、个人查询、联盟查询、兑换码、数据库与全局管理、群组查询归类。超过7条的模块横跨两列，内部按左一条、右一条逐行阅读；7条及以下使用半宽卡片。普通用户仅生成前五个模块，Bot主额外显示管理与群组模块，不留隐藏占位。
-
-沿用1.0.20七模块排版，新增成员补码与速查说明后，普通版40条、Bot主版60条；原签到说明的两字精简保留。帮助缓存版本已更新，安装重启后首次帮助会重新生成，无需等待30天过期。可发送 `nk帮助 文字` 获取可复制指南。
-
-### 兑换码三源共享与便捷补录
-
-汇总官方、GameWith 和成员补充码。成员贡献即时共享，GameWith 后续补全报酬和期限，现有码名与排列保持稳定。本人通过插件明确兑换成功后，**48小时内可补入共享库存**，无需再次兑换；已领取提示和超时后的历史确认不算成功凭证。
+汇总官方、GameWith 和成员补充码。成员贡献即时共享，GameWith 后续补全报酬详情，期限优先采用官网；同码忽略大小写合并，现有码名与排列保持稳定。本人通过插件明确兑换成功后，**48小时内可补入共享库存**，无需再次兑换；已领取提示和超时后的历史确认不算成功凭证。
 
 | 指令 | 用途 |
 |---|---|
@@ -43,7 +37,7 @@
 | `nk兑换官方兑换码` / `nk第三方兑换码` | 尝试对应来源的当前码 |
 | `nk刷新兑换码` | Bot主更新公开来源，不兑换 |
 
-识别到第三方期限后，**延后24小时退出可用库存**；官方明确确认无效、不存在或过期则立即停用。成员记录、详情及领取去重跨重启保留。
+**有效期限优先采用官网，截止后延长5分钟退出可用库存**；无官方期限时才参考GameWith期限。官网推荐提前撤下时，已收录且仍在官方有效期内的码继续保留；刷新失败、列表暂空或GW期限不同，不会抹掉该有效期。官方明确确认无效、不存在或过期则立即停用。成员记录、详情及领取去重跨重启保留。
 
 兑换回执仅列逐码结果和统计：`兑换成功✅` / `已领取✅`；报酬在查询详情中查看。
 

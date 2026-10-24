@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import asyncio
 from collections import Counter
-from .models import PRODUCT, code_text, time_text, identity, clean, retirement_at, code_key
+from datetime import datetime
+from .models import PRODUCT, SHANGHAI, code_text, time_text, identity, clean, retirement_at, code_key
 from . import api
 
 
@@ -16,8 +17,11 @@ def listing(report, prefix):
         if item.get('reward'):
             lines.extend(['报酬详情（GameWith）：', clean(item['reward'])])
         if item.get('expires_at'):
-            lines.append('第三方期限：' + time_text(item['expires_at'] - 1) + '（北京时间）')
-            lines.append('库存移出：' + time_text(retirement_at(item)) + '（期限后24小时）')
+            official = item.get('expiry_source') == 'official'
+            label = '官方期限：' if official else '第三方期限：'
+            stamp = lambda value: datetime.fromtimestamp(value, SHANGHAI).strftime('%Y-%m-%d %H:%M:%S')
+            lines.append(label + stamp(item['expires_at'] - (0 if official else 1)) + '（北京时间）')
+            lines.append('库存移出：' + stamp(retirement_at(item)) + '（期限后5分钟）')
         blocks.append('\n'.join(lines))
     lines = []
     if not report['items']:

@@ -32,6 +32,9 @@ class Store:
                 CREATE TABLE IF NOT EXISTS code_details (
                     product TEXT, code TEXT, reward TEXT NOT NULL, expires_at REAL,
                     valid_from REAL, updated REAL NOT NULL, PRIMARY KEY(product,code));
+                CREATE TABLE IF NOT EXISTS official_code_times (
+                    product TEXT, code TEXT COLLATE NOCASE, expires_at REAL,
+                    valid_from REAL, updated REAL NOT NULL, PRIMARY KEY(product,code));
                 CREATE TABLE IF NOT EXISTS inventory_codes (
                     position INTEGER PRIMARY KEY AUTOINCREMENT, product TEXT NOT NULL,
                     code_key TEXT NOT NULL, code TEXT NOT NULL, UNIQUE(product,code_key));
@@ -51,6 +54,9 @@ class Store:
             if old:
                 snapshot = json.loads(old[0])
                 self._remember_details(db, snapshot, snapshot.get('checked_at', 0))
+            official = sources.get('official')
+            if official:
+                self._remember_official_times(db, official, official.get('checked_at', 0))
 
     @contextmanager
     def tx(self):
@@ -104,6 +110,8 @@ class Store:
                            (name, json.dumps(value, ensure_ascii=False)))
                 if name == 'gamewith':
                     self._remember_details(db, value, now)
+                elif name == 'official':
+                    self._remember_official_times(db, value, now)
             self._meta(db, 'last_attempt', now)
             self._meta(db, 'errors', errors)
             if not errors:
@@ -141,18 +149,46 @@ class Store:
                 WHERE excluded.updated>=code_details.updated''',
                 (PRODUCT, code, clean(item.get('reward')), timestamp('expires_at'), timestamp('valid_from'), now))
 
+    @staticmethod
+    def _remember_official_times(db, snapshot, now):
+        for item in snapshot.get('items', []):
+            code = code_text(item.get('code'))
+            def timestamp(key):
+                value = item.get(key)
+                return value if (type(value) in (int, float) and math.isfinite(value)
+                                 and 946684800 <= value < 4133980800) else None
+            end, start = timestamp('expires_at'), timestamp('valid_from')
+            if end is None and start is None:
+                continue  # Missing/zero fields cannot erase an already verified window.
+            db.execute('''INSERT INTO official_code_times VALUES(?,?,?,?,?)
+                ON CONFLICT(product,code) DO UPDATE SET
+                    expires_at=COALESCE(excluded.expires_at,official_code_times.expires_at),
+                    valid_from=COALESCE(excluded.valid_from,official_code_times.valid_from),updated=excluded.updated
+                WHERE excluded.updated>=official_code_times.updated''', (PRODUCT, code, end, start, now))
+
+    @staticmethod
+    def _details(db, product):
+        result = {}
+        for row in db.execute('SELECT * FROM code_details WHERE product=? ORDER BY updated DESC,LENGTH(reward) DESC', (product,)):
+            key = code_key(row['code'])
+            if key not in result:
+                result[key] = dict(row)
+                result[key]['expiry_source'] = 'gamewith'
+            else:
+                for field in ('reward', 'expires_at', 'valid_from'):
+                    if not result[key][field] and row[field]:
+                        result[key][field] = row[field]
+        for row in db.execute('SELECT * FROM official_code_times WHERE product=?', (product,)):
+            detail = result.setdefault(code_key(row['code']), dict(code=row['code'], reward='', expires_at=None, valid_from=None))
+            if row['expires_at'] is not None:
+                detail.update(expires_at=row['expires_at'], valid_from=row['valid_from'], expiry_source='official')
+            if row['valid_from'] is not None:
+                detail.update(valid_from=row['valid_from'], official_valid_from=row['valid_from'])
+        return result
+
     def details(self, product):
         with self.tx() as db:
-            result = {}
-            for row in db.execute('SELECT * FROM code_details WHERE product=? ORDER BY updated DESC,LENGTH(reward) DESC', (product,)):
-                key = code_key(row['code'])
-                if key not in result:
-                    result[key] = dict(row)
-                else:
-                    for field in ('reward', 'expires_at', 'valid_from'):
-                        if not result[key][field] and row[field]:
-                            result[key][field] = row[field]
-            return result
+            return self._details(db, product)
 
     def detail(self, product, code):
         return self.details(product).get(code_key(code))
@@ -191,8 +227,9 @@ class Store:
     def _admit(db, account, product, code, now, verified):
         if db.execute('SELECT 1 FROM blocks WHERE product=? AND code=? COLLATE NOCASE', (product, code)).fetchone():
             return 'blocked'
-        detail = db.execute('SELECT expires_at FROM code_details WHERE product=? AND code=? COLLATE NOCASE AND expires_at IS NOT NULL ORDER BY updated DESC LIMIT 1', (product, code)).fetchone()
-        if detail and retirement_at(dict(detail)) and now >= retirement_at(dict(detail)):
+        detail = Store._details(db, product).get(code_key(code), {})
+        end = retirement_at(detail)
+        if ((end is not None and now >= end) or (detail.get('valid_from') and now < detail['valid_from'])):
             return 'blocked'
         old = db.execute("SELECT state FROM member_codes WHERE product=? AND code=? COLLATE NOCASE ORDER BY CASE WHEN state='active' THEN 1 ELSE 0 END LIMIT 1", (product, code)).fetchone()
         if old:
