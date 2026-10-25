@@ -123,7 +123,8 @@ def setup(policy=None, scheduler=None):
         # Local filesystem only; no account/static/public-network calls.
         from ..nikke_solo.cache import get_cache
         from gsuid_core.logger import logger
-        for store in (get_roster_service().cache, get_cache()):
+        from ..nikke_render.cache import get_card_cache
+        for store in (get_roster_service().cache, get_cache(), get_card_cache()):
             try:
                 store.cleanup()
             except (OSError, ValueError) as exc:

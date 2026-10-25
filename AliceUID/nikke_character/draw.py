@@ -197,29 +197,46 @@ async def draw_character(context: dict, style: str | None = None, theme: str | N
         return await _draw_uncached(context,style,theme)
     from .cache import get_panel_cache
     from ..nikke_render.theme import get_card_theme_mode
-    from ..nikke_render.fonts import resolve_font
-    from ..nikke_render.language import get_card_language
-    stable={key:value for key,value in context.items() if key not in ('generated_at',)}
+    from ..nikke_render.cache import content_context, style_version, resource_version
+    from ..nikke_resource.service import get_resources
+    try:
+        resources = get_resources()
+    except ImportError:
+        resources = None  # Pure offline adapters can supply their own painter.
+    stable=content_context(context)
     stable.update(render_version='alice-v100-glass-footer-2',
                   theme=theme or get_card_theme_mode(),style=style or get_character_style(),
-                  language=get_card_language(),font=resolve_font().fingerprint)
-    digest=hashlib.sha256(json.dumps(stable,ensure_ascii=False,sort_keys=True,default=str).encode()).hexdigest()
+                  presentation=style_version())
     code=context['name_code']
     store=get_panel_cache()
+    from ..nikke_resource.cache import read_metadata
+    dependencies = read_metadata(store.path(identity,f'render-{code}.json')).get('dependencies')
+    def image_key():
+        return hashlib.sha256(json.dumps([stable, resource_version(resources, dependencies)],ensure_ascii=False,sort_keys=True,default=str).encode()).hexdigest()
     async with _render_locks.setdefault((identity,code),asyncio.Lock()):
-        cached=store.image(identity,code,digest)
+        cached=store.image(identity,code,image_key())
         if cached is not None: return cached
+        before = resource_version(resources, dependencies)
         image=await _draw_uncached(context,style,theme)
         stamp=context.get('_snapshot_saved_at')
-        if stamp is None or store.read(identity).get('saved_at') == stamp:
-            store.save_image(identity,code,digest,image)
+        dependencies = context.get('_prepared_dependencies', dependencies)
+        prepared = context.get('_prepared_resources', before)
+        if ((stamp is None or store.read(identity).get('saved_at') == stamp)
+                and prepared == resource_version(resources, dependencies)):
+            store.save_image(identity,code,image_key(),image,dependencies=dependencies)
         return image
 
 
 async def _draw_uncached(context: dict, style: str | None = None, theme: str | None = None) -> bytes:
     from ..nikke_resource.service import get_resources
     from ..nikke_render.render import render_html
-    prepared = await get_resources().prepare_character(context)
+    resources = get_resources()
+    from ..nikke_resource.cache import track_assets
+    with track_assets() as paths:
+        prepared = await resources.prepare_character(context)
+    from ..nikke_render.cache import resource_version
+    context['_prepared_dependencies'] = sorted(paths)
+    context['_prepared_resources'] = resource_version(resources, context['_prepared_dependencies'])
     from ..nikke_render.layouts import resolve_character_layout
     layout = resolve_character_layout(style if style else get_character_style())
     return await render_html(render_character_html(prepared, layout.key, theme), root_width=layout.width)

@@ -23,6 +23,20 @@ def render_profile_html(context: dict) -> str:
 async def draw_profile(context: dict) -> bytes:
     from ..nikke_render.render import render_html
     from ..nikke_resource.service import get_resources
-    context = await get_resources().prepare_profile(context)
-    html = render_profile_html(context)
-    return await render_html(html, root_width=720)
+    from ..nikke_render.cache import get_card_cache, fingerprint, card_key
+    resources = get_resources()
+    cache = get_card_cache() if context.get('_cache_scope') else None
+    slot = fingerprint(['profile', context.get('_cache_scope')])
+    dependencies = cache.dependencies(slot) if cache else []
+    key = lambda: card_key(context, resources, dependencies=dependencies)
+    async def build():
+        from ..nikke_resource.cache import track_assets
+        with track_assets() as paths:
+            prepared = await resources.prepare_profile(context)
+        dependencies[:] = sorted(paths)
+        dependency = key()
+        image = await render_html(render_profile_html(prepared), root_width=720)
+        return image, dependency
+    if not context.get('_cache_scope'):
+        return (await build())[0]
+    return await cache.get(slot, key, build, current=context.get('_current'), dependencies=dependencies)

@@ -19,11 +19,26 @@ def render_union_html(context):
 
 
 async def draw_union(context):
+    from ..nikke_render.cache import get_card_cache, fingerprint, card_key
+    from ..nikke_resource.service import get_resources
+    resources = get_resources()
+    cache = get_card_cache() if context.get('_cache_scope') else None
+    slot = fingerprint(['union', context.get('_cache_scope'), context.get('view'), context.get('day')])
+    dependencies = cache.dependencies(slot) if context.get('_cache_scope') else []
+    key = lambda: card_key(context, resources, dependencies=dependencies)
+    async def build():
+        return await _draw_union(context, resources, key, dependencies)
+    if not context.get('_cache_scope'):
+        return (await build())[0]
+    # The slot deliberately excludes season: new months replace old battle pictures.
+    return await cache.get(slot, key, build, current=context.get('_current'), dependencies=dependencies)
+
+
+async def _draw_union(context, resources, key, dependencies):
     from ..nikke_render.render import render_html
     from ..nikke_resource.service import get_resources
     import copy
     context = copy.deepcopy(context)
-    resources = get_resources()
     static = resources.load_static()
     from ..nikke_resource.skins import resolve_skin
     async def prepare(character):
@@ -36,6 +51,10 @@ async def draw_union(context):
                              skin_notice='出刀记录外观 · ' + selection.notice)
             if resolved.fallback:
                 character['skin_notice'] += '；记录皮肤头像缺失，使用基础头像'
-    await asyncio.gather(*(prepare(character) for member in context.get('details', [])
-                           for attack in member['attacks'] for character in attack['characters']))
-    return await render_html(render_union_html(context), root_width=1000)
+    from ..nikke_resource.cache import track_assets
+    with track_assets() as paths:
+        await asyncio.gather(*(prepare(character) for member in context.get('details', [])
+                               for attack in member['attacks'] for character in attack['characters']))
+    dependencies[:] = sorted(paths)
+    dependency = key()
+    return await render_html(render_union_html(context), root_width=1000), dependency

@@ -70,12 +70,12 @@ class PanelCache:
             return image
         except (OSError,ValueError,TypeError): return None
 
-    def save_image(self,key,code,digest,image):
+    def save_image(self,key,code,digest,image,*,dependencies=None):
         from ..nikke_resource.cache import atomic_write,validate_image
         validate_image(image)
         atomic_write(self.path(key,f'render-{code}.png'),image)
         atomic_write(self.path(key,f'render-{code}.json'),json.dumps(dict(
-            fingerprint=digest,sha256=hashlib.sha256(image).hexdigest())).encode())
+            fingerprint=digest,sha256=hashlib.sha256(image).hexdigest(),dependencies=dependencies)).encode())
 
 
 def get_panel_cache():

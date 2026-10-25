@@ -200,6 +200,12 @@ async def nikke_unbind_cmd(bot: Bot, ev: Event):
         cache_notice = '\n登录绑定已解除；卡片缓存清理未确认，请管理员检查日志。'
     # Solo results must also be erased if another card cache cleanup failed.
     try:
+        from ..nikke_render.cache import revoke_cards
+        revoke_cards(bind)
+    except Exception as exc:
+        logger.error(f'[AliceUID] 解绑后信息图缓存清理需复核 error_type={type(exc).__name__}')
+        cache_notice += '\n登录绑定已解除；信息图缓存清理需管理员复核。'
+    try:
         from ..nikke_solo.cache import invalidate_binding
         invalidate_binding(bind)
     except Exception as exc:

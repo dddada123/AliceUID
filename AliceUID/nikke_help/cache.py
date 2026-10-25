@@ -11,7 +11,7 @@ from pathlib import Path
 from ..nikke_resource.cache import atomic_write
 
 TTL = 30 * 24 * 60 * 60
-CACHE_VERSION = '1.0.23:cdk-recent-success-1'
+CACHE_VERSION = '1.1.0:associated-command-order-1'
 PNG_HEADER = b'\x89PNG\r\n\x1a\n'
 
 
@@ -45,7 +45,8 @@ class HelpCache:
             image = self._read(role, fingerprint)
             if image is not None:
                 return image
-            theme = random.choice(('light', 'dark'))
+            from ..nikke_render.theme import get_card_theme
+            theme = get_card_theme()
             image = await renderer(dict(shared, card_theme=theme))
             if not isinstance(image, bytes) or not image.startswith(PNG_HEADER):
                 raise ValueError('help renderer did not return PNG')
@@ -69,4 +70,6 @@ async def cached_help(context, renderer):
     # Guide content/settings changes invalidate immediately, never per sender.
     keys = ('AliceUID_CardLanguage', 'AliceUID_CardFont', 'AliceUID_GlassStrength', 'AliceUID_RenderDpi')
     settings = {key: AliceUIDConfig.get_config(key).data for key in keys}
+    from ..nikke_render.cache import style_version
+    settings['presentation'] = style_version()
     return await _cache.get(context, renderer, settings=settings)

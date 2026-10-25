@@ -86,7 +86,14 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
             return
         async with binding_lock(ev.user_id, ev.bot_id):
             if await current() and character_queries.context_current(context,bind):
-                await bot.send(MessageSegment.image(png), at_sender=True)
+                stamp = context.get('_detail_checked_at')
+                if stamp:
+                    from datetime import datetime
+                    from ..nikke_cdk.models import SHANGHAI
+                    text = '角色资料最近核对：'+datetime.fromtimestamp(stamp,SHANGHAI).strftime('%Y-%m-%d %H:%M:%S')+'（北京时间）；图片复用时保留原生成时间。'
+                    await bot.send([MessageSegment.image(png), text], at_sender=True)
+                else:
+                    await bot.send(MessageSegment.image(png), at_sender=True)
     except (CharacterLookupError, CharacterCooldown, CharacterNotOwned, CharacterDataError) as exc:
         await bot.send(str(exc), at_sender=True)
     except NikkeLoginRequired:

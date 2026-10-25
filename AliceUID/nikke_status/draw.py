@@ -40,7 +40,8 @@ def status_style_key():
     from ..nikke_render.language import get_card_language
     from ..nikke_render.fonts import resolve_font
     from ..nikke_render.glass_settings import get_glass_strength
-    return (get_card_theme_mode(),get_card_language(),resolve_font().fingerprint,get_glass_strength())
+    from ..nikke_render.cache import style_version
+    return style_version()
 
 
 def status_html(context,theme=None):
@@ -64,6 +65,7 @@ async def draw_status(context,*,owner_key):
     font=resolve_font()
     stable=dict(context,render_version='alice-v100-status-footer-2',theme_mode=mode,
                 language=get_card_language(),font=font.fingerprint,owner=owner_key)
+    stable['presentation'] = status_style_key()
     key=hashlib.sha256(json.dumps(stable,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
     store=_resource_store() if context.get('kind')=='resources' else None
     owner=hashlib.sha256(json.dumps(owner_key,sort_keys=True,default=str).encode()).hexdigest()

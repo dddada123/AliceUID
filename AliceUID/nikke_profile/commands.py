@@ -131,14 +131,31 @@ async def send_profile_image(bot, ev, client, bind, data, *, policy=None):
         player_info=data["player"],
         area_label=client.region.label,
     )
+    from ..nikke_character.cache import panel_identity
+    async def still_current():
+        from ..nikke_user.panel_refresh import cached_profile
+        current = await AliceBind.get_bind(ev.user_id, ev.bot_id)
+        latest = cached_profile(bind)
+        source_current = (not data.get('_checked_at') or
+                          latest is not None and latest.get('_checked_at') == data['_checked_at'])
+        return (current is not None and _cache_key(current) == _cache_key(bind)
+                and source_current
+                and epoch == character_queries._epochs.get(character_queries._account(bind), 0)
+                and await allowed(policy, ev))
+    context.update(_cache_scope=panel_identity(bind), _current=still_current)
     ai_summary("profile", context)
     png = await draw_profile(context)
     async with binding_lock(ev.user_id,ev.bot_id):
         current=await AliceBind.get_bind(ev.user_id,ev.bot_id)
         if (current is not None and _cache_key(current)==_cache_key(bind) and
                 epoch == character_queries._epochs.get(character_queries._account(bind), 0) and
-                await allowed(policy, ev)):
-            await bot.send(MessageSegment.image(png), at_sender=True)
+                await allowed(policy, ev) and await still_current()):
+            from datetime import datetime
+            from ..nikke_cdk.models import SHANGHAI
+            stamp = data.get('_checked_at')
+            caption = ('资料最近核对：' + datetime.fromtimestamp(stamp, SHANGHAI).strftime('%Y-%m-%d %H:%M:%S')
+                       + '（北京时间）；图片复用时保留原生成时间。') if stamp else '图片显示所用资料快照，最新资料请手动刷新。'
+            await bot.send([MessageSegment.image(png), caption], at_sender=True)
             return True
     return False
 
@@ -182,8 +199,29 @@ async def nikke_profile_cmd(bot: Bot, ev: Event):
             logger.error(f"[AliceUID] 客户端关闭失败 error_type={type(exc).__name__}")
 
 
-@sv_profile.on_fullmatch(('刷新信息',))
+@sv_profile.on_fullmatch(('刷新信息', '信息刷新'))
 @profile_errors
 async def nikke_profile_refresh_cmd(bot: Bot, ev: Event):
-    from ..nikke_user.panel_refresh import queue_refresh
-    await queue_refresh(bot, ev, get_policy())
+    from ..nikke_user.panel_refresh import ensure_profile
+    from ..nikke_roster.commands import allowed
+    from ..nikke_roster.service import RosterCooldown
+    policy = get_policy()
+    if not await allowed(policy, ev):
+        await bot.send('当前用户或群未开放妮姬查询，请联系管理员。', at_sender=True)
+        return
+    client, bind = await load_client(ev.user_id, ev.bot_id)
+    if client is None:
+        await bot.send(unavailable_message(bind), at_sender=True)
+        return
+    try:
+        await bot.send('正在轻量刷新本人名片资料，不读取全部角色装备详情。', at_sender=True)
+        data = await ensure_profile(client, bind, refresh=True)
+        await send_profile_image(bot, ev, client, bind, data, policy=policy)
+    except RosterCooldown as exc:
+        await bot.send(str(exc), at_sender=True)
+    except NikkeLoginRequired:
+        await bot.send(RELOGIN, at_sender=True)
+    except NikkeApiError as exc:
+        await bot.send(RELOGIN if is_login_error(exc) else '资料刷新未完成，原缓存保留，请稍后重试。', at_sender=True)
+    finally:
+        await client.close()

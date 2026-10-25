@@ -41,8 +41,7 @@ async def query_alias(bot, ev, name):
         resource_id = info.get('resource_id')
         if type(resource_id) is not int or resource_id <= 0:
             raise ValueError('角色头像编码缺失')
-        icon = await resources.images.resolved_source('icons',resource_id,0)
-        context['icon_url'] = icon.source
+        context['resource_id'] = resource_id
         from .alias_draw import draw_alias
         from gsuid_core.segment import MessageSegment
         result = MessageSegment.image(await draw_alias(context))

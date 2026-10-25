@@ -38,6 +38,8 @@ async def load_badge(images, key, *, refresh=False):
     if spec is None:
         return None
     path = badge_path(images, key)
+    from .cache import record_asset
+    record_asset(path)
     async with images._locks.setdefault(str(path), asyncio.Lock()):
         meta_path = path.with_suffix('.json')
         meta = read_metadata(meta_path)

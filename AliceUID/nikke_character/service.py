@@ -94,7 +94,7 @@ class CharacterQueryService:
             effects = []
         if not isinstance(effects, list) or not all(isinstance(row, dict) for row in effects):
             raise CharacterDataError('装备词条响应格式发生变化，请稍后重试。')
-        return {str(code): dict(detail=row, effects=effects) for code, row in zip(codes, rows)}
+        return {str(code): dict(detail=row, effects=effects, checked_at=time.time()) for code, row in zip(codes, rows)}
 
     def publish_snapshot(self, bind, snapshot):
         """Caller holds the account and current-binding locks; publish atomically."""
@@ -129,6 +129,7 @@ class CharacterQueryService:
                         if isinstance(saved.get('detail'),dict) and isinstance(saved.get('effects'),list):
                             self._details[revision+(int(saved_code),)]=(self.clock(),saved['detail'],saved['effects'])
             fetched = False
+            detail_fetched = False
             network_client = client
             async def reserve():
                 nonlocal fetched, network_client
@@ -183,6 +184,7 @@ class CharacterQueryService:
                     if not isinstance(effects, list) or not all(isinstance(row, dict) for row in effects):
                         raise CharacterDataError('装备词条响应格式发生变化，请稍后重试。')
                     detail, effects = matches[0], effects
+                    detail_fetched = True
                     self._details[key] = (self.clock(), detail, effects)
                 else:
                     _, detail, effects = detail_entry
@@ -198,7 +200,9 @@ class CharacterQueryService:
                     # Store raw JSON data, not prepared images, cookies or tokens.
                     saved=store.read(identity)
                     saved_details=saved.get('details',{})
-                    saved_details[str(code)]={'detail':detail,'effects':effects}
+                    old_checked = saved_details.get(str(code), {}).get('checked_at', saved.get('saved_at'))
+                    saved_details[str(code)]={'detail':detail,'effects':effects,
+                                              'checked_at':time.time() if detail_fetched else old_checked}
                     updated = dict(saved, roster=roster, details=saved_details)
                     if isinstance(updated.get('profile'), dict):
                         updated['profile'] = dict(updated['profile'], chars=roster)
@@ -217,6 +221,7 @@ class CharacterQueryService:
                 if store is not None:
                     context['_cache_identity']=identity
                     context['_snapshot_saved_at']=store.read(identity).get('saved_at')
+                    context['_detail_checked_at']=store.read(identity).get('details',{}).get(str(code),{}).get('checked_at')
                 return context
             except NikkeLoginRequired:
                 self.invalidate(bind, clear_store=False)

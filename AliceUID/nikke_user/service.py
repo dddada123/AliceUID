@@ -178,7 +178,10 @@ async def _invalidate_replaced(existing):
     def solo():
         from ..nikke_solo.cache import invalidate_binding
         invalidate_binding(existing)
-    for cleanup in (character, roster, community, harvest, status, solo):
+    def cards():
+        from ..nikke_render.cache import revoke_cards
+        revoke_cards(existing)
+    for cleanup in (character, roster, community, harvest, status, solo, cards):
         try:
             cleanup()
         except Exception as exc:

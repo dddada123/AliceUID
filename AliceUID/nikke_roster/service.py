@@ -112,12 +112,22 @@ class RosterService:
         context.update(card_theme=get_card_theme(), render_version=RENDER_VERSION,
                        font_fingerprint=resolve_font().fingerprint, card_language=get_card_language())
         from ..nikke_render.glass_settings import capture_glass
+        from ..nikke_render.cache import style_version, resource_version
         context=capture_glass(context)
+        context['presentation'] = style_version(dpi=96)
         semantic = fingerprint(context)
-        meta = self.cache.metadata(key)
-        if meta and meta.get('semantic') != semantic:
-            self.cache.invalidate_key(key)
-        context = await prepare_images(context, self.resources.images)
+        meta = self.cache.metadata(key) or {}
+        dependencies = meta.get('dependencies')
+        version = resource_version(self.resources, dependencies)
+        if dependencies is not None and version is not None and meta.get('semantic') == semantic and meta.get('resources') == version:
+            cached = self.cache.lookup(key, meta.get('fingerprint'), owner)
+            if cached is not None:
+                return cached
+        from ..nikke_resource.cache import track_assets
+        with track_assets() as paths:
+            context = await prepare_images(context, self.resources.images)
+        dependencies = sorted(paths)
+        version = resource_version(self.resources, dependencies)
         # Public cache content/fallback changes affect image reuse too.
         digest_context = dict(context, cards=[{k: v for k, v in row.items() if k != 'icon_source'} for row in context['cards']])
         digest = fingerprint(digest_context)
@@ -127,17 +137,18 @@ class RosterService:
         image = await self.renderer(context)
         if self.epochs.get(key, 0) != epoch:
             raise ValueError('资料已刷新，请重新请求卡片。')
-        return self.cache.store(key, digest, owner, image, semantic=semantic)
+        return self.cache.store(key, digest, owner, image, semantic=semantic, resources=version, dependencies=dependencies)
 
     def mark_sent(self, prepared):
         return self.cache.mark_sent(prepared)
 
-    def invalidate_binding(self, bind, actor=None, bot=None):
+    def invalidate_binding(self, bind, actor=None, bot=None, *, clear_image=True):
         actor = str(actor if actor is not None else bind.user_id)
         bot = str(bot if bot is not None else bind.bot_id)
         key, _ = identity(actor, bot, bind)
         self.epochs[key] = self.epochs.get(key, 0) + 1
-        self.cache.invalidate_key(key)
+        if clear_image:
+            self.cache.invalidate_key(key)
 
     def invalidate_actor(self, actor, bot):
         self.cache.invalidate_actor(actor, bot)

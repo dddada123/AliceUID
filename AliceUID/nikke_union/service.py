@@ -248,11 +248,20 @@ class UnionService:
                            damage_leaders=[],kill_leaders=[],counts={},total_attacks=0,
                            members_known=False,members_reference=False,coverage='出刀记录暂不可用，0刀未知',
                            completion='暂无可确认的出刀记录')
-        context.update(commander_name=getattr(bind,'nickname','') or '昵称未知',
+        context.update(_snapshot_token=data.setdefault('_card_token', object()),
+                       commander_name=getattr(bind,'nickname','') or '昵称未知',
                        commander_uid=getattr(bind,'uid','') or '未知',
                        commander_region=client.region.label,
                        cache_seconds=self.cache_ttl())
         return context
+
+    def context_current(self, context, bind):
+        """A later snapshot/revocation must prevent old in-flight card publication."""
+        token = context.get('_snapshot_token')
+        if token is None:
+            return True
+        cached = self._cache.get(self.cache_key(bind))
+        return cached is not None and cached[1].get('_card_token') is token
 
     async def query_bosses(self, client, bind, *, refresh=False):
         from ..nikke_status.builder import build_bosses

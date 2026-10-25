@@ -32,6 +32,8 @@ def style_key(image,bind,theme):
     except (ImportError,AttributeError,KeyError,RuntimeError):dpi=144
     values=[SCHEMA,source_hash(image),image.captured_at,theme,get_glass_strength(),resolve_font().fingerprint,
             get_card_language(),dpi,str(bind.nickname or ''),str(bind.uid or '')]
+    from ..nikke_render.cache import style_version
+    values.append(style_version(dpi=dpi, theme=theme))
     return hashlib.sha256(json.dumps(values,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
 
 def validate_card(data):

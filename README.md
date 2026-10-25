@@ -9,12 +9,12 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.0.26-ff69b4?style=flat-square" alt="Version: 1.0.26"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.0-ff69b4?style=flat-square" alt="Version: 1.1.0"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
-适用于 GsCore 的《胜利女神：NIKKE》插件，提供 CDK 查询、成员成功验证补码与本人兑换、会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.0.26**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
+适用于 GsCore 的《胜利女神：NIKKE》插件，提供 CDK 查询、成员成功验证补码与本人兑换、会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.1.0**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -87,11 +87,11 @@
 
 `nk信息` 展示指挥官资料、战役爬塔与主页队伍；角色面板展示本人的装备、技能、词条、魔方、收藏品与好感。完整图鉴以十列头像展示已持有角色和皮肤。卡片支持亮色、暗色、随机主题，以及自定义字体和毛玻璃强度。
 
-登录后自动缓存本人资料、全部角色练度与皮肤，普通查询优先复用持久数据。养成变化后，用 `nk刷新信息` / `nk刷新面板` 全量刷新并获取最新信息图，或用 `nk刷新爱丽丝面板` 只更新指定角色。账号数据不自动到期；刷新失败保留旧完整数据，解绑清除、重新登录重建。数据已刷新但出图失败时，可发送 `nk信息` 重试出图。
+登录后后台缓存本人资料、全部角色练度与皮肤，普通查询优先复用本地数据和已生成图片。`nk信息` 查看本地名片；`nk信息刷新` / `nk刷新信息` 只更新名片所需资料，不读取全部角色装备详情。养成变化后，用 `nk刷新面板` 全量更新，或用 `nk刷新爱丽丝面板` 只更新指定角色。账号数据不自动到期，刷新失败保留原有缓存；解绑清除、重新登录重建。图片复用时保留原生成时间，消息另列最近资料核对时间。
 
 ### 🧭 通用帮助与长效缓存
 
-`nk帮助` 提供普通用户、Bot主两类通用指南，不展示昵称、UID或区服等个人信息。两张图分别缓存30天，重启可复用，到期首次访问随机主题重建；帮助内容或相关配置变化会提前重建。需要复制命令时使用 `nk帮助 文字`，图片渲染失败也会回退文字。
+`nk帮助` 提供普通用户、Bot主两类通用指南，不展示昵称、UID或区服等个人信息。两张图分别缓存30天，重启可复用，到期首次访问按主题设置重建；帮助内容或相关配置变化会提前重建。需要复制命令时使用 `nk帮助 文字`，图片渲染失败也会回退文字。
 
 ### 🤖 AI自然语言查询
 
@@ -165,7 +165,8 @@ nk资源查询
 | `nk重新登录` | 更新原账号同区服 Cookie，失败保留原绑定 |
 | `nk我的账号` / `nk解绑` | 查看或解除登录绑定 |
 | `nk信息` / `nk名片` | 本人个人资料与展示队伍 |
-| `nk刷新信息` / `nk刷新面板` | 刷新并缓存本人资料、全部角色练度及皮肤，完成后发送最新信息图 |
+| `nk信息刷新` / `nk刷新信息` | 轻量更新名片资料并回图，不读取全部角色装备详情 |
+| `nk刷新面板` | 全量更新本人资料、全部角色练度及皮肤，完成后发送信息图 |
 | `nk爱丽丝练度` / `nk爱丽丝面板` | 查询指定角色练度 |
 | `nk刷新爱丽丝面板` | 更新指定角色练度与皮肤数据，并渲染角色卡片 |
 | `nk卡片` | 完整已持有角色图鉴 |

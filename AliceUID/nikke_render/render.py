@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 import httpx
+import asyncio
+from weakref import WeakKeyDictionary
+
+_render_slots = WeakKeyDictionary()
 
 from gsuid_core.logger import logger
 
@@ -26,7 +30,7 @@ async def _remote_render(html: str, url: str, token: str, timeout: int) -> bytes
     return None
 
 
-async def render_html(
+async def _render_html(
     html: str,
     *,
     root_width: int = 1000,
@@ -74,3 +78,11 @@ async def render_html(
         image_format="png",
         allow_refit=True,
     )
+
+
+async def render_html(html: str, *, root_width: int = 1000, dpi: int | None = None) -> bytes:
+    """Cache hits never enter this bounded paint queue."""
+    loop = asyncio.get_running_loop()
+    gate = _render_slots.setdefault(loop, asyncio.Semaphore(2))
+    async with gate:
+        return await _render_html(html, root_width=root_width, dpi=dpi)

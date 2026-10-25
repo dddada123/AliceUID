@@ -139,6 +139,27 @@ class ResolvedImage:
     content_hash: str | None
 
 
+from contextvars import ContextVar
+from contextlib import contextmanager
+_asset_reads = ContextVar('alice_asset_reads', default=None)
+
+
+@contextmanager
+def track_assets():
+    paths = set()
+    token = _asset_reads.set(paths)
+    try:
+        yield paths
+    finally:
+        _asset_reads.reset(token)
+
+
+def record_asset(path):
+    paths = _asset_reads.get()
+    if paths is not None:
+        paths.add(str(Path(path).absolute()))
+
+
 class ImageCache:
     def __init__(self, root: Path, *, ttl: int = 7 * 86400, cooldown: int = 1800,
                  http: httpx.AsyncClient | None = None, clock=time.time):
@@ -179,6 +200,7 @@ class ImageCache:
         if spec is None:
             return None
         path = self.root / spec.directory / (spec.key + '.png')
+        record_asset(path)
         meta = read_metadata(path.with_suffix('.json'))
         try:
             data = path.read_bytes()
@@ -245,6 +267,7 @@ class ImageCache:
         return image_data_uri(data, (256, 256)) if data else PLACEHOLDER
 
     async def _get_cached(self, path: Path, url: str, kind: str, resource_id, *, refresh=False, immutable=False):
+        record_asset(path)
         key = str(path)
         async with self._locks.setdefault(key, asyncio.Lock()):
             meta_path = path.with_suffix('.json')

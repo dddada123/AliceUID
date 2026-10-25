@@ -109,8 +109,11 @@ class ResourceStatusService:
             self._check_failure(key)
             # A data-only snapshot is not a successfully cached image. Refresh
             # it after render failure, cache loss, expiration or invalidation.
-            self._cache.pop(key,None)
-            context=await self.query(client,bind,refresh=refresh,actor=actor)
+            if ready is None:
+                self._cache.pop(key,None)
+            cached = self._cache.get(key) if ready is not None else None
+            context = (copy.deepcopy(cached[1]) if cached is not None else
+                       await self.query(client,bind,refresh=refresh,actor=actor))
             try:
                 if still_current is not None and not await still_current():
                     raise StatusDataError('绑定或查询权限已变化，已停止生成图片。')
@@ -125,13 +128,15 @@ class ResourceStatusService:
                 if self._epochs.get(key,0)!=epoch or (still_current is not None and not await still_current()):
                     raise StatusDataError('绑定或查询权限已变化，旧状态图已失效。')
             except asyncio.CancelledError:
-                self._cache.pop(key,None)
+                if ready is None:
+                    self._cache.pop(key,None)
                 raise
             except Exception as exc:
-                self._cache.pop(key,None)
+                if ready is None:
+                    self._cache.pop(key,None)
                 self._record_failure(key,exc)
                 raise
-            self._ready[key]=(self.clock(),image,style)
+            self._ready[key]=(ready[0] if ready is not None else self.clock(),image,style)
             self._ready.move_to_end(key)
             self._prune_ready()
             return ResourceCard(image,False)

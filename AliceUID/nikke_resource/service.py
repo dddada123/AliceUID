@@ -67,7 +67,9 @@ class ResourceService:
                         old_count = 0
                     if old_count and len(data) < old_count * .8:
                         raise ValueError('suspiciously small table')
-                    atomic_write(path, json.dumps(data, ensure_ascii=False).encode())
+                    encoded = json.dumps(data, ensure_ascii=False).encode()
+                    if not path.exists() or path.read_bytes() != encoded:
+                        atomic_write(path, encoded)
                     atomic_write(stamp, json.dumps({'checked_at': now, 'count': len(data), 'source': logical}).encode())
                     report[filename] = f'updated:{len(data)}'
                 except (httpx.HTTPError, ValueError, OSError):

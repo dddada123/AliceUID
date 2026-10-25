@@ -85,6 +85,14 @@ async def nikke_union_cmd(bot, ev):
                     character_map = resources._load_rows('character_id_map.json')
                 context = await union_queries.query(client, bind, view=view, day=day, refresh=refresh,
                                                     static=static, character_map=character_map)
+                from ..nikke_character.cache import panel_identity
+                async def current_card():
+                    current = await AliceBind.get_bind(ev.user_id, ev.bot_id)
+                    policy = get_policy()
+                    return (current is not None and union_queries.cache_key(current) == union_queries.cache_key(bind)
+                            and union_queries.context_current(context, bind)
+                            and policy.user_allowed(ev.user_id) and await policy.query_allowed(ev.group_id))
+                context.update(_cache_scope=panel_identity(bind), _current=current_card)
                 from .draw import draw_union
                 from ..nikke_message import display_name
                 forward_title = f'AliceUID·{display_name(context.get("guild_name"), "当前公会")}-出刀统计'
@@ -114,4 +122,8 @@ async def nikke_union_cmd(bot, ev):
             async with binding_lock(ev.user_id, ev.bot_id):
                 current=await AliceBind.get_bind(ev.user_id,ev.bot_id)
                 if current is not None and union_queries.cache_key(current)==union_queries.cache_key(bind):
+                    if getattr(result, 'type', None) == 'image' and not await current_card():
+                        return
                     await _send(bot,ev,result,title=forward_title)
+                    if getattr(result, 'type', None) == 'image' and 'context' in locals() and context.get('fetched_at'):
+                        await bot.send('本次所用数据时间：'+context['fetched_at']+'；复用图片时保留图内原快照时间。', at_sender=True)

@@ -7,8 +7,22 @@ _tasks = {}
 _task_revisions = {}
 _manual_requests = {}
 _queue_locks = {}
+_profile_locks = {}
+_profile_failures = {}
 DETAIL_BATCH_SIZE = 20
 MAX_OWNED_CHARACTERS = 500
+
+
+def _check_profile_failure(key):
+    import time
+    if _profile_failures.get(key, 0) > time.monotonic():
+        from ..nikke_character.service import CharacterDataError
+        raise CharacterDataError('资料准备未完成，已短暂冷却；未立即重复请求。')
+
+
+def _profile_failed(key, exc):
+    import time
+    _profile_failures[key] = time.monotonic() + (60 if getattr(exc, 'code', None) in (403, 429) else 5)
 
 
 def _owner(bind):
@@ -24,14 +38,22 @@ def cached_profile(bind):
     from ..nikke_character.service import character_queries
     store = character_queries.store()
     saved = store.read(_revision(bind)) if store is not None else {}
-    profile = saved.get('profile')
-    if saved.get('complete') is True and isinstance(profile, dict):
+    candidates = [(saved.get('profile_checked_at', saved.get('saved_at', 0)), saved.get('profile'))]
+    if store is not None:
+        from ..nikke_resource.cache import read_metadata
+        light = read_metadata(store.path(_revision(bind), 'profile.json'))
+        candidates.append((light.get('checked_at', 0), light.get('profile')))
+    import math
+    candidates = [(stamp, profile) for stamp, profile in candidates
+                  if type(stamp) in (int, float) and math.isfinite(stamp)]
+    for stamp, profile in sorted(candidates, key=lambda row: row[0], reverse=True):
+        if not isinstance(profile, dict):
+            continue
         if all(isinstance(profile.get(k), dict) for k in ('basic', 'outpost', 'saved', 'player')):
-            if isinstance(profile.get('chars'), list) and profile['chars'] == saved.get('roster'):
+            if isinstance(profile.get('chars'), list):
                 try:
-                    codes = character_queries.roster_codes(saved['roster'])
-                    if set(saved['details']) == {str(code) for code in codes}:
-                        return profile
+                    character_queries.roster_codes(profile['chars'])
+                    return dict(profile, _checked_at=stamp)
                 except ValueError:
                     pass
     return None
@@ -57,12 +79,52 @@ async def wait_for_refresh(bind):
             raise CharacterDataError('绑定或更新任务已变化，请重新查询。') from None
 
 
-async def ensure_profile(client, bind):
-    await wait_for_refresh(bind)
+async def ensure_profile(client, bind, *, refresh=False):
     saved = cached_profile(bind)
-    if saved is not None:
+    previous_stamp = saved.get('_checked_at') if saved else None
+    if saved is not None and not refresh:
         return saved
-    return await refresh_panel(client, bind, only_missing=True, wait=True)
+    # A plain profile/roster display does not need every character's equipment.
+    from ..nikke_profile.commands import _fetch
+    from ..nikke_character.service import character_queries
+    from ..nikke_roster.service import account_reads
+    from .models import AliceBind
+    from .service import binding_lock
+    from .auth_state import expired, known_invalid
+    expected = _revision(bind)
+    async with _profile_locks.setdefault(expected, asyncio.Lock()):
+        saved = cached_profile(bind)
+        if saved is not None and (not refresh or saved.get('_checked_at') != previous_stamp):
+            return saved
+        _check_profile_failure(expected)
+        try:
+            async with account_reads.transaction(client, bind, wait=not refresh) as paced:
+                data = await _fetch(paced)
+        except Exception as exc:
+            _profile_failed(expected, exc)
+            raise
+        async with binding_lock(bind.user_id, bind.bot_id):
+            current = await AliceBind.get_bind(bind.user_id, bind.bot_id)
+            if current is None or _revision(current) != expected or expired(current) or known_invalid(current):
+                raise ValueError('绑定或登录状态已变化，未保存旧资料。')
+            if str(data['basic'].get('area_id', bind.area_id)) != str(bind.area_id):
+                raise ValueError('资料区服与绑定区服不一致。')
+            character_queries.roster_codes(data['chars'])
+            _save_profile(bind, data)
+        return cached_profile(bind) or data
+
+
+def _save_profile(bind, data, *, checked_at=None):
+    import json, time
+    from ..nikke_resource.cache import atomic_write
+    from ..nikke_character.service import character_queries
+    store = character_queries.store()
+    if store is not None:
+        encoded = json.dumps(dict(profile={k:v for k,v in data.items() if not k.startswith('_')},
+                                  checked_at=checked_at or time.time()), ensure_ascii=False, allow_nan=False).encode()
+        if len(encoded) > 16*1024*1024:
+            raise ValueError('资料缓存超过安全大小。')
+        atomic_write(store.path(_revision(bind), 'profile.json'), encoded)
 
 
 async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=False,
@@ -93,12 +155,35 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
     async with character_queries._locks.setdefault(account, asyncio.Lock()):
         await check_current()
         if only_missing:
+            store = character_queries.store()
+            snapshot = store.read(expected) if store is not None else {}
+            codes = character_queries.roster_codes(snapshot.get('roster', []))
+            details = snapshot.get('details', {})
             saved = cached_profile(bind)
-            if saved is not None:
+            if (snapshot.get('complete') and saved is not None and
+                    set(details) == {str(code) for code in codes} and
+                    all(isinstance(row, dict) and isinstance(row.get('detail'), dict)
+                        and isinstance(row.get('effects'), list) for row in details.values())):
                 return saved
         epoch = character_queries._epochs.get(account, 0)
-        async with account_reads.transaction(client, bind, wait=wait) as paced:
-            data = await profile._fetch(paced)
+        async with _profile_locks.setdefault(expected, asyncio.Lock()):
+            _check_profile_failure(expected)
+            try:
+                async with account_reads.transaction(client, bind, wait=wait) as paced:
+                    data = await profile._fetch(paced)
+            except Exception as exc:
+                _profile_failed(expected, exc)
+                raise
+            import time
+            profile_checked_at = time.time()
+            if str(data['basic'].get('area_id', bind.area_id)) != str(bind.area_id):
+                raise CharacterDataError('资料区服与绑定区服不一致，已停止缓存。')
+            character_queries.roster_codes(data['chars'])
+            # Cold-login readers can use the valid light profile before full details finish.
+            if cached_profile(bind) is None:
+                async with binding_lock(actor, bot):
+                    await check_current()
+                    _save_profile(bind, data, checked_at=profile_checked_at)
         if str(data['basic'].get('area_id', bind.area_id)) != str(bind.area_id):
             raise CharacterDataError('资料区服与绑定区服不一致，已停止缓存。')
         codes = character_queries.roster_codes(data['chars'])
@@ -117,11 +202,12 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
             await check_current()
             if character_queries._epochs.get(account, 0) != epoch:
                 raise CharacterDataError('绑定或缓存已变化，已丢弃旧更新结果。')
-            snapshot = dict(roster=data['chars'], details=details, profile=data, complete=True)
+            snapshot = dict(roster=data['chars'], details=details, profile=data,
+                            profile_checked_at=profile_checked_at, complete=True)
             character_queries.publish_snapshot(bind, snapshot)
-            get_roster_service().invalidate_binding(bind, actor, bot)
+            get_roster_service().invalidate_binding(bind, actor, bot, clear_image=False)
             profile._cache.pop(profile._cache_key(bind), None)
-        return data
+        return cached_profile(bind) or data
 
 
 async def refresh_worker(bot, ev, policy, *, expected=None, automatic=False):
