@@ -14,6 +14,10 @@ class StatusCooldown(StatusDataError):
     pass
 
 
+class StatusRetryExhausted(StatusDataError):
+    pass
+
+
 @dataclass(frozen=True)
 class ResourceCard:
     image: bytes
@@ -37,6 +41,7 @@ class ResourceStatusService:
         self.clock,self.wall_clock,self.ttl=clock,wall_clock,ttl
         self.reads=reads
         self._cache,self._locks,self._failures={},{},{}
+        self._failure_codes = {}
         self._ready=OrderedDict()
         self._work_locks,self._epochs={},{}
 
@@ -66,15 +71,23 @@ class ResourceStatusService:
         until=self._failures.get(key,0)
         remaining=math.ceil(until-self.clock())
         if remaining>0:
-            raise StatusCooldown(f'上次请求未完成，请{remaining}秒后重试；尚未进入5分钟图片缓存窗口。')
+            code = self._failure_codes.get(key)
+            if code in (401, 300001):
+                from ..nikke_api.client import NikkeLoginRequired
+                raise NikkeLoginRequired(code, '登录凭据不可用')
+            if code in (403, 429):
+                raise StatusCooldown('社区请求暂时受限，请稍后重试。')
+            raise StatusCooldown('社区查询暂未完成，可能是网络原因，请稍后重试。')
         self._failures.pop(key,None)
+        self._failure_codes.pop(key,None)
 
     def _record_failure(self,key,exc):
-        # Separate from the successful-image window. Never automatically retry
-        # authentication/refusal/rate-limit errors; manual retries stay paced.
+        # This gate is independent from the successful-image window.
+        # Only transient read failures retry; auth/refusal/rate-limit errors stop.
         from ..nikke_api.client import NikkeApiError
         delay=60 if isinstance(exc,NikkeApiError) and exc.code in (403,429) else 5
         self._failures[key]=self.clock()+delay
+        self._failure_codes[key] = getattr(exc, 'code', None)
 
     @staticmethod
     def _style_key():
@@ -113,7 +126,7 @@ class ResourceStatusService:
                 self._cache.pop(key,None)
             cached = self._cache.get(key) if ready is not None else None
             context = (copy.deepcopy(cached[1]) if cached is not None else
-                       await self.query(client,bind,refresh=refresh,actor=actor))
+                       await self.query(client,bind,refresh=refresh,actor=actor,still_current=still_current))
             try:
                 if still_current is not None and not await still_current():
                     raise StatusDataError('绑定或查询权限已变化，已停止生成图片。')
@@ -145,7 +158,17 @@ class ResourceStatusService:
         cached=self._cache.get(self.owner_key(bind,actor))
         return copy.deepcopy(cached[1]) if cached else None
 
-    async def query(self,client,bind,*,refresh=False,actor=None,fresh=False):
+    @staticmethod
+    def _retryable(exc):
+        import httpx
+        from ..nikke_api.client import NikkeApiError, NikkeLoginRequired
+        if isinstance(exc, NikkeLoginRequired):
+            return False
+        if isinstance(exc, NikkeApiError):
+            return exc.code == 1302127 or (type(exc.code) is int and 500 <= exc.code < 600)
+        return isinstance(exc, (httpx.TransportError, TimeoutError, ConnectionError))
+
+    async def query(self,client,bind,*,refresh=False,actor=None,fresh=False,still_current=None):
         """Data cache only. Production commands commit the window via prepare_image."""
         check_client(client,bind)
         key=self.owner_key(bind,actor)
@@ -156,28 +179,44 @@ class ResourceStatusService:
             self._check_failure(key)
             epoch=self._epochs.get(key,0)
             from ..nikke_roster.service import account_reads
-            try:
-                async with (self.reads or account_reads).transaction(client,bind,wait=True) as paced:
-                    basic=await paced.get_basic_info()
-                    await paced.get_outpost_info()
-                    try:
-                        daily=await paced.get_daily_progress()
-                    except Exception as exc:
-                        from ..nikke_api.client import NikkeApiError
-                        if not isinstance(exc,NikkeApiError) or exc.code!=1302127:
-                            raise
-                        # One bounded read-only recheck after five-second pacing.
-                        daily=await paced.get_daily_progress()
-                context=build_resources(basic,daily,bind=bind,region=client.region,
-                                        fetched_at=self.wall_clock(),ttl=self.cache_ttl())
-                if self._epochs.get(key,0)!=epoch:
+            fetched = {}
+
+            async def check_current():
+                if self._epochs.get(key, 0) != epoch:
                     raise StatusDataError('绑定已更新，旧收菜资料已失效。')
+                if still_current is not None and not await still_current():
+                    raise StatusDataError('绑定或查询权限已变化，已停止查询。')
+
+            try:
+                for attempt in range(1, 4):
+                    await check_current()
+                    try:
+                        async with (self.reads or account_reads).transaction(client,bind,wait=True) as paced:
+                            for method in ('get_basic_info', 'get_outpost_info', 'get_daily_progress'):
+                                if method not in fetched:
+                                    await check_current()
+                                    fetched[method] = await getattr(paced, method)()
+                        context=build_resources(fetched['get_basic_info'],fetched['get_daily_progress'],
+                                                bind=bind,region=client.region,
+                                                fetched_at=self.wall_clock(),ttl=self.cache_ttl())
+                        await check_current()
+                        break
+                    except Exception as exc:
+                        if not self._retryable(exc):
+                            raise
+                        import logging
+                        logging.getLogger(__name__).info(
+                            'AliceUID resource read transient failure attempt=%d code=%s error_type=%s',
+                            attempt, getattr(exc, 'code', None), type(exc).__name__)
+                        if attempt == 3:
+                            self._record_failure(key,exc)
+                            raise StatusRetryExhausted('社区查询连续3次未成功，可能是网络原因，请稍后重试。') from None
+                        # Shared account pacing delays the next attempt by at least
+                        # five seconds. Successful endpoints are not requested again.
             except Exception as exc:
                 self._cache.pop(key,None)
-                self._record_failure(key,exc)
-                from ..nikke_api.client import NikkeApiError
-                if isinstance(exc,NikkeApiError) and exc.code==1302127:
-                    raise StatusDataError('社区暂未返回有效收菜资料（1302127），本次未生成图片；请5秒后重试，尚未进入5分钟图片缓存窗口。') from None
+                if not isinstance(exc, StatusRetryExhausted):
+                    self._record_failure(key,exc)
                 raise
             self._cache[key]=(self.clock(),context)
             return copy.deepcopy(context)

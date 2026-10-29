@@ -149,7 +149,7 @@ def message(counts, day, now):
         text += '\n' + cycle_label(day)
     return text
 
-def messages(counts, day, now):
+def messages(counts, day, now, *, structured=False):
     header=message(counts,day,now)
     details=getattr(counts,'details',[])
     if not details:
@@ -166,16 +166,26 @@ def messages(counts, day, now):
                 text+=f'请本人{command_prefix()}重新登录以恢复此前授权；网络恢复后也可{command_prefix()}自动社区 开启。'
             elif item['streak']:
                 text+=f'\n处理：连续失败{item["streak"]}/3天，自动签到保持开启，下个周期继续。'
-        blocks.append(text)
+        mentions = []
+        if not item['signed']:
+            text += f'\nCOOKIE 可能已过期，请发送 {command_prefix()}重新登录；如为网络或服务异常，请稍后检查。'
+            actor = str(item['actor'])
+            if actor.isascii() and actor.isdigit() and 0 < len(actor) <= 20:
+                mentions.append(actor)
+        blocks.append((text, mentions))
     pages=[]
-    chunk=[];length=0
-    for block in blocks:
+    chunk=[];length=0;mentions=[]
+    for block, actors in blocks:
         if chunk and (len(chunk)>=10 or length+len(block)>1800):
-            pages.append('\n\n'.join(chunk));chunk=[];length=0
-        chunk.append(block);length+=len(block)
-    if chunk:pages.append('\n\n'.join(chunk))
-    return [(header if i==0 else '[AliceUID] 签到异常明细')+f'\n\n异常详情（{i+1}/{len(pages)}）：\n'+page
-            for i,page in enumerate(pages)]
+            pages.append(('\n\n'.join(chunk),mentions));chunk=[];length=0;mentions=[]
+        chunk.append(block);length+=len(block);mentions.extend(actors)
+    if chunk:pages.append(('\n\n'.join(chunk),mentions))
+    output=[]
+    for i,(page,actors) in enumerate(pages):
+        text=(header if i==0 else '[AliceUID] 签到异常明细')+f'\n\n异常详情（{i+1}/{len(pages)}）：\n'+page
+        output.append(dict(text=text,mentions=list(dict.fromkeys(actors))) if structured and actors else text)
+    return output
+
 
 class GroupNotifier:
     def __init__(self, service, rows, sender, permitted, *, invalid=lambda _:False):
@@ -201,7 +211,7 @@ class GroupNotifier:
                     continue
                 if not await self.permitted(route) or not self.service.allowed():
                     continue
-                pages=self.store.pages(route['route_key'],day,messages(counts,day,self.service.clock()))
+                pages=self.store.pages(route['route_key'],day,messages(counts,day,self.service.clock(),structured=True))
                 for index,text in enumerate(pages):
                     if not await self.permitted(route) or not self.service.allowed():
                         break

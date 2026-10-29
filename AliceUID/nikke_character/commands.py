@@ -1,5 +1,6 @@
 """本人角色练度查询：nk爱丽丝练度 / nk练度 爱丽丝。"""
 from __future__ import annotations
+from contextlib import AsyncExitStack
 from ..nikke_commands import command_prefix
 from ..nikke_ai import query as ai_query, summary as ai_summary, description as ai_description
 
@@ -41,6 +42,7 @@ def _cache_ttl() -> int:
 
 async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
     client = None
+    views = AsyncExitStack()
     name = ''
     def refresh_hint():
         return (f'请稍后使用 {command_prefix()}刷新{name}面板 重试，'
@@ -62,8 +64,6 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
         if client is None:
             await bot.send(unavailable_message(bind), at_sender=True)
             return
-        from ..nikke_user.panel_refresh import wait_for_refresh
-        await wait_for_refresh(bind)
         from ..nikke_user.service import binding_lock
         from ..nikke_user.models import AliceBind
         from ..nikke_character.cache import panel_identity
@@ -74,11 +74,12 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
                     and await allowed(get_policy(), ev))
         if not await current():
             return
+        await views.enter_async_context(character_queries.foreground_view(bind))
         resources = get_resources()
         equipment_items, skill_icons = await resources.ensure_character_tables()
         async def ownership_notice(role_name):
             if await current():
-                await bot.send(f'本地记录未持有「{role_name}」，正在向社区核实，请稍候。', at_sender=True)
+                await bot.send(f'本地记录未持有「{role_name}」，正在单独查询该角色，请稍候。', at_sender=True)
         context = await character_queries.query(
             client, bind, name, resources.load_static(), refresh=refresh, ttl=_cache_ttl(),
             equipment_items=equipment_items, skill_icons=skill_icons,
@@ -92,6 +93,7 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
         if not character_queries.context_current(context,bind):
             await bot.send('面板已更新，请重新查询；未发送旧卡片。',at_sender=True)
             return
+        sent = False
         async with binding_lock(ev.user_id, ev.bot_id):
             if await current() and character_queries.context_current(context,bind):
                 stamp = context.get('_detail_checked_at')
@@ -99,9 +101,16 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
                     from datetime import datetime
                     from ..nikke_cdk.models import SHANGHAI
                     text = '角色资料最近核对：'+datetime.fromtimestamp(stamp,SHANGHAI).strftime('%Y-%m-%d %H:%M:%S')+'（北京时间）；图片复用时保留原生成时间。'
-                    await bot.send([MessageSegment.image(png), text], at_sender=True)
+                    result = await bot.send([MessageSegment.image(png), text], at_sender=True)
                 else:
-                    await bot.send(MessageSegment.image(png), at_sender=True)
+                    result = await bot.send(MessageSegment.image(png), at_sender=True)
+                sent = result is not False
+        if sent and context.get('_needs_full_refresh'):
+            try:
+                from ..nikke_user.panel_refresh import schedule_silent_refresh
+                schedule_silent_refresh(bind, ev, get_policy())
+            except Exception as exc:
+                logger.warning(f'[AliceUID] silent refresh scheduling failed error_type={type(exc).__name__}')
     except (CharacterLookupError, CharacterCooldown, CharacterNotOwned, CharacterDataError) as exc:
         text = str(exc)
         if not isinstance(exc, (CharacterLookupError, CharacterNotOwned)):
@@ -123,6 +132,7 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
         logger.error(f'[AliceUID] 角色练度异常 error_type={type(exc).__name__}')
         await bot.send('练度查询失败，暂时无法完成社区核实或详情查询，请稍后重试并请管理员检查日志。' + refresh_hint(), at_sender=True)
     finally:
+        await views.aclose()
         if client is not None:
             try:
                 await client.close()

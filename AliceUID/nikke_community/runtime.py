@@ -171,6 +171,14 @@ async def _send_summary(route, text):
     transport = gss.active_bot.get(route['ws_id'])
     if transport is None or not await _summary_allowed(route):
         return None
+    if isinstance(text, dict):
+        from gsuid_core.segment import MessageSegment
+        content = []
+        for actor in dict.fromkeys(text.get('mentions', [])):
+            if isinstance(actor, str) and actor.isascii() and actor.isdigit() and 0 < len(actor) <= 20:
+                content.extend([MessageSegment.at(actor), MessageSegment.text(' ')])
+        content.append(MessageSegment.text(text['text']))
+        text = content
     return await transport.target_send(text, 'group', route['group_id'], route['bot_id'],route['self_id'],
                                        group_id=route['group_id'],at_sender=False,wait_recall=True)
 

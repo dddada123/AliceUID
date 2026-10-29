@@ -42,10 +42,38 @@ def card_theme(theme: str | None = None) -> dict:
     return dict(resolved['theme'], card_theme=resolved['card_theme'])
 
 
-def get_character_style(default: str = 'compact') -> str:
+CHARACTER_THEMES=('compact_light','compact_dark','wide_light','wide_dark')
+
+
+def character_presentation_mode():
+    return dict(fixed=_configured('AliceUID_CharacterCardStyle',CHARACTER_THEMES,'wide_light'),
+                random=_configured('AliceUID_CharacterRandomTheme',('off','wide','compact','all'),'off'))
+
+
+def get_character_style(default='wide'):
+    return character_presentation_mode()['fixed'].split('_')[0]
+
+
+def resolve_character_presentation(style=None,theme=None):
+    """Choose once per new paint; the image cache keys the stable mode, not a random draw."""
+    import random
     from .layouts import character_layout_keys
-    keys=character_layout_keys()
-    return _configured('AliceUID_CharacterCardStyle', keys, default if default in keys else 'compact')
+    mode=character_presentation_mode()
+    if style in CHARACTER_THEMES:
+        layout,color=style.split('_')
+    elif style in character_layout_keys():
+        layout,color=style,mode['fixed'].split('_')[1]
+    elif style:
+        layout,color='compact',mode['fixed'].split('_')[1]
+    else:
+        choices=CHARACTER_THEMES
+        if mode['random']=='wide':choices=tuple(x for x in choices if x.startswith('wide_'))
+        elif mode['random']=='compact':choices=tuple(x for x in choices if x.startswith('compact_'))
+        selected=mode['fixed'] if mode['random']=='off' else random.choice(choices)
+        layout,color=selected.split('_')
+    if theme in ('light','dark'):color=theme
+    elif theme=='random':color=random.choice(('light','dark'))
+    return layout,color
 
 
 @lru_cache(maxsize=1)

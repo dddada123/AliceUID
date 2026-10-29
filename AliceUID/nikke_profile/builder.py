@@ -100,6 +100,7 @@ def build_profile_context(basic: dict, outpost: dict, chars: Iterable[dict], sta
     return {
         'nickname': profile['nickname'] or '未知指挥官', 'uid': profile['uid'] or '-',
         'area_label': area_label or f"区服 {profile['area_id']}", 'level': _num(profile['level']),
+        'commander_icon_id': (saved_role or {}).get('icon'),
         'guild_name': profile.get('guild_name') or '', 'avatar_url': team[0]['icon_url'] if team else '',
         'stats': stats, 'progress': progress, 'outpost': outpost_rows, 'top_nikke': team,
         'corp_towers': [{'label': label, 'value': _num(profile[key])}

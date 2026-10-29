@@ -1,4 +1,4 @@
-"""Extensible character layout registry; only compact ships after retirement."""
+"""Extensible character layout registry; compact and wide layouts."""
 from dataclasses import dataclass
 import re
 
@@ -8,7 +8,8 @@ class CharacterLayout:
     template: str
     width: int=660
 
-_LAYOUTS={'compact':CharacterLayout('compact','character_compact.html',660)}
+_LAYOUTS={'compact':CharacterLayout('compact','character_compact.html',660),
+          'wide':CharacterLayout('wide','character_wide.html',1228)}
 
 
 def character_layout_keys():return tuple(_LAYOUTS)

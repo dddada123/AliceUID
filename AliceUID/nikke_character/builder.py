@@ -315,7 +315,7 @@ def build_character_context(roster: dict, detail: dict, state_effects: Iterable[
                    skin_index=selection.skin_index, skin_source=selection.source,
                    skin_reported=selection.reported, skin_mapped=selection.mapped, skin_notice=selection.notice,
                   combat=_first_number(roster.get('combat'), detail.get('combat')),
-                  level=integer(roster.get('lv')), grade=_first_number(roster.get('grade'), detail.get('grade')),
+                  level=_first_number(roster.get('lv'), detail.get('lv')), grade=_first_number(roster.get('grade'), detail.get('grade')),
                   core=_first_number(roster.get('core'), detail.get('core')),
                   arena_combat=integer(detail.get('arena_combat')), bond=integer(detail.get('attractive_lv')),
                   area_label=area_label, nickname=nickname,

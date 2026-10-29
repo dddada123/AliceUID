@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.01-ff69b4?style=flat-square" alt="Version: 1.1.01"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.10-ff69b4?style=flat-square" alt="Version: 1.1.10"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
-适用于 GsCore 的《胜利女神：NIKKE》插件，提供 CDK 查询、成员成功验证补码与本人兑换、会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.1.01**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
+适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-普通角色面板查询若本地记录未持有，会自动向本人社区核实一次；已持有则直接查询面板，确实未持有才返回未持有。若刚获得角色但社区尚未同步，请稍后使用 `nk刷新角色名面板` 或 `nk刷新面板`。社区请求失败会提示重试或重新登录。
+当前版本 **1.1.10**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -61,6 +61,8 @@
 
 `nk资源查询` 展示八类资源、保管箱容量，以及预计达到90%和满仓的北京时间，方便安排上线收菜。
 
+查询遇到临时社区或网络故障时会静默尝试，最多三次；成功后正常返回图片，连续失败才提示稍后重试。Cookie失效时直接提示重新登录。
+
 ### ⏰ 本人收菜提醒
 
 在群聊或私聊发送 `nk开启收菜提醒`，接收容量与睡前收菜提醒；用 `nk关闭收菜提醒` 关闭。各会话独立设置，开启时发送一次资源卡，后续只发文字。
@@ -83,13 +85,28 @@
 
 ### 🔐 账号绑定与区服支持
 
-支持本人账号登录、查看绑定、重新登录和解绑；支持日服、北美服、韩服、国际服、东南亚服，登录时需明确选服。港澳台网页登录暂未支持。具体步骤见[快速开始](#快速开始)。
+支持本人账号登录、查看绑定、重新登录和解绑；支持日服、北美服、韩服、国际服、东南亚服，登录时需明确选服。港澳台网页登录暂未支持。具体步骤见[快速开始](#快速开始)。 登录失败后可在原链接有效期内重试，成功后正常通知；Cookie失效时使用 `nk重新登录`。
 
 ### 🎨 个人名片、角色练度与统一刷新
 
-`nk信息` 展示指挥官资料、战役爬塔与主页队伍；角色面板展示本人的装备、技能、词条、魔方、收藏品与好感。完整图鉴以十列头像展示已持有角色和皮肤。卡片支持亮色、暗色、随机主题，以及自定义字体和毛玻璃强度。
+`nk信息` / `nk名片` 使用横版名片：一张大立绘搭配四个小头像，集中展示指挥官资料、战力、养成指标、战役爬塔和前哨数据。亮暗主题使用对应Wallpaper壁纸，旧竖版信息卡已替换。角色面板展示装备、技能、词条、魔方、收藏品与好感。`nk卡片` 以十列头像展示本人已持有角色和皮肤，指挥官头像与练度卡共享；信息卡保留方形显示，头像缺失或分辨率不足时使用大立绘对应妮姬的头像。
 
-登录后后台缓存本人资料、全部角色练度与皮肤，普通查询优先复用本地数据和已生成图片。`nk信息` 查看本地名片；`nk信息刷新` / `nk刷新信息` 只更新名片所需资料，不读取全部角色装备详情。养成变化后，用 `nk刷新面板` 全量更新，或用 `nk刷新爱丽丝面板` 只更新指定角色。账号数据不自动到期，刷新失败保留原有缓存；解绑清除、重新登录重建。图片复用时保留原生成时间，消息另列最近资料核对时间。
+普通查询优先复用本地数据和成品图。`nk信息刷新` / `nk刷新信息` 只更新名片资料；`nk刷新面板` 全量更新本人角色练度与皮肤；`nk刷新爱丽丝面板` 只更新指定角色。新角色不在缓存时，先查单体详情并出图，发送后后台同步，无需等待全量刷新。
+
+账号缓存不自动到期，刷新失败保留原数据；解绑清除，重新登录重建。复用图片保留原生成时间，消息另列最近资料核对时间。
+
+#### 角色练度卡片主题
+
+后台「角色练度卡片主题」提供四种样式，默认宽版亮色：
+
+| 布局 | 亮色 | 暗色 |
+|---|---|---|
+| 宽版 | `wide_light`（默认） | `wide_dark` |
+| 窄版 | `compact_light` | `compact_dark` |
+
+「角色练度卡随机主题」默认 `off`；可设 `wide`、`compact` 或 `all`，分别在宽版、窄版或全部主题中随机。只在新绘图时选择，命中缓存不重复随机。
+
+宽版使用对应亮暗壁纸，展示职业与企业循环室等级；窄版沿用毛玻璃设置。两版总属性最多显示六项，T10 Lv5 装备和15阶有效词条分别突出显示。字体可在后台调整；毛玻璃强度只影响竖版/窄版卡片，横版信息卡与横版练度卡不受该设置影响。横版主要信息底板统一为亮色70%、暗色74%不透明度，文字、图标与立绘保持清晰。
 
 ### 🧭 通用帮助与长效缓存
 
@@ -105,7 +122,7 @@
 
 登录链接、帮助、图鉴和出刀各有独立转发开关，默认开启。完整图片配文字标题展示，支持自定义消息回执等待；未确认时普通回退一次，短暂暂停后恢复尝试。配置和兼容说明见[转发设置](#转发设置)。
 
-命令速查见[常用命令](#常用命令)，六张示例图见[效果预览](#效果预览)。
+命令速查见[常用命令](#常用命令)，六组示例图见[效果预览](#效果预览)。
 
 ## 安装与升级
 
@@ -241,6 +258,8 @@ Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库�
 
 角色别名可用 `nk红莲暗影新增别名黑莲` 或 `nk红莲暗影注册别名黑莲`。群查询状态可由群管理员查看；群/用户白名单、黑名单和全局别名由Bot主维护。四名单为空时默认允许，白名单非空先限定范围，再排除黑名单。
 
+Bot管理员可用 `nk账号列表` / `nk绑定列表` 查看账号概览和连续编号分页，默认合并转发。群内QQ中间脱敏，不列群组明细；私聊显示完整号码，转发失败按相同规则分页回退。
+
 | WebUI 配置 | 作用 |
 |---|---|
 | `AliceUID_LoginUrl` | 用户能访问的 Core 登录页面基地址，反向代理需转发 `/nikke/` 路由 |
@@ -254,14 +273,15 @@ Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库�
 | `AliceUID_ForwardJpegQuality` | 新编码转发图片的JPG质量，整数0–100，默认95；100仍非无损 |
 | `AliceUID_LoginQRCode` | 同时发送二维码；普通、转发及失败回退均适用，默认关闭 |
 | `AliceUID_BrowserChannel` / `AliceUID_Headless` | 登录浏览器通道及无头运行 |
-| `AliceUID_CardTheme` | 默认random随机亮暗；命中缓存不重复随机，已有自定义值保留 |
+| `AliceUID_CardTheme` | 全局卡片亮暗主题，默认随机；练度卡和个人推荐独立设置 |
+| `AliceUID_CharacterCardStyle` / `AliceUID_CharacterRandomTheme` | 练度卡固定主题与随机范围，见上文主题说明 |
+| `AliceUID_SoloCardTheme` | 个人突袭推荐卡片主题，默认暗色 |
 | `AliceUID_CardLanguage` / `AliceUID_CardFont` | 显示语言及 `formts/` 内字体，失败使用兜底字体 |
-| `AliceUID_GlassStrength` | 0～100%背景模糊，默认20%；前景文字和人物保持清晰，已有值保留 |
+| `AliceUID_GlassStrength` | 仅调整竖版/窄版背景毛玻璃，默认20%；横版信息卡、横版练度卡不受影响，已有值保留 |
 | `AliceUID_UnionCacheSeconds` | 当期会战共享缓存，默认180秒 |
 | `AliceUID_RemoteRenderEnable` | 可选外置HTML渲染服务；默认关闭，失败回退Core原生渲染 |
 | `AliceUID_CommunitySignTime` | 每日自动签到的北京时间，默认`08:33`，支持`00:00`～`23:59`，保存后更新调度 |
-| `AliceUID_SignGroupNotify` | 群签到汇总通知开关，默认开启 |
-| `AliceUID_SignNotifyWhitelist` / `AliceUID_SignNotifyBlacklist` | 签到通知专用名单，独立于查询权限 |
+| `AliceUID_SignGroupNotify` | 改变时批量设置全部群通知，之后可单群覆盖 |
 | `AliceUID_CommunityPaused` | 暂停全部社区任务 |
 | `AliceUID_CommunityRequestRange` / `AliceUID_CommunityAccountRange` | 请求/换号随机秒数范围，默认`5-15` / `10-120`，重启生效 |
 | `AliceUID_AIQueryEnabled` | 允许Core AI调用四类只读查询，默认关闭，开启后重启，关闭立即生效 |
@@ -285,7 +305,7 @@ Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库�
 | Cookie失效 | 使用 `nk重新登录`；换号才需要解绑 |
 | 用户/群不能查询 | Core权限及插件群/用户四名单 |
 | 图鉴或立绘缺图 | `nk数据库更新 状态`、公开源冷却、角色/皮肤映射 |
-| 收菜1302127 | 查看本次错误与短冷却提示，稍后重试；持续错误属于待实机确认的上游情况 |
+| 收菜1302127 | 自动静默尝试最多三次；仍失败时提示可能是网络原因，请稍后重试，Cookie失效则重新登录 |
 | 图片生成失败 | 字体与原生渲染依赖、外置渲染配置；`nk帮助 文字` 可获取文字指南 |
 | 转发迟到、重复或临时变成普通消息 | 检查消息ID回执、转发等待配置及60秒暂停状态，详见[转发设置](#转发设置) |
 | 升级后仍像旧版 | 确认覆盖整个外壳并完整重启Core，未同时加载旧插件 |
@@ -294,7 +314,7 @@ Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库�
 
 ## 效果预览
 
-**点击每张图片上方的标题或小三角，即可展开或收起图片。** 前五张默认展开，可按需折叠；Day2出刀总览较长，默认折叠。点击图片可查看高清原图。
+**点击每张图片上方的标题或小三角，即可展开或收起图片。** 前五组默认展开，可按需折叠；Day2出刀总览较长，默认折叠。点击图片可查看高清原图。
 
 以下为功能展示示例，具体数据以实际查询为准；命令采用默认 `nk` 前缀。
 
@@ -303,22 +323,36 @@ Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库�
 
 使用 `nk角色名练度`，例如 `nk爱丽丝练度`，查看本人角色的装备、技能与养成详情。
 
+<p align="center"><strong>宽版亮色</strong></p>
 <p align="center">
-  <a href="https://s1.imagehub.cc/images/2026/10/20/aea2f6cd6ea2591242d1a07ee1a70f90.png">
-    <img src="https://s1.imagehub.cc/images/2026/10/20/aea2f6cd6ea2591242d1a07ee1a70f90.png" width="660" alt="妮姬练度查询示例：角色立绘、装备与技能详情">
+  <a href="https://s1.imagehub.cc/images/2026/10/29/2bfd48fe190ca4da68c49d29739fc3da.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/29/2bfd48fe190ca4da68c49d29739fc3da.png" width="900" alt="宽版亮色角色练度卡：角色立绘、装备词条、技能与循环室">
+  </a>
+</p>
+<p align="center"><strong>宽版暗色</strong></p>
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/29/20103cbcd1626d374df0ab5f2b146911.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/29/20103cbcd1626d374df0ab5f2b146911.png" width="900" alt="宽版暗色角色练度卡：角色立绘、装备词条、技能与循环室">
+  </a>
+</p>
+
+<p align="center"><strong>纵版暗色（窄版）</strong></p>
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/29/27af72b039f827da4ec7a53de114463d.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/29/27af72b039f827da4ec7a53de114463d.png" width="600" alt="纵版暗色角色练度卡：角色立绘、装备词条与技能养成">
   </a>
 </p>
 
 </details>
 
 <details open>
-<summary><strong>图2 · 个人名片｜点击展开 / 收起</strong></summary>
+<summary><strong>图2 · 指挥官信息名片｜点击展开 / 收起</strong></summary>
 
-使用 `nk信息` 或 `nk名片`，展示指挥官资料、主页队伍和角色立绘。
+使用 `nk信息` 或 `nk名片`，以横版名片展示指挥官资料、主页队伍、角色立绘、战役爬塔和前哨数据。
 
 <p align="center">
-  <a href="https://s1.imagehub.cc/images/2026/10/20/64a52a67726a795a5bb2a1df6bbc85e5.png">
-    <img src="https://s1.imagehub.cc/images/2026/10/20/64a52a67726a795a5bb2a1df6bbc85e5.png" width="720" alt="个人名片示例：指挥官资料、角色立绘与主页展示队伍">
+  <a href="https://s1.imagehub.cc/images/2026/10/29/ad94378a318bc927b3302e2d86e2b15d.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/29/ad94378a318bc927b3302e2d86e2b15d.png" width="900" alt="横版指挥官信息名片：指挥官资料、角色立绘、主页队伍、战役爬塔与前哨数据">
   </a>
 </p>
 
@@ -380,7 +414,7 @@ Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库�
 
 感谢 [dildoro.com 妮姬伤害计算器·DILDORO](https://dildoro.com/) 提供妮姬伤害模拟、排行编队推荐及本功能采用的网站截图内容。AliceUID不将这些推荐与截图内容声明为独立原创，结果卡片同时标注来源与联合署名：
 
-`Powered By GsCore & Created By  AliceUID & dildoro`
+`Powered By GsCore & Created By AliceUID & dildoro`
 
 感谢 GsCore 提供插件运行、消息处理与卡片渲染基础。NIKKE角色、图片与游戏资料的权利归各权利人所有。
 

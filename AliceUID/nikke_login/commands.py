@@ -145,23 +145,42 @@ async def _send_login_link(bot, text, url, *, ev=None):
     return await send_with_forward(bot, ev, content if qr_png else text,
                                    config_key='AliceUID_LoginForward')
 
+def _login_guidance():
+    return (f"发送 {command_prefix()}帮助 查看具体命令。\n"
+            f"推荐发送 {command_prefix()}开启全量签到，每日自动领取 Blablalink 社区金币。")
+
+
 async def _notify_login(bot: Bot, ev: Event, token: str):
-    """后台等结果，成功/失败都回一条消息。"""
+    """失败按尝试去重，继续等待同一有效链接的后续成功。"""
+    failed_generation = None
     while True:
         await asyncio.sleep(2)
         session = sessions.get(token)
         if not session:
             return
         if session.status == "success":
-            await bot.send(
+            text = (
                 f"{'重新登录' if session.replace_revision else '绑定'}成功：{session.nickname or '未知'}（{session.area_label}）\n"
                 f"回到聊天窗口发送 {command_prefix()}我的账号 查看绑定。\n"
-                "正在后台准备本人资料、角色练度与皮肤缓存；首次查询会等待数据准备。\n" + expiry_notice(session.cookie_expire),
-                at_sender=True,
+                + _login_guidance() + "\n"
+                "正在后台准备本人资料、角色练度与皮肤缓存；首次查询会等待数据准备。\n" + expiry_notice(session.cookie_expire)
             )
-            return
-        if session.status == "failed":
-            await bot.send(f"绑定失败：{session.error or '未知错误'}", at_sender=True)
+        elif session.status == "failed" and failed_generation != session.generation:
+            failed_generation = session.generation
+            text = (f"{'重新登录' if session.replace_revision else '绑定'}失败：{session.error or '未知错误'}\n"
+                    "若链接仍有效，可在原页面重试；成功后会再次通知。")
+        else:
+            continue
+        completed = session.status == "success"
+        try:
+            await bot.send(text, at_sender=True)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # Ambiguous send receipts are not replayed; a failed notice must
+            # not kill observation of a later successful login.
+            logger.warning(f"[AliceUID] 登录结果通知未确认 error_type={type(exc).__name__}")
+        if completed:
             return
 
 
@@ -270,7 +289,8 @@ async def nikke_cookie_cmd(bot: Bot, ev: Event):
         )
         await bot.send(
             f"绑定成功：{role.get('role_name') or '未知'}（{region.label}）\n"
-            "正在后台准备本人资料、角色练度与皮肤缓存。\n"
+            + _login_guidance() + "\n"
+            + "正在后台准备本人资料、角色练度与皮肤缓存。\n"
             "提醒：这条消息里的 Cookie 请自行撤回。",
             at_sender=True,
         )
@@ -301,22 +321,87 @@ async def nikke_private_cmd(bot: Bot, ev: Event):
     await bot.send("已关闭账号公开标记。", at_sender=True)
 
 
+def _account_admin(ev):
+    return getattr(ev, 'user_pm', None) == 0 or is_master(ev.user_id)
+
+
+def _masked_qq(value):
+    number = str(value or '').strip()
+    if not number.isascii() or not number.isdecimal() or len(number) <= 4:
+        return '****'
+    return number[:2] + '****' + number[-2:]
+
+
+class _AccountListDelivery:
+    """Recheck administrator access before forward and every plain fallback page."""
+    def __init__(self, bot, ev):
+        self.original, self.ev = bot, ev
+
+    def __getattr__(self, name):
+        return getattr(self.original, name)
+
+    async def send(self, message, **kwargs):
+        if not _account_admin(self.ev):
+            return False
+        if isinstance(message, list) and all(isinstance(page, str) for page in message):
+            result = None
+            for page in message:
+                if not _account_admin(self.ev):
+                    return False
+                result = await self.original.send(page, **kwargs)
+                if result is False:
+                    return False
+            return result
+        return await self.original.send(message, **kwargs)
+
+
+def _account_list_pages(binds, *, masked):
+    from ..nikke_message import display_name
+    # One account per owner/adapter is the model's binding contract.
+    unique = {}
+    for bind in binds:
+        key = str(getattr(bind, 'user_id', '')), str(getattr(bind, 'bot_id', ''))
+        unique.setdefault(key, bind)
+    ordered = sorted(unique.values(), key=lambda row:(str(row.user_id), str(getattr(row, 'bot_id', ''))))
+    groups = set()
+    for bind in binds:
+        groups.update((str(getattr(bind, 'bot_id', '')), group)
+                      for group in str(getattr(bind, 'group_id', '') or '').split('_') if group)
+    summary = f'账号绑定概览\n当前绑定覆盖 {len(groups)} 个群组，共 {len(ordered)} 个账号。'
+    if masked:
+        summary += '\nQQ号仅保留前后两位。'
+    lines = []
+    for index, bind in enumerate(ordered, 1):
+        qq = _masked_qq(bind.user_id) if masked else str(bind.user_id)
+        nickname = display_name(getattr(bind, 'nickname', ''), '未知')[:60]
+        if masked:
+            import re
+            nickname = re.sub(r'\d{5,}', lambda match:_masked_qq(match.group()), nickname)
+        region = REGIONS.get(getattr(bind, 'area_id', 0))
+        area = region.label if region is not None else ('港澳台服' if getattr(bind, 'area_id', 0) == 91 else '未知区服')
+        lines.append(f'{index:04d}  {qq}  {nickname}  {area}  '
+                     f'{"公开" if getattr(bind, "is_public", False) else "私密"}'
+                     f'{"  ★主账号" if getattr(bind, "is_master", False) else ""}')
+    pages = ['\n'.join(lines[start:start+20]) for start in range(0, len(lines), 20)] or ['暂无绑定账号。']
+    return summary, pages
+
+
 @sv_account_admin.on_fullmatch(("账号列表", "绑定列表"))
 @account_errors
 async def nikke_list_cmd(bot: Bot, ev: Event):
-    if getattr(ev, "user_pm", None) != 0 and not is_master(ev.user_id):
-        await bot.send("这个命令只有 Bot 主可以使用。", at_sender=True)
+    if not _account_admin(ev):
+        await bot.send('这个命令只有 Bot 主可以使用。', at_sender=True)
         return
     binds = await AliceBind.get_all_binds()
-    if not binds:
-        await bot.send("还没有任何绑定。", at_sender=True)
-        return
-    lines = ["当前绑定："]
-    for b in binds[:30]:
-        lines.append(
-            f"{'★' if b.is_master else '·'} {b.user_id}  {b.nickname or '未知'}  "
-            f"{b.area_id}  {'公开' if b.is_public else '私密'}"
-        )
-    if len(binds) > 30:
-        lines.append(f"... 共 {len(binds)} 条")
-    await bot.send("\n".join(lines), at_sender=True)
+    summary, pages = _account_list_pages(binds, masked=bool(getattr(ev, 'group_id', None)))
+    from ..nikke_message import send_with_forward
+    delivery = _AccountListDelivery(bot, ev)
+    # Bound node count; numbering stays continuous across pages and batches.
+    for start in range(0, len(pages), 40):
+        if not _account_admin(ev):
+            return
+        intro = summary if len(pages) <= 40 else summary + f'\n列表第 {start//40+1}/{(len(pages)+39)//40} 批。'
+        result = await send_with_forward(delivery, ev, [intro, *pages[start:start+40]],
+                                         config_key='AliceUID_AccountListForward')
+        if result is False:
+            return

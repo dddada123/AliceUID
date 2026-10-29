@@ -1,6 +1,92 @@
 # AliceUID 开发文档
 
-适用版本：**1.1.01**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+适用版本：**1.1.10**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+
+### 1.1.10 横版信息卡（当前实现）
+
+nk信息/名片唯一生产布局为1228×720，原竖版profile.html已替换，无竖版切换入口。profile_wide.css提供左右玻璃分区，保留1张大立绘+4小头像；身份、部队战斗力、五项养成指标、战役与爬塔、前哨资料密排。职业与属性使用官方图标，独立Alpha阴影保持原图清晰。
+
+nikke_profile.presentation.prepare_profile_art在成品图缓存未命中后准备资源，优先当前皮肤full，缺失回退对应MI/SI，禁止用另一皮肤full冒充；full/MI传统定位沿用隔离进程和素材哈希缓存。类型、当前皮肤、头像、数值均沿用本人资料。头像保持方形显示，信息卡尺寸72px，沿用1.1.08用户头像/立绘角色头像回退策略。依赖跟踪含准备后的full，旧720px成品因模板、CSS和painter指纹变化自然重绘；正式渲染root_width=1228、PNG/DPI不变。
+
+亮色不透明度70%、暗色74%，覆盖角色横版练度卡主信息底板以及信息卡右侧各主面板和左下角色说明区。GLASS配置键、默认20和已有值保留，WebUI标题/描述明确仅对竖版/窄版毛玻璃生效；新版横版信息卡、横版练度卡不使用该模糊强度，没有新增调节项。历史段落与当前实现冲突时以本节为准。
+
+### 1.1.09 宽版总属性三行占位
+
+wide布局visible_rows至少3行，工具区顶部固定按三行计算。aggregate-rows最小高度84px、双列grid-auto-rows=28px；四类词条额外插入一个跨两列、带顶部分割线的空白展示行，不参与统计。0～6类词条均按三行占位，原数值、总阶、排序不变。缓存版本alice-v1109-three-row-summary-1。
+
+nk信息的横版重构已在1.1.10完成。
+
+### 1.1.08 跨卡片头像与署名
+
+cached_profile将当前绑定的profile快照与commander.json头像补齐记录按checked_at选择最新有效icon，核验game_id、area_id和已知UID；只合并返回值的icon，不改写旧快照或资料核对时间。信息卡context中的commander_icon_id随合并结果变化，自然使旧成品图失效，角色查询也可读取后续名片刷新得到的新icon。图片仍共用prepare_commander/ImageCache，未增加全量刷新或额外账号请求。
+
+prepare_profile优先采用至少128×128的指挥官SI（官方常用尺寸），缺失/尺寸不足时使用top_nikke[0]的SI，即大立绘对应角色；都不可用才显示占位。avatar_source区分commander/lead/placeholder，标题注明来源，保留88×88、18px圆角的原方形头像。原图与头像缓存不改写。
+
+glass_finish.css和profile.html署名text-shadow全部为none，20种卡片/主题组合检查computed style。立绘和装备原有光效保留。
+
+### 1.1.07 署名、日期与圆圈装饰
+
+brand_credit.html统一Powered By GsCore & Created By AliceUID；solo.html附加dildoro保留、双空格移除。共享glass_finish.css及独立profile模板为其他卡片使用1px/3px白色text-shadow；练度卡.frame>.brand-credit及日期片段明确text-shadow:none。宽版署名以右侧信息面板中心x=862px对齐，位于卡片底778px到图片底810px的间隔中心y=794px；窄版以右侧面板中心x=496px对齐，位于932px到982px间隔中心y=957px。采用独立底部容器flex居中，margin清零，避免共享署名margin使位置偏上。
+
+生成时间按北京时间格式化为YYYY-MM-DD·HH:MM，通过credit_timestamp附加到署名末尾；明确时区输入先转UTC+8，缺少时区沿用既有北京时间语义，异常输入回退当前北京时间。宽窄版时间均作为brand-credit内的credit-timestamp行内片段，整行居右侧卡片下方居中；署名与日期整行统一theme.muted：day #35475D、night #BDCCE0；日期片段color:inherit。不再有循环室下方、工具面板下方或旧footer日期DOM。角色缓存版本alice-v1107-footer-rings-5。宽版wide-tool-value改为透明背景、1px技能圆圈同色边线、theme.muted标签同色文本；line-height17px加上下边框保持总高19px、宽80px，不改变行布局。
+
+宽版收藏品/魔方/循环室增加48px细线圆圈，窄版已有工具布局补充34px/52px圆圈。暗色收藏品与魔方的ring-frost层inset=4px、20%白色，局部backdrop-filter=blur(3px)，外圈和内层之间保留背景间隔，图标独立在上层。原生引擎以透明白色内层呈现，浏览器额外支持背景采样柔化；前景图标不参与模糊。暗色宽版立绘单独Alpha白色外光，60%强度、3px局部柔化，无偏移；其他主题保留原黑色局部阴影，原图/头部定位/放大尺寸不改写。
+
+验证包括四主题双引擎压缩预览、署名中心和完整文案、日期格式/颜色/署名行内合并及无溢出、内层尺寸与20%白色、原图无transform以及全部图片完整加载。
+
+### 1.1.06 图标效果与头像按需修复
+
+nikke_render/icon_effects.py 仅从图标Alpha派生独立阴影PNG，icon_url前景不改写、不预合成。模板icon-stack内前景使用原尺寸原Data URI，阴影层绝对定位150%并保留透明边距，不使用transform，也不触发整图二次采样。普通图标亮色为70%黑色局部投影、暗色#10397B柔光；T10 Lv5使用加深#C80C60，外层4.5%原图短边柔化、90%强度，内层1.8%/80%。只有阴影模糊，源图纹理不参与模糊。
+
+立绘同样独立原图前景与黑色阴影层：65%不透明度、3 CSS px柔化、右2/下3px偏移，透明边距15px；根据既有立绘显示尺寸换算源图坐标，不修改立绘像素、头部定位或放大尺度。缺少有效PNG或明确布局尺寸时省略阴影。宽窄亮暗共用，生产字体、144DPI与PNG编码流程保持。
+
+WEBUI配置在CONFIG_DEFAULT中按功能重排，LoginUrl首项；Core reconcile_config按默认模板顺序输出并保留用户data。仅更新反代地址标题提示，不新增配置键、不覆盖用户配置。
+
+角色查询在没有可用saved.icon时，通过既有账号串行请求门控单独调用get_saved_role_info，成功写入账号隔离commander.json，不更新面板明细或全量完成标记；同一绑定重启后复用。临时失败沿用300秒内存冷却，登录失效继续提示重登。prepare_commander按官方avatar map解析真实SI，缺图走ImageCache按需下载和持久冷却，不返回其他皮肤代替；图像准备完成后才进入渲染。成品缓存版本alice-v1106-sharp-icons-art-shadow-5。
+
+### 1.1.05 练度卡主题与数据来源
+
+`AliceUID_CharacterCardStyle` 为 compact_light/compact_dark/wide_light/wide_dark，默认wide_light；旧compact/classic等不在新选项时回退默认，其他卡片全局主题不受影响。`AliceUID_CharacterRandomTheme` 为off/wide/compact/all，默认off。成品图片键包含固定模式、随机策略、模板/字体/DPI/素材依赖；命中先返回PNG，仅未命中时解析一次具体布局和亮暗色。
+
+窄版头部使用独立compact_header宏，左列标题/核心突破/类型、右列战斗力/指挥官，普通flex文档流各自纵向居中；块间gap=10CSS像素，避免绝对定位导致间隔不均。宽版1228×810 CSS，窄版660×982 CSS；实际像素随原有RenderDpi，默认144（1.5倍）。生产render.py保持父版字节不变：image_format=png，原字体及外置/原生回退保留。开发preview脚本先以144DPI在内存渲染，再仅将缩小、高压缩JPG保存到handoff；这些参数不进入生产渲染。
+
+头像：GetSavedRoleInfo的data.icon保留到角色资料，以`character_avatar_map.json`中id查resource_id/costume_index，SI为`/character/si/si_c{rid:03d}_{skin:02d}_s.png`。未知映射/重复映射/缺图/基础皮肤回退不能冒充用户头像，使用文字占位。访客主页Tools/GetUserSavedRoleInfo使用base64解码后的uid，但匿名实测返回300001；预览头像为明确构造的官方素材选择，不声称取得了用户真实头像。接口及证据详见工作区handoff。
+
+循环室等级来自本人GetUserProfileOutpostInfo的outpost_info.recycle_room_researches列表，tid/lv。职业Attacker/Defender/Supporter分别1101/1102/1103；Elysion/Missilis/Tetra/Pilgrim/Abnormal分别1201～1205。沿用官网QueryKeys映射，按当前角色职业/企业选两条及官方类型图标；缺失、隐藏值-9999、异常/重复记录显示未知，已报告0保留Lv.0。复用当前绑定最新profile快照，不额外请求循环室接口。
+
+本人列表costume_id优先，缺失时同角色详情costume_tid回退；静态costumes.id→costume_index→resource_id，full缓存`characters/full/c{rid:03d}_{skin:02d}.png`。不从公开皮肤清单推断拥有关系。缺少对应full时优先同皮肤MI/SI并说明，保留既有基础回退。源素材不物理裁剪；内存嵌入沿用既有alpha透明边修整。CSS的立绘层overflow:visible/z-index:1，衬底2，文本3；顶部约50px，底部及画布自然裁出。
+
+特征匹配：只在宽版准备，当前皮肤full和MI均准确时执行；MI顶部60%与FULL顶部60%使用SIFT+RANSAC，FULL识别边长上限896、最多1600特征，估计头部锚点，横向居中；MI中央70%上半部透明轮廓估计头部上沿，经同一变换映射回FULL，明显顶部道具占位超过80CSS像素才纵向平移，将头部上沿定位到约50CSS像素；小幅差异保留角饰等头部配件；无法估计轮廓时将头部锚点限制到上方180CSS像素内，不改变放大比例。单线程短命工作进程、最长12秒，主进程后台线程等待；一个进程级锁限制并发为1。以源文件哈希及算法版本将结果写resource/rolemeta/framing，正常和低置信度结果复用；环境失败回退并冷却600秒。无模型、GPU、AI服务、凭证或网络依赖。Windows两样本冷次约0.5～0.6秒，子进程峰值约137～149MiB，结束即释放；缓存读取约2ms。并非NAS实测。
+
+两版总属性共用summary_display：按攻击/优越/装弹/蓄速/暴击/暴伤优先排序，展示至多六项；超过三项用短名双列，总阶及完整aggregate不截断。宽版亮色/暗色只从各自day/night池选背景，背景等比cover，不模糊；窄版继续使用玻璃强度设置。
+
+### 1.1.04 登录与签到通知
+
+登录通知不再以 failed 为终点：每个 generation 最多发送一次失败提醒，沿用 sessions.get 的链接有效期与处理中宽限；成功后发送一次回执并退出，删除/替换/过期会话自然退出。通知发送异常仅记录异常类型，不使后续成功失去监听，也不自动重发不确定回执。普通绑定、重新登录及网页 Cookie 兜底共享监听，私聊 Cookie 导入也显示帮助与全量签到引导。
+
+签到 messages 的默认输出保留文本兼容；structured=True 时仅对未确认签到成功且存在有效 QQ ID 的页返回 {text, mentions}。分页同时保存对应 mentions，notify_batches 的 JSON 存储兼容旧字符串页；发送层通过 MessageSegment.at 生成真实提醒，校验 ASCII 数字、长度和去重，不解析昵称/原因中的文本为 @。已成功签到而后续任务暂停不会误提醒 Cookie 过期。保留群权限、精确 Bot 路由、发送前预约及不确定回执不重发策略。
+
+### 1.1.03 满词条外观与资源读取重试
+
+character_base.html仅为line.max增加1px透明边界、双层背景（黑色padding-box+主题渐变border-box）和外发光，亮色使用加深红色，暗色金色。compact满词条padding由4px补偿为3px，保持原28px行高与文字位置。cube-tool及内部tool-icon透明，阴影仅通过PNG的filter:drop-shadow产生，技能与收藏品样式保留。角色render_version升级为alice-v1103-max-affix-glow-1，旧PNG自然失效，正式字体/DPI与素材不变。
+
+ResourceStatusService.query对一次查询总计最多三次尝试：1302127、HTTP5xx、httpx.TransportError及TimeoutError/ConnectionError可静默重试；每次走AccountReads.transaction的五秒节流，成功端点在本轮复用，失败端点续查，不是每端点各三次。NikkeLoginRequired、401/300001立即退出并要求登录，403/429保留拒绝/限流含义，不循环请求。结构/渲染错误不伪装为网络故障。
+
+prepare_image将still_current传入query，每轮以及每次请求前核验绑定epoch和当前权限；中途撤销停止后续请求。三次临时故障抛出StatusRetryExhausted，用户只收到最终网络提示，不含1302127或缓存内部信息；失败冷却独立于成功图片窗口。Cookie失败在短冷却内仍抛登录异常，不改成一般故障。并发请求继续复用取数/渲染工作锁，成功出图后300秒固定窗口及提醒观测回调不变。
+
+CHANGELOG将1.1.02与1.1.03合并到当前1.1.03条目，父版原文与ZIP保持。离线预览使用已有公开素材、1.5倍DPI，亮暗两主题×浏览器/原生两引擎完整图和局部图集中handoff/max_affix_preview；无外部HTTP或真实账号请求。
+
+### 1.1.02 单体出图、静默全量同步与账号列表
+
+普通/手动角色查询若缓存缺少目标name_code，优先get_character_details([code])。唯一匹配的有效详情确认持有；只合并目标角色行，缺少的列表字段保持未知，等级可从详情lv取得。空详情才读取列表以区分未持有与暂缺详情；异常不返回未持有。单体缓存complete=False并设置full_refresh_pending，返回context._needs_full_refresh；发送成功后调度schedule_silent_refresh，同绑定复用既有任务，手动刷新可加入并取得正常回执。自动worker的bot=None，成功或失败都不发QQ。
+
+角色命令以foreground_view覆盖查询、渲染和发送，不等待wait_for_refresh。全量任务改用独立_refresh_locks串行，_RefreshReads每个端点分别申请AccountReads.transaction(background=True)，不在网络期间持有角色账号锁。前台网络请求计数使下一后台请求让位，取消等待会释放优先标记；原五秒间隔与全局并发上限保留。后台发布通过background_publish等待活动卡片结束，短暂取得角色/绑定锁后再提交；绑定版本、权限、失效状态和显式缓存撤销计数仍检查。
+
+snapshot schema=1兼容，新增可选row_checked_at、full_refresh_pending；profile.json另记roster_checked_at，避免以基本资料完成时间冒充角色列表核对时间。latest_roster将较新单角色行叠加到最近完整列表；后台提交比较列表时间、每行时间及详情时间，保留期间前台取得的新数据，再计算complete。失败保留原快照与已保存的单体详情，不渲染全量角色图。
+
+账号列表权限仍为Core Bot主或插件主账号。按(user_id,bot_id)统计绑定账号，群来源字段按下划线拆分并在相同适配器内去重；私聊/来源未知绑定计入账号总数。统计为绑定来源记录覆盖，非Bot实际加入群数；保留既有get_all_binds查询范围。群内数字QQ长度>4时显示前2位+****+后2位，其余标识完全掩码；昵称中的长数字也脱敏以免绕过。列表稳定排序、每页20账号、每批最多40页，跨页/批连续编号，超过9999自然扩展；第一节点总览，不列任何群明细。私聊保留完整QQ。
+
+AliceUID_AccountListForward默认True，沿用标准转发与既有回执/回退策略；_AccountListDelivery逐次核验管理员权限，普通回退逐页发送同一份预处理文本。账号凭据不参与列表数据。
 
 ### 1.1.01 持有状态核实
 

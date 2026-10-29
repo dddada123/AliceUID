@@ -21,28 +21,52 @@ class AccountReads:
         self.clock, self.sleep = clock, sleep
         self.locks, self.last_batch, self.last_request = {}, {}, {}
         self.slots = asyncio.Semaphore(2)
+        self.foreground = {}
+        self.idle = {}
 
     @staticmethod
     def account(bind):
         return str(bind.game_id), str(bind.intl_open_id), str(bind.area_id)
 
     @asynccontextmanager
-    async def transaction(self, client, bind, *, wait=False):
+    async def transaction(self, client, bind, *, wait=False, background=False):
         account = self.account(bind)
-        async with self.locks.setdefault(account, asyncio.Lock()):
+        lock = self.locks.setdefault(account, asyncio.Lock())
+        idle = self.idle.setdefault(account, asyncio.Event())
+        if not self.foreground.get(account, 0):
+            idle.set()
+        if not background:
+            self.foreground[account] = self.foreground.get(account, 0) + 1
+            idle.clear()
+        acquired = False
+        try:
+            while True:
+                if background:
+                    await idle.wait()
+                await lock.acquire()
+                acquired = True
+                if not background or not self.foreground.get(account, 0):
+                    break
+                lock.release()
+                acquired = False
             now = self.clock()
             if account in self.last_batch and now - self.last_batch[account] < 5:
                 if not wait:
                     raise RosterCooldown('查询较频繁，请至少等待5秒后重试。')
                 await self.sleep(5-(now-self.last_batch[account]))
-                now=self.clock()
-            self.last_batch[account] = now
+            self.last_batch[account] = self.clock()
             try:
                 async with self.slots:
                     yield PacedClient(client, self, account)
             finally:
-                # Failed attempts reserve cooldown too; no automatic retry.
                 self.last_batch[account] = self.clock()
+        finally:
+            if acquired:
+                lock.release()
+            if not background:
+                self.foreground[account] -= 1
+                if not self.foreground[account]:
+                    idle.set()
 
 
 class PacedClient:

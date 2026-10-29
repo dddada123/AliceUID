@@ -229,7 +229,10 @@ class NikkeClient:
             "POST", "/api/game/proxy/Game/GetSavedRoleInfo", {}
         )
         payload = data.get("data") or {}
-        return payload.get("role_info") or {}
+        role = dict(payload.get("role_info") or {})
+        if payload.get("icon") is not None:
+            role["icon"] = payload["icon"]
+        return role
 
     async def get_game_player_info(self) -> dict:
         """社区侧的游戏概览：角色数、战力、塔、主线、公会名。"""

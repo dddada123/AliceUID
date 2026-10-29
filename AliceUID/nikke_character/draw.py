@@ -117,6 +117,49 @@ def portrait_placement(source, kind, width, height):
         return ''
 
 
+
+def upper_body_placement(source, width=540, height=810, *, full_bounds=None, crop_top_pixels=850, anchor_x=None, anchor_y=None, head_top=None, canvas_width=1228):
+    """Frame the upper body from high resolution art without rewriting its pixels."""
+    try:
+        import base64, io
+        from PIL import Image
+        if not source or not source.startswith('data:image/'):
+            return ''
+        with Image.open(io.BytesIO(base64.b64decode(source.split(';base64,',1)[1],validate=True))) as im:
+            if im.width*im.height > 8_000_000:
+                return ''
+            bounds=im.convert('RGBA').getchannel('A').getbbox()
+            if not bounds:
+                return ''
+            x,y,right,bottom=bounds
+            if full_bounds and len(full_bounds) == 4:
+                # Full embeds are alpha-trimmed. Discard the transparent header,
+                # leave 50 CSS px above visible pixels, then show 850 native px.
+                native_top, native_bottom = full_bounds[1], full_bounds[3]
+                scale = (height-50)/min(crop_top_pixels, native_bottom-native_top) * (native_bottom-native_top)/im.height
+                left=(width-im.width*scale)/2
+                top=50
+            else:
+                scale=max((width-24)/(right-x),(height-18)/((bottom-y)*.65))
+                left=(width-(right-x)*scale)/2-x*scale
+                top=18-y*scale
+            # Preserve the approved close-up scale. Only horizontal translation uses
+            # the head anchor; weapons extend beneath the information surface.
+            focus = anchor_x*im.width if isinstance(anchor_x,(int,float)) and .08<anchor_x<.92 else im.width/2
+            left = width/2-focus*scale
+            # Tall props (e.g. a parasol) can sit above the head. Keep the
+            # matched head region within the upper third without shrinking art.
+            if isinstance(head_top,(int,float)) and 0<=head_top<.5:
+                # Preserve small head accessories; only correct a substantial prop gap.
+                if head_top*im.height*scale>80:
+                    top = 50-head_top*im.height*scale
+            elif isinstance(anchor_y,(int,float)) and -.05<anchor_y<.65 and top+anchor_y*im.height*scale>180:
+                top = 180-anchor_y*im.height*scale
+            return f'width:{im.width*scale:.2f}px;height:{im.height*scale:.2f}px;left:{left:.2f}px;top:{top:.2f}px' 
+    except (ValueError,OSError,TypeError,IndexError):
+        return ''
+
+
 def _equipment_info(context: dict, prepared_key: str, raw_key: str, label: str) -> dict:
     prepared = context.get(prepared_key) or {}
     raw = context.get(raw_key) or {}
@@ -136,10 +179,19 @@ def render_character_html(context: dict, style: str | None = None, theme: str | 
     from .builder import normalize_overload_context
     context = normalize_overload_context(context)
     from ..nikke_render.layouts import resolve_character_layout
-    layout = resolve_character_layout(style if style else get_character_style())
+    from ..nikke_render.theme import resolve_character_presentation
+    style,theme = resolve_character_presentation(style,theme)
+    layout = resolve_character_layout(style)
     style = layout.key
     context = apply_theme(context, theme, with_wallpaper=False)
     context.setdefault('generated_at', datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M'))
+    try:
+        generated = datetime.fromisoformat(str(context['generated_at']))
+        if generated.tzinfo is not None:
+            generated = generated.astimezone(timezone(timedelta(hours=8)))
+    except (ValueError, TypeError):
+        generated = datetime.now(timezone(timedelta(hours=8)))
+    context['credit_timestamp'] = generated.strftime('%Y-%m-%d·%H:%M')
     context['core_text'] = '未知' if context.get('core') is None else 'MAX' if context['core'] >= 7 else f"+{context['core']}"
     context['card_width'] = CARD_WIDTH
     context.setdefault('bond', None)
@@ -179,6 +231,29 @@ def render_character_html(context: dict, style: str | None = None, theme: str | 
             context['compact_portrait_url'] = context.get('character_icon_url') or PLACEHOLDER
             context['compact_image_kind'] = 'icons'
         context['portrait_style'] = portrait_placement(context['compact_portrait_url'], context['compact_image_kind'], 318, geometry.portrait_height-2)
+    if style == 'wide':
+        from ..nikke_render.card_background import wide_backdrop
+        context.update(wide_backdrop(context['card_theme'], context['glass_strength'],
+                                     background_name=context.get('wide_background_name')))
+        context['card_width'] = layout.width
+        # prepare_character already resolves reported costumes against this character.
+        # Prefer selected-skin art when FULL is missing instead of unrelated base FULL.
+        exact_full = not context.get('full_missing', True) and not context.get('full_fallback', False)
+        context['wide_art_url'] = context.get('full_url') if exact_full else context.get('art_url')
+        context['wide_art_kind'] = 'full' if exact_full else context.get('art_kind', 'icons')
+        context['wide_art_notice'] = '' if exact_full else context.get('art_hint', '立绘暂不可用')
+        context['wide_art_style'] = upper_body_placement(context['wide_art_url'], full_bounds=context.get('full_alpha_bounds') if exact_full else None, anchor_x=(context.get('wide_anchor') or {}).get('x') if (context.get('wide_anchor') or {}).get('matched') else None, anchor_y=(context.get('wide_anchor') or {}).get('y') if (context.get('wide_anchor') or {}).get('matched') else None, head_top=(context.get('wide_anchor') or {}).get('head_top') if (context.get('wide_anchor') or {}).get('matched') else None)
+        count = len(context['aggregate']['display_rows'])
+        visible_rows = max(3, count if count <= 3 else (count+1)//2)
+        context['wide_row_height'] = min(28, max(18, 140//max(1,visible_rows))) if visible_rows > 5 else 28
+        context['wide_tools_top'] = 350 + visible_rows*context['wide_row_height']
+    from ..nikke_render.icon_effects import apply_icon_effects
+    context = apply_icon_effects(context)
+    from ..nikke_render.icon_effects import portrait_shadow
+    if style == 'wide':
+        context['art_shadow_url'],context['art_shadow_style'] = portrait_shadow(context['wide_art_url'],context['wide_art_style'],glow=context['card_theme']=='dark')
+    elif style == 'compact':
+        context['art_shadow_url'],context['art_shadow_style'] = portrait_shadow(context['compact_portrait_url'],context['portrait_style'])
     template = layout.template
     from ..nikke_render.fonts import apply_font_html
     return apply_font_html(_ENV.get_template(template).render(**context), embed=False)
@@ -196,7 +271,7 @@ async def draw_character(context: dict, style: str | None = None, theme: str | N
     if not identity:
         return await _draw_uncached(context,style,theme)
     from .cache import get_panel_cache
-    from ..nikke_render.theme import get_card_theme_mode
+    from ..nikke_render.theme import character_presentation_mode
     from ..nikke_render.cache import content_context, style_version, resource_version
     from ..nikke_resource.service import get_resources
     try:
@@ -204,8 +279,8 @@ async def draw_character(context: dict, style: str | None = None, theme: str | N
     except ImportError:
         resources = None  # Pure offline adapters can supply their own painter.
     stable=content_context(context)
-    stable.update(render_version='alice-v100-glass-footer-2',
-                  theme=theme or get_card_theme_mode(),style=style or get_character_style(),
+    stable.update(render_version='alice-v1110-wide-translucency-1',
+                  theme=theme,style=style,presentation_mode=character_presentation_mode(),
                   presentation=style_version())
     code=context['name_code']
     store=get_panel_cache()
@@ -232,11 +307,15 @@ async def _draw_uncached(context: dict, style: str | None = None, theme: str | N
     from ..nikke_render.render import render_html
     resources = get_resources()
     from ..nikke_resource.cache import track_assets
+    from ..nikke_render.layouts import resolve_character_layout
+    from ..nikke_render.theme import resolve_character_presentation
+    style,theme = resolve_character_presentation(style,theme)
+    layout = resolve_character_layout(style)
     with track_assets() as paths:
-        prepared = await resources.prepare_character(context)
+        prepared = await resources.prepare_character(context, framing=True) if layout.key == 'wide' else await resources.prepare_character(context)
     from ..nikke_render.cache import resource_version
     context['_prepared_dependencies'] = sorted(paths)
     context['_prepared_resources'] = resource_version(resources, context['_prepared_dependencies'])
     from ..nikke_render.layouts import resolve_character_layout
-    layout = resolve_character_layout(style if style else get_character_style())
+    layout = resolve_character_layout(style)
     return await render_html(render_character_html(prepared, layout.key, theme), root_width=layout.width)

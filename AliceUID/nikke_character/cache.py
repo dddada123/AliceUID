@@ -44,12 +44,25 @@ class PanelCache:
         light_rows = light_profile.get('chars') if isinstance(light_profile, dict) else None
         candidates = [(snapshot.get('roster_checked_at', snapshot.get('profile_checked_at', snapshot.get('saved_at', 0))),
                        snapshot.get('roster')),
-                      (light.get('checked_at', 0), light_rows)]
+                      (light.get('roster_checked_at', light.get('checked_at', 0)), light_rows)]
         import math
         for stamp, rows in sorted(((stamp, rows) for stamp, rows in candidates
                                    if type(stamp) in (int, float) and math.isfinite(stamp)), reverse=True, key=lambda row:row[0]):
             if isinstance(rows, list):
-                return stamp, rows
+                from .builder import integer
+                combined = {str(row.get('name_code')):row for row in rows if isinstance(row, dict)}
+                if len(combined) != len(rows):
+                    return stamp, rows
+                checks = snapshot.get('row_checked_at', {})
+                if isinstance(checks, dict):
+                    for row in snapshot.get('roster', []):
+                        if not isinstance(row, dict) or integer(row.get('name_code')) in (None, 0):
+                            continue
+                        key = str(row['name_code'])
+                        checked = checks.get(key)
+                        if type(checked) in (int, float) and math.isfinite(checked) and checked > stamp:
+                            combined[key] = row
+                return stamp, list(combined.values())
         return 0, []
 
     def write(self,key,data):

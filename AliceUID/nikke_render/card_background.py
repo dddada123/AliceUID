@@ -46,9 +46,9 @@ def compact_geometry(aggregate_count=0):
     aggregate_height=gear_height=144
     portrait_height=640
     main_height=760  # 640 portrait + 16 gap + 104 tools; 5*144 + 4*10.
-    top=138
+    top=172
     tools_top=top+portrait_height+16
-    boxes=[(16,16,628,110),(16,top,320,portrait_height),(16,tools_top,320,104),
+    boxes=[(16,16,628,144),(16,top,320,portrait_height),(16,tools_top,320,104),
            (348,top,296,aggregate_height)]
     gear_top=top+10+aggregate_height
     boxes.extend((348,gear_top+i*(gear_height+10),296,gear_height) for i in range(4))
@@ -79,3 +79,34 @@ def compact_backdrop(theme,geometry,strength=10):
     return {'compact_background_uri':_backdrop(str(chosen.resolve()),stat.st_mtime_ns,stat.st_size,
               geometry.width,geometry.height,geometry.boxes,theme,strength),
             'compact_background_name':chosen.name,'compact_geometry':geometry}
+
+
+WIDE_WIDTH = 1228
+WIDE_HEIGHT = 810
+
+
+def wide_background_candidates(theme=None):
+    root = BACKGROUND_ROOT/'wallpaper'
+    return tuple(sorted(p for folder in (('day',) if theme=='light' else ('night',) if theme=='dark' else ('day','night')) for p in (root/folder).rglob('*')
+                        if p.is_file() and p.suffix.lower() in ('.jpg','.jpeg','.png','.webp')))
+
+
+@lru_cache(maxsize=18)
+def _wide_photo(path_string,mtime_ns,size):
+    from PIL import ImageOps
+    with Image.open(path_string) as original:
+        scene = ImageOps.fit(original.convert('RGB'), (WIDE_WIDTH,WIDE_HEIGHT),
+                             method=Image.Resampling.LANCZOS, centering=(.5,.5))
+    return image_uri(scene)
+
+
+def wide_backdrop(theme='light', strength=20, *, background_name=None):
+    """Sharp full-bleed photo. Compact alone retains configured background blur."""
+    choices = wide_background_candidates(theme)
+    if not choices:
+        raise ValueError('宽版wallpaper/day与night背景缺失，请检查安装素材')
+    root = BACKGROUND_ROOT/'wallpaper'
+    chosen = next((p for p in choices if p.relative_to(root).as_posix()==background_name), None) or random.choice(choices)
+    stat = chosen.stat()
+    return dict(wide_background_uri=_wide_photo(str(chosen.resolve()),stat.st_mtime_ns,stat.st_size),
+                wide_background_name=chosen.relative_to(root).as_posix())

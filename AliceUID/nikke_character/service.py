@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, asynccontextmanager
 import hashlib
 import time
 from typing import Callable
@@ -37,6 +37,10 @@ class CharacterQueryService:
         self.data_cache=data_cache
         self._epochs={}
         self._ownership_checks = {}
+        self._commanders = {}
+        self._invalidations = {}
+        self._views = {}
+        self._view_idle = {}
 
     def store(self):
         if not self.persistent: return None
@@ -55,6 +59,7 @@ class CharacterQueryService:
 
     def invalidate(self, bind, *, clear_store=True) -> None:
         account=self._account(bind)
+        self._invalidations[account] = self._invalidations.get(account, 0) + 1
         self._epochs[account]=self._epochs.get(account,0)+1
         store=self.store()
         if store is not None and clear_store:
@@ -65,6 +70,35 @@ class CharacterQueryService:
         self._ownership_checks.pop(key, None)
         for entry in [entry for entry in self._details if entry[:-1] == key]:
             self._details.pop(entry, None)
+
+    @asynccontextmanager
+    async def foreground_view(self, bind):
+        account = self._account(bind)
+        event = self._view_idle.setdefault(account, asyncio.Event())
+        self._views[account] = self._views.get(account, 0) + 1
+        event.clear()
+        try:
+            yield
+        finally:
+            self._views[account] -= 1
+            if not self._views[account]:
+                event.set()
+
+    @asynccontextmanager
+    async def background_publish(self, bind):
+        account = self._account(bind)
+        lock = self._locks.setdefault(account, asyncio.Lock())
+        while True:
+            if self._views.get(account, 0):
+                await self._view_idle[account].wait()
+            await lock.acquire()
+            if not self._views.get(account, 0):
+                break
+            lock.release()
+        try:
+            yield
+        finally:
+            lock.release()
 
     @staticmethod
     def _detail_rows(payload: dict) -> list[dict]:
@@ -155,6 +189,9 @@ class CharacterQueryService:
                 roster_fetched = False
                 community_roster = None
                 community_checked_at = None
+                fast_detail = None
+                fast_target = False
+                partial_roster = False
 
                 async def fetch_roster():
                     nonlocal community_roster, community_checked_at
@@ -165,25 +202,54 @@ class CharacterQueryService:
                     community_roster = rows
                     return rows
 
-                if refresh or roster is None:
+                cache_missing = roster is not None and not any(integer(row.get('name_code')) == code for row in roster)
+                if (refresh and not cache_missing) or roster is None:
                     roster = await fetch_roster()
                     roster_fetched = True
                     if refresh and snapshot and any(integer(row.get('name_code')) == code for row in roster):
                         current = next(row for row in roster if integer(row.get('name_code')) == code)
-                        roster = [row for row in snapshot['roster'] if integer(row.get('name_code')) != code] + [current]
+                        base_roster = roster_entry[1] if fresh(roster_entry) else snapshot['roster']
+                        roster = [row for row in base_roster if integer(row.get('name_code')) != code] + [current]
+                        partial_roster = True
                 self.roster_codes(roster)
                 owned = next((row for row in roster if integer(row.get('name_code')) == code), None)
-                if owned is None and not roster_fetched:
+                if owned is None:
                     checked = self._ownership_checks.get(revision)
-                    recently_checked = (checked is not None and 0 <= self.clock()-checked[0] < self.cooldown
+                    recently_checked = (not refresh and checked is not None and 0 <= self.clock()-checked[0] < self.cooldown
                                         and checked[1] == roster)
                     if not recently_checked:
                         if ownership_notice is not None:
                             await ownership_notice(static.name(code))
-                        roster = await fetch_roster()
-                        roster_fetched = True
-                        owned = next((row for row in roster if integer(row.get('name_code')) == code), None)
-                        recovered = owned is not None
+                        await reserve()
+                        payload = await network_client.get_character_details([code])
+                        if not isinstance(payload, dict):
+                            raise CharacterDataError('角色详情响应格式发生变化，请稍后重试。')
+                        rows = self._detail_rows(payload)
+                        matches = [row for row in rows if integer(row.get('name_code')) == code]
+                        if len(matches) > 1 or (not matches and rows):
+                            raise CharacterDataError('接口未返回唯一匹配的角色详情，请稍后重试。')
+                        if matches:
+                            effects = payload.get('state_effects', [])
+                            if effects is None:
+                                effects = []
+                            if not isinstance(effects, list) or not all(isinstance(row, dict) for row in effects):
+                                raise CharacterDataError('装备词条响应格式发生变化，请稍后重试。')
+                            detail = matches[0]
+                            owned = {field:detail[field] for field in
+                                     ('name_code','lv','combat','grade','core','costume_id','costume_tid') if field in detail}
+                            owned['name_code'] = code
+                            roster = [row for row in roster if integer(row.get('name_code')) != code] + [owned]
+                            fast_detail = detail, effects
+                            fast_target = recovered = True
+                            # A single role proves its ownership, not a full-list refresh.
+                            roster_fetched = False
+                        else:
+                            if not roster_fetched:
+                                roster = await fetch_roster()
+                                roster_fetched = True
+                            owned = next((row for row in roster if integer(row.get('name_code')) == code), None)
+                            if owned is not None:
+                                raise CharacterDataError('社区显示已持有，但角色详情暂未返回，请稍后刷新该角色面板。')
                 if roster_fetched:
                     # Commit ownership even if detail fetch fails or the role is absent.
                     # Release the binding lock before making another network request.
@@ -200,7 +266,10 @@ class CharacterQueryService:
                             details = {k:v for k,v in saved.get('details', {}).items() if k in codes}
                             if recovered or owned is None:
                                 details.pop(str(code), None)
-                            updated = dict(saved, roster=roster, details=details, roster_checked_at=community_checked_at)
+                            list_stamp = store.latest_roster(identity, saved)[0] if partial_roster else community_checked_at
+                            updated = dict(saved, roster=roster, details=details, roster_checked_at=list_stamp)
+                            if partial_roster:
+                                updated['row_checked_at'] = dict(saved.get('row_checked_at', {}), **{str(code):community_checked_at})
                             updated['complete'] = bool(saved.get('complete') and set(details) == codes)
                             if isinstance(updated.get('profile'), dict):
                                 updated['profile'] = dict(updated['profile'], chars=roster)
@@ -224,7 +293,10 @@ class CharacterQueryService:
                         f'或使用 {prefix}刷新面板 同步社区数据。')
                 key = revision + (code,)
                 detail_entry = self._details.get(key)
-                if refresh or not fresh(detail_entry):
+                if fast_detail is not None:
+                    detail, effects = fast_detail
+                    detail_fetched = True
+                elif refresh or not fresh(detail_entry):
                     await reserve()
                     payload = await network_client.get_character_details([code])
                     if not isinstance(payload, dict):
@@ -260,21 +332,75 @@ class CharacterQueryService:
                     saved_details[str(code)]={'detail':detail,'effects':effects,
                                               'checked_at':time.time() if detail_fetched else old_checked}
                     updated = dict(saved, roster=roster, details=saved_details)
-                    updated['complete'] = bool(saved.get('complete') and set(saved_details) == {str(c) for c in self.roster_codes(roster)})
+                    row_checks = dict(saved.get('row_checked_at', {}))
+                    if fast_target or refresh:
+                        row_checks[str(code)] = time.time()
+                    updated['row_checked_at'] = row_checks
+                    if fast_target:
+                        updated['full_refresh_pending'] = True
+                    updated['complete'] = bool(not fast_target and saved.get('complete') and set(saved_details) == {str(c) for c in self.roster_codes(roster)})
                     if isinstance(updated.get('profile'), dict):
                         updated['profile'] = dict(updated['profile'], chars=roster)
                     store.write(identity, updated)
                     if refresh:
                         self._epochs[account] = self._epochs.get(account, 0) + 1
                         epoch = self._epochs[account]
+                self._rosters[revision] = (self.clock(), roster)
+                self._details[key] = (self.clock(), detail, effects)
                 context = build_character_context(owned, detail, effects, static,
                                                area_label=client.region.label,
                                                nickname=bind.nickname or '',
                                                equipment_items=equipment_items, skill_icons=skill_icons)
+                from ..nikke_resource.cache import read_metadata
+                from ..nikke_login.regions import saved_role_matches
+                profile_entries = [(snapshot.get('profile_checked_at',snapshot.get('saved_at',0)), snapshot.get('profile') or {})]
+                if store is not None:
+                    light = read_metadata(store.path(identity, 'profile.json'))
+                    profile_entries.append((light.get('checked_at',0),light.get('profile') or {}))
+                    avatar = read_metadata(store.path(identity, 'commander.json'))
+                    profile_entries.append((avatar.get('checked_at',0), {'saved': avatar.get('saved')}))
+                profiles = [p for _,p in sorted(profile_entries,key=lambda r: r[0] if type(r[0]) in (int,float) else 0,reverse=True)
+                            if isinstance(p,dict)]
+                outpost_profile = next((p for p in profiles if isinstance(p.get('outpost'),dict)
+                                        and isinstance(p.get('basic'),dict)
+                                        and str(p['basic'].get('area_id',bind.area_id))==str(bind.area_id)), {})
+                context['recycle_room_researches'] = (outpost_profile.get('outpost') or {}).get('recycle_room_researches')
+                saved_role = next((p.get('saved') for p in profiles
+                                   if isinstance(p, dict) and isinstance(p.get('saved'), dict)
+                                   and p['saved'].get('icon') is not None
+                                   and saved_role_matches(p['saved'], client.region)), None)
+                if saved_role is None:
+                    remembered = self._commanders.get(revision)
+                    if remembered and 0 <= self.clock()-remembered[0] < 300 and not refresh:
+                        saved_role = remembered[1]
+                    elif hasattr(client, 'get_saved_role_info'):
+                        try:
+                            if store is not None and not fetched:
+                                from ..nikke_roster.service import account_reads
+                                network_client = await network_stack.enter_async_context(
+                                    account_reads.transaction(client, bind, wait=True))
+                            role = await network_client.get_saved_role_info()
+                            if current_check is not None and not await current_check():
+                                raise CharacterDataError('绑定或权限已变化，已停止保存和展示旧账号数据。')
+                            saved_role = role if saved_role_matches(role, client.region) else {}
+                            self._commanders[revision] = (self.clock(), saved_role)
+                            if store is not None and saved_role.get('icon') is not None:
+                                import json
+                                from ..nikke_resource.cache import atomic_write
+                                atomic_write(store.path(identity, 'commander.json'), json.dumps(
+                                    {'checked_at': time.time(), 'saved': saved_role}, ensure_ascii=False).encode())
+                        except NikkeLoginRequired:
+                            raise
+                        except NikkeApiError:
+                            saved_role = {}
+                            self._commanders[revision] = (self.clock(), saved_role)
+                saved_role = saved_role or {}
+                context['commander_icon_id'] = saved_role.get('icon')
                 context.update(commander_name=bind.nickname or '昵称未知',
                                commander_uid=getattr(bind,'uid','') or '未知',
                                commander_region=client.region.label)
                 context['_panel_epoch']=epoch
+                context['_needs_full_refresh'] = fast_target or bool(snapshot.get('full_refresh_pending'))
                 if store is not None:
                     context['_cache_identity']=identity
                     context['_snapshot_saved_at']=store.read(identity).get('saved_at')

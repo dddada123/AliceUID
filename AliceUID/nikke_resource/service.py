@@ -198,12 +198,21 @@ class ResourceService:
                            portrait_hash=art.content_hash)
                 row['skin_notice'] += ' · ' + self._image_notice(art, 'MI立绘')
         result['top_nikke'] = team
-        result['avatar_url'] = team[0]['icon_url'] if team else PLACEHOLDER
-        result['avatar_hint'] = '展示队伍首位妮姬'
-        result['render_version'] = 'alice-profile-v102-portrait'
+        from .commander import prepare_commander
+        result.update(await prepare_commander(self, result))
+        from .commander import avatar_is_clear
+        if avatar_is_clear(result['commander_avatar_url']):
+            result.update(avatar_url=result['commander_avatar_url'], avatar_source='commander',
+                          avatar_hint='指挥官游戏头像')
+        elif team and not team[0].get('resource_missing'):
+            result.update(avatar_url=team[0]['icon_url'], avatar_source='lead',
+                          avatar_hint='展示立绘角色头像')
+        else:
+            result.update(avatar_url=PLACEHOLDER, avatar_source='placeholder', avatar_hint='头像暂不可用')
+        result['render_version'] = 'alice-profile-v1108-shared-avatar'
         return result
 
-    async def prepare_character(self, context: dict) -> dict:
+    async def prepare_character(self, context: dict, *, framing=False) -> dict:
         result = dict(context)
         rid, skin = result.get('resource_id', 0), self._selected_skin(result)
         kinds = ('full', 'portraits', 'icons')
@@ -233,7 +242,27 @@ class ResourceService:
         result['full_url'] = images['full'].source
         result['full_skin_index'] = images['full'].skin_index
         result['full_fallback'] = images['full'].fallback
+        if (framing and not images['full'].missing and not images['full'].fallback
+                and not images['portraits'].missing and not images['portraits'].fallback):
+            from .framing import cached_anchor
+            result['wide_anchor'] = await asyncio.to_thread(cached_anchor, self.images.root,
+                images['full'].source, images['portraits'].source,
+                images['full'].content_hash, images['portraits'].content_hash)
+
         result['full_missing'] = images['full'].missing
+        # Keep original canvas coordinates for the top-1000px full-art framing.
+        # resolved_source embeds a trimmed alpha box; source cache stays untouched.
+        if not images['full'].missing:
+            try:
+                from PIL import Image
+                full_path = self.images.root/'characters/full'/f"c{rid:03d}_{images['full'].skin_index:02d}.png"
+                with Image.open(full_path) as original:
+                    if original.width*original.height <= 8_000_000:
+                        result['full_original_size'] = list(original.size)
+                        result['full_alpha_bounds'] = original.convert('RGBA').getchannel('A').getbbox()
+            except (OSError, ValueError, TypeError):
+                pass
+
         label = {'full': '立绘', 'portraits': '半身像', 'icons': '头像'}[chosen]
         hint = self._image_notice(art, label)
         if chosen != 'full':
@@ -255,8 +284,12 @@ class ResourceService:
             prepare_rows(context.get('gear', []), 'equipment'),
             prepare_rows(context.get('skills', []), 'skills'),
         )
+        from .commander import prepare_commander
+        result.update(await prepare_commander(self, result))
         from ..nikke_character.collection import prepare_character_extras
         result.update(await prepare_character_extras(result, self))
+        from ..nikke_character.research import recycling_levels
+        result['recycling_levels'] = recycling_levels(result, result.get('role_icons', []))
         return result
 
     async def refresh(self) -> dict:

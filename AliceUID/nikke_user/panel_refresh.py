@@ -9,6 +9,7 @@ _manual_requests = {}
 _queue_locks = {}
 _profile_locks = {}
 _profile_failures = {}
+_refresh_locks = {}
 DETAIL_BATCH_SIZE = 20
 MAX_OWNED_CHARACTERS = 500
 
@@ -34,6 +35,23 @@ def _revision(bind):
     return panel_identity(bind)
 
 
+def _avatar_role(bind, candidates):
+    """Use the newest bound-account avatar, including a character-only repair."""
+    for stamp, role in sorted(candidates, key=lambda row: _stamp(row[0]), reverse=True):
+        if not isinstance(role, dict):
+            continue
+        if str(role.get('game_id')) != str(bind.game_id) or str(role.get('area_id')) != str(bind.area_id):
+            continue
+        uid, role_id = str(getattr(bind, 'uid', '') or ''), str(role.get('role_id') or '')
+        if uid not in ('', '-', '未知') and role_id and uid != role_id:
+            continue
+        icon = role.get('icon')
+        if type(icon) not in (int, str) or not str(icon).isascii() or not str(icon).isdigit() or int(icon) <= 0:
+            continue
+        return role
+    return None
+
+
 def cached_profile(bind):
     from ..nikke_character.service import character_queries
     store = character_queries.store()
@@ -43,6 +61,11 @@ def cached_profile(bind):
         from ..nikke_resource.cache import read_metadata
         light = read_metadata(store.path(_revision(bind), 'profile.json'))
         candidates.append((light.get('checked_at', 0), light.get('profile')))
+    roles = [(stamp, p.get('saved')) for stamp, p in candidates if isinstance(p, dict)]
+    if store is not None:
+        avatar = read_metadata(store.path(_revision(bind), 'commander.json'))
+        roles.append((avatar.get('checked_at', 0), avatar.get('saved')))
+    avatar_role = _avatar_role(bind, roles)
     import math
     candidates = [(stamp, profile) for stamp, profile in candidates
                   if type(stamp) in (int, float) and math.isfinite(stamp)]
@@ -54,10 +77,15 @@ def cached_profile(bind):
                 try:
                     character_queries.roster_codes(profile['chars'])
                     roster_stamp, rows = store.latest_roster(_revision(bind), saved) if store is not None else (0, [])
-                    if roster_stamp > stamp:
+                    if roster_stamp > stamp or rows != profile['chars']:
                         character_queries.roster_codes(rows)
                         profile = dict(profile, chars=rows)
-                    return dict(profile, _checked_at=stamp)
+                    role = dict(profile['saved'])
+                    if avatar_role is not None:
+                        role['icon'] = avatar_role['icon']
+                    else:
+                        role.pop('icon', None)
+                    return dict(profile, saved=role, _checked_at=stamp)
                 except ValueError:
                     pass
     return None
@@ -120,17 +148,49 @@ async def ensure_profile(client, bind, *, refresh=False):
         return cached_profile(bind) or data
 
 
-def _save_profile(bind, data, *, checked_at=None):
+def _save_profile(bind, data, *, checked_at=None, roster_checked_at=None):
     import json, time
     from ..nikke_resource.cache import atomic_write
     from ..nikke_character.service import character_queries
     store = character_queries.store()
     if store is not None:
         encoded = json.dumps(dict(profile={k:v for k,v in data.items() if not k.startswith('_')},
-                                  checked_at=checked_at or time.time()), ensure_ascii=False, allow_nan=False).encode()
+                                  checked_at=checked_at or time.time(),
+                                  roster_checked_at=roster_checked_at or checked_at or time.time()), ensure_ascii=False, allow_nan=False).encode()
         if len(encoded) > 16*1024*1024:
             raise ValueError('资料缓存超过安全大小。')
         atomic_write(store.path(_revision(bind), 'profile.json'), encoded)
+
+
+class _RefreshReads:
+    """Yield the shared request gate after every background endpoint."""
+    def __init__(self, client, bind, reads, *, wait, check):
+        self.client, self.bind, self.reads = client, bind, reads
+        self.wait, self.check = wait, check
+        self.first = True
+        self.region = client.region
+        self.roster_checked_at = 0
+
+    def __getattr__(self, name):
+        if not name.startswith('get_'):
+            raise AttributeError(name)
+        async def request(*args, **kwargs):
+            await self.check()
+            async with self.reads.transaction(self.client, self.bind, wait=self.wait if self.first else True,
+                                               background=True) as paced:
+                self.first = False
+                await self.check()
+                result = await getattr(paced, name)(*args, **kwargs)
+                if name == 'get_characters':
+                    import time
+                    self.roster_checked_at = time.time()
+                return result
+        return request
+
+
+def _stamp(value):
+    import math
+    return value if type(value) in (int, float) and math.isfinite(value) and value >= 0 else 0
 
 
 async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=False,
@@ -157,11 +217,11 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
             if not await allowed(policy, event):
                 raise CharacterDataError('权限已变化，已停止更新资料。')
 
-    # All character queries and snapshot replacements share this account lock.
-    async with character_queries._locks.setdefault(account, asyncio.Lock()):
+    # Serialize full refresh jobs, never hold the foreground character lock over I/O.
+    async with _refresh_locks.setdefault(expected, asyncio.Lock()):
         await check_current()
+        store = character_queries.store()
         if only_missing:
-            store = character_queries.store()
             snapshot = store.read(expected) if store is not None else {}
             codes = character_queries.roster_codes(snapshot.get('roster', []))
             details = snapshot.get('details', {})
@@ -171,45 +231,62 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
                     all(isinstance(row, dict) and isinstance(row.get('detail'), dict)
                         and isinstance(row.get('effects'), list) for row in details.values())):
                 return saved
-        epoch = character_queries._epochs.get(account, 0)
+        invalidation = character_queries._invalidations.get(account, 0)
+        paced = _RefreshReads(client, bind, account_reads, wait=wait, check=check_current)
         async with _profile_locks.setdefault(expected, asyncio.Lock()):
             _check_profile_failure(expected)
             try:
-                async with account_reads.transaction(client, bind, wait=wait) as paced:
-                    data = await profile._fetch(paced)
+                data = await profile._fetch(paced)
             except Exception as exc:
                 _profile_failed(expected, exc)
                 raise
             import time
             profile_checked_at = time.time()
+            roster_checked_at = paced.roster_checked_at
             if str(data['basic'].get('area_id', bind.area_id)) != str(bind.area_id):
                 raise CharacterDataError('资料区服与绑定区服不一致，已停止缓存。')
-            character_queries.roster_codes(data['chars'])
-            # Cold-login readers can use the valid light profile before full details finish.
+            codes = character_queries.roster_codes(data['chars'])
             if cached_profile(bind) is None:
                 async with binding_lock(actor, bot):
                     await check_current()
-                    _save_profile(bind, data, checked_at=profile_checked_at)
-        if str(data['basic'].get('area_id', bind.area_id)) != str(bind.area_id):
-            raise CharacterDataError('资料区服与绑定区服不一致，已停止缓存。')
-        codes = character_queries.roster_codes(data['chars'])
+                    _save_profile(bind, data, checked_at=profile_checked_at, roster_checked_at=roster_checked_at)
         if len(codes) > MAX_OWNED_CHARACTERS:
             raise CharacterDataError('角色数量超过本次更新预算，已停止请求。')
         details = {}
-        batches = [codes[i:i+DETAIL_BATCH_SIZE] for i in range(0, len(codes), DETAIL_BATCH_SIZE)]
-        for start in range(0, len(batches), 5):
+        for start in range(0, len(codes), DETAIL_BATCH_SIZE):
+            batch = codes[start:start+DETAIL_BATCH_SIZE]
+            payload = await paced.get_character_details(batch)
+            details.update(character_queries.detail_entries(payload, batch))
+        # Keep a card's query/render/send phase ahead of a background replacement.
+        async with character_queries.background_publish(bind), binding_lock(actor, bot):
             await check_current()
-            async with account_reads.transaction(client, bind, wait=True) as paced:
-                for batch in batches[start:start+5]:
-                    await check_current()
-                    payload = await paced.get_character_details(batch)
-                    details.update(character_queries.detail_entries(payload, batch))
-        async with binding_lock(actor, bot):
-            await check_current()
-            if character_queries._epochs.get(account, 0) != epoch:
+            if character_queries._invalidations.get(account, 0) != invalidation:
                 raise CharacterDataError('绑定或缓存已变化，已丢弃旧更新结果。')
-            snapshot = dict(roster=data['chars'], details=details, profile=data,
-                            profile_checked_at=profile_checked_at, roster_checked_at=profile_checked_at, complete=True)
+            saved = store.read(expected) if store is not None else {}
+            rows = data['chars']
+            latest_stamp, latest_rows = store.latest_roster(expected, saved) if store is not None else (0, [])
+            if latest_stamp > roster_checked_at:
+                character_queries.roster_codes(latest_rows)
+                rows = latest_rows
+                roster_checked_at = latest_stamp
+            by_code = {str(row['name_code']):row for row in rows}
+            saved_rows = {str(row['name_code']):row for row in saved.get('roster', [])}
+            row_checks = {key:roster_checked_at for key in by_code}
+            for key, stamp in saved.get('row_checked_at', {}).items():
+                if _stamp(stamp) > roster_checked_at and key in saved_rows:
+                    by_code[key] = saved_rows[key]
+                    row_checks[key] = stamp
+            for key, entry in saved.get('details', {}).items():
+                if (key in by_code and isinstance(entry, dict) and isinstance(entry.get('detail'), dict)
+                        and isinstance(entry.get('effects'), list)
+                        and _stamp(entry.get('checked_at')) > _stamp(details.get(key, {}).get('checked_at'))):
+                    details[key] = entry
+            details = {key:entry for key,entry in details.items() if key in by_code}
+            rows = list(by_code.values())
+            complete = set(details) == set(by_code)
+            snapshot = dict(roster=rows, details=details, profile=dict(data, chars=rows),
+                            profile_checked_at=profile_checked_at, roster_checked_at=roster_checked_at,
+                            row_checked_at=row_checks, complete=complete, full_refresh_pending=not complete)
             character_queries.publish_snapshot(bind, snapshot)
             get_roster_service().invalidate_binding(bind, actor, bot, clear_image=False)
             profile._cache.pop(profile._cache_key(bind), None)
@@ -263,14 +340,20 @@ async def refresh_worker(bot, ev, policy, *, expected=None, automatic=False):
         bot, ev, policy = notification_target()
         if bot is not None:
             await bot.send(str(exc), at_sender=True)
+        else:
+            logger.warning(f'[AliceUID] background refresh stopped error_type={type(exc).__name__}')
     except NikkeLoginRequired:
         bot, ev, policy = notification_target()
         if bot is not None:
             await bot.send(RELOGIN, at_sender=True)
+        else:
+            logger.warning('[AliceUID] background refresh stopped: login required')
     except NikkeApiError as exc:
         bot, ev, policy = notification_target()
         if bot is not None:
             await bot.send(RELOGIN if is_login_error(exc) else f'更新失败（{exc.code}），已停止请求；未替换原缓存。', at_sender=True)
+        else:
+            logger.warning(f'[AliceUID] background refresh stopped code={exc.code}')
     except Exception as exc:
         bot, ev, policy = notification_target()
         logger.error(f'[AliceUID] account prefetch failed error_type={type(exc).__name__}')
@@ -320,6 +403,19 @@ def schedule_login_prefetch(bind, group_id=None):
     _manual_requests.pop(key, None)
     event = SimpleNamespace(user_id=key[0], bot_id=key[1], group_id=group_id)
     return _track(key, revision, refresh_worker(None, event, get_policy(), expected=revision, automatic=True))
+
+
+def schedule_silent_refresh(bind, ev, policy):
+    """After a successful card send, reuse the owned job without any notification."""
+    key, revision = _owner(bind), _revision(bind)
+    current = _tasks.get(key)
+    if current is not None and not current.done():
+        if _task_revisions.get(key) == revision:
+            return current
+        current.cancel()
+    _manual_requests.pop(key, None)
+    event = SimpleNamespace(user_id=key[0], bot_id=key[1], group_id=getattr(ev, 'group_id', None))
+    return _track(key, revision, refresh_worker(None, event, policy, expected=revision, automatic=True))
 
 
 async def queue_refresh(bot, ev, policy):

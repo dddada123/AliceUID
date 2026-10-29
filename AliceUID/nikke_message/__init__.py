@@ -94,7 +94,8 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None):
         node = MessageSegment.node(content)
         kind = {'AliceUID_HelpForward': 'help', 'AliceUID_RosterForward': 'roster',
                 'AliceUID_UnionForward': 'union', 'AliceUID_LoginForward': 'login',
-                'AliceUID_CDKForward': 'cdk', 'AliceUID_CDKResultForward': 'cdk_result'}.get(config_key, 'other')
+                'AliceUID_CDKForward': 'cdk', 'AliceUID_CDKResultForward': 'cdk_result',
+                'AliceUID_AccountListForward': 'accounts'}.get(config_key, 'other')
         logger.info(f'[AliceUID] 转发发送 kind={kind} nodes={len(content)} '
                     f'images={sum(getattr(item, "type", None) == "image" for item in content)} '
                     f'strategy={"login_original" if kind == "login" else "classic_node"}')

@@ -36,7 +36,9 @@ def style_version(*, dpi=None, theme=None):
     from .theme import get_card_theme_mode
     from .background_sources import get_background_provider
     provider = get_background_provider()
-    backgrounds = [(str(p), file_version(p)) for mode in ('dark', 'light')
+    from .card_background import wide_background_candidates
+    backgrounds = [(str(p), file_version(p)) for p in wide_background_candidates()]
+    backgrounds += [(str(p), file_version(p)) for mode in ('dark', 'light')
                    for p in provider.candidates(mode)]
     if dpi is None:
         try:

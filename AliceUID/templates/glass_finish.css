@@ -10,3 +10,5 @@
 .commander-banner strong{color:{{ theme.ink }}}
 
 .brand-credit{display:block;text-align:center;margin:10px 0 4px;font-size:10px;line-height:14px;color:{{ theme.muted }};font-weight:500;letter-spacing:.15px}
+
+.brand-credit,.credit{text-shadow:none}
