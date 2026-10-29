@@ -41,6 +41,10 @@ def _cache_ttl() -> int:
 
 async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
     client = None
+    name = ''
+    def refresh_hint():
+        return (f'请稍后使用 {command_prefix()}刷新{name}面板 重试，'
+                f'或使用 {command_prefix()}刷新面板 同步社区数据。')
     try:
         name = _arguments(text)
         if not refresh and name == '全量导出':
@@ -72,10 +76,14 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
             return
         resources = get_resources()
         equipment_items, skill_icons = await resources.ensure_character_tables()
+        async def ownership_notice(role_name):
+            if await current():
+                await bot.send(f'本地记录未持有「{role_name}」，正在向社区核实，请稍候。', at_sender=True)
         context = await character_queries.query(
             client, bind, name, resources.load_static(), refresh=refresh, ttl=_cache_ttl(),
             equipment_items=equipment_items, skill_icons=skill_icons,
             current_check=current, publish_lock=binding_lock(ev.user_id, ev.bot_id),
+            ownership_notice=ownership_notice,
         )
         # Draw and resource preparation are owned by the integration layer.
         from .draw import draw_character
@@ -95,7 +103,10 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
                 else:
                     await bot.send(MessageSegment.image(png), at_sender=True)
     except (CharacterLookupError, CharacterCooldown, CharacterNotOwned, CharacterDataError) as exc:
-        await bot.send(str(exc), at_sender=True)
+        text = str(exc)
+        if not isinstance(exc, (CharacterLookupError, CharacterNotOwned)):
+            text += '\n' + refresh_hint()
+        await bot.send(text, at_sender=True)
     except NikkeLoginRequired:
         await bot.send(RELOGIN, at_sender=True)
     except NikkeApiError as exc:
@@ -103,14 +114,14 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
         if is_login_error(exc):
             await bot.send(RELOGIN, at_sender=True)
         elif exc.code == 403:
-            await bot.send('社区拒绝访问（403），请稍后重试或检查账号资料权限。', at_sender=True)
+            await bot.send('社区拒绝访问（403），请稍后重试或检查账号资料权限。' + refresh_hint(), at_sender=True)
         elif exc.code == 429:
-            await bot.send('社区请求较频繁，请稍后再查询练度。', at_sender=True)
+            await bot.send('社区请求较频繁，请稍后再查询练度。' + refresh_hint(), at_sender=True)
         else:
-            await bot.send(f'练度查询失败，请稍后重试（{exc.code}）。', at_sender=True)
+            await bot.send(f'练度查询失败，暂时无法完成社区核实或详情查询（{exc.code}）。' + refresh_hint(), at_sender=True)
     except Exception as exc:
         logger.error(f'[AliceUID] 角色练度异常 error_type={type(exc).__name__}')
-        await bot.send('练度查询失败，请稍后重试并请管理员检查日志。', at_sender=True)
+        await bot.send('练度查询失败，暂时无法完成社区核实或详情查询，请稍后重试并请管理员检查日志。' + refresh_hint(), at_sender=True)
     finally:
         if client is not None:
             try:

@@ -9,12 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.0-ff69b4?style=flat-square" alt="Version: 1.1.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.01-ff69b4?style=flat-square" alt="Version: 1.1.01"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
-适用于 GsCore 的《胜利女神：NIKKE》插件，提供 CDK 查询、成员成功验证补码与本人兑换、会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.1.0**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
+适用于 GsCore 的《胜利女神：NIKKE》插件，提供 CDK 查询、成员成功验证补码与本人兑换、会战血量与联盟出刀查询、资源与满仓时间预估、社区签到，以及 **DILDORO** 个人突袭编队推荐，同时支持本人账号绑定、个人资料、角色练度与皮肤图鉴查询。当前版本 **1.1.01**，默认使用 `nk` 前缀，前缀由Core插件管理统一配置。
+
+普通角色面板查询若本地记录未持有，会自动向本人社区核实一次；已持有则直接查询面板，确实未持有才返回未持有。若刚获得角色但社区尚未同步，请稍后使用 `nk刷新角色名面板` 或 `nk刷新面板`。社区请求失败会提示重试或重新登录。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 

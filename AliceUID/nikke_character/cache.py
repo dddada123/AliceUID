@@ -35,6 +35,23 @@ class PanelCache:
             return data
         except (OSError,ValueError): return {}
 
+    def latest_roster(self, key, snapshot=None):
+        """Compare ownership timestamps without refreshing unrelated profile fields."""
+        from ..nikke_resource.cache import read_metadata
+        snapshot = self.read(key) if snapshot is None else snapshot
+        light = read_metadata(self.path(key, 'profile.json'))
+        light_profile = light.get('profile')
+        light_rows = light_profile.get('chars') if isinstance(light_profile, dict) else None
+        candidates = [(snapshot.get('roster_checked_at', snapshot.get('profile_checked_at', snapshot.get('saved_at', 0))),
+                       snapshot.get('roster')),
+                      (light.get('checked_at', 0), light_rows)]
+        import math
+        for stamp, rows in sorted(((stamp, rows) for stamp, rows in candidates
+                                   if type(stamp) in (int, float) and math.isfinite(stamp)), reverse=True, key=lambda row:row[0]):
+            if isinstance(rows, list):
+                return stamp, rows
+        return 0, []
+
     def write(self,key,data):
         from ..nikke_resource.cache import atomic_write
         body=dict(data,schema=1,saved_at=time.time())

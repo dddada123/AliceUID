@@ -53,6 +53,10 @@ def cached_profile(bind):
             if isinstance(profile.get('chars'), list):
                 try:
                     character_queries.roster_codes(profile['chars'])
+                    roster_stamp, rows = store.latest_roster(_revision(bind), saved) if store is not None else (0, [])
+                    if roster_stamp > stamp:
+                        character_queries.roster_codes(rows)
+                        profile = dict(profile, chars=rows)
                     return dict(profile, _checked_at=stamp)
                 except ValueError:
                     pass
@@ -100,6 +104,8 @@ async def ensure_profile(client, bind, *, refresh=False):
         try:
             async with account_reads.transaction(client, bind, wait=not refresh) as paced:
                 data = await _fetch(paced)
+                import time
+                checked_at = time.time()
         except Exception as exc:
             _profile_failed(expected, exc)
             raise
@@ -110,7 +116,7 @@ async def ensure_profile(client, bind, *, refresh=False):
             if str(data['basic'].get('area_id', bind.area_id)) != str(bind.area_id):
                 raise ValueError('资料区服与绑定区服不一致。')
             character_queries.roster_codes(data['chars'])
-            _save_profile(bind, data)
+            _save_profile(bind, data, checked_at=checked_at)
         return cached_profile(bind) or data
 
 
@@ -203,7 +209,7 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
             if character_queries._epochs.get(account, 0) != epoch:
                 raise CharacterDataError('绑定或缓存已变化，已丢弃旧更新结果。')
             snapshot = dict(roster=data['chars'], details=details, profile=data,
-                            profile_checked_at=profile_checked_at, complete=True)
+                            profile_checked_at=profile_checked_at, roster_checked_at=profile_checked_at, complete=True)
             character_queries.publish_snapshot(bind, snapshot)
             get_roster_service().invalidate_binding(bind, actor, bot, clear_image=False)
             profile._cache.pop(profile._cache_key(bind), None)

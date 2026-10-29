@@ -36,6 +36,7 @@ class CharacterQueryService:
         self.persistent=persistent or data_cache is not None
         self.data_cache=data_cache
         self._epochs={}
+        self._ownership_checks = {}
 
     def store(self):
         if not self.persistent: return None
@@ -61,6 +62,7 @@ class CharacterQueryService:
             store.invalidate(panel_identity(bind))
         key = self._revision(bind)
         self._rosters.pop(key, None)
+        self._ownership_checks.pop(key, None)
         for entry in [entry for entry in self._details if entry[:-1] == key]:
             self._details.pop(entry, None)
 
@@ -112,7 +114,7 @@ class CharacterQueryService:
             self._details[revision+(int(code),)] = (self.clock(), saved['detail'], saved['effects'])
 
     async def query(self, client, bind, name: str, static: StaticData, *, refresh: bool = False, ttl: int = 600,
-                    equipment_items=None, skill_icons=None, current_check=None, publish_lock=None) -> dict:
+                    equipment_items=None, skill_icons=None, current_check=None, publish_lock=None, ownership_notice=None) -> dict:
         from .aliases import current_aliases
         code = resolve_character(name, static, aliases=current_aliases())
         account, revision = self._account(bind), self._revision(bind)
@@ -122,9 +124,9 @@ class CharacterQueryService:
             store=self.store()
             identity=panel_identity(bind)
             snapshot=store.read(identity) if store is not None else {}
-            if snapshot:
-                self._rosters[revision]=(self.clock(),snapshot['roster'])
-                for saved_code,saved in snapshot['details'].items():
+            if store is not None and (snapshot or store.latest_roster(identity, snapshot)[0]):
+                self._rosters[revision]=(self.clock(),store.latest_roster(identity, snapshot)[1])
+                for saved_code,saved in snapshot.get('details', {}).items():
                     if str(saved_code).isascii() and str(saved_code).isdigit() and isinstance(saved,dict):
                         if isinstance(saved.get('detail'),dict) and isinstance(saved.get('effects'),list):
                             self._details[revision+(int(saved_code),)]=(self.clock(),saved['detail'],saved['effects'])
@@ -148,24 +150,78 @@ class CharacterQueryService:
                 return entry is not None and (store is not None or 0 <= self.clock() - entry[0] < max(0, ttl))
             try:
                 roster_entry = self._rosters.get(revision)
-                if refresh or not fresh(roster_entry):
+                roster = roster_entry[1] if fresh(roster_entry) else None
+                recovered = False
+                roster_fetched = False
+                community_roster = None
+                community_checked_at = None
+
+                async def fetch_roster():
+                    nonlocal community_roster, community_checked_at
                     await reserve()
-                    roster = await network_client.get_characters()
-                    if not isinstance(roster, list) or not all(isinstance(row, dict) and integer(row.get('name_code')) not in (None, 0) for row in roster):
-                        raise CharacterDataError('角色列表响应格式发生变化，请稍后重试并联系管理员。')
-                    if refresh and snapshot:
-                        current = next((row for row in roster if integer(row.get('name_code')) == code), None)
-                        if current is not None:
-                            roster = [row for row in snapshot['roster'] if integer(row.get('name_code')) != code] + [current]
-                    self._rosters[revision] = (self.clock(), roster)
-                else:
-                    roster = roster_entry[1]
-                owned_rows = [row for row in roster if integer(row.get('name_code')) == code]
-                if len(owned_rows) > 1:
-                    raise CharacterDataError('角色列表存在重复记录，无法确认唯一角色，请稍后重试。')
-                owned = owned_rows[0] if owned_rows else None
+                    rows = await network_client.get_characters()
+                    community_checked_at = time.time()
+                    self.roster_codes(rows)
+                    community_roster = rows
+                    return rows
+
+                if refresh or roster is None:
+                    roster = await fetch_roster()
+                    roster_fetched = True
+                    if refresh and snapshot and any(integer(row.get('name_code')) == code for row in roster):
+                        current = next(row for row in roster if integer(row.get('name_code')) == code)
+                        roster = [row for row in snapshot['roster'] if integer(row.get('name_code')) != code] + [current]
+                self.roster_codes(roster)
+                owned = next((row for row in roster if integer(row.get('name_code')) == code), None)
+                if owned is None and not roster_fetched:
+                    checked = self._ownership_checks.get(revision)
+                    recently_checked = (checked is not None and 0 <= self.clock()-checked[0] < self.cooldown
+                                        and checked[1] == roster)
+                    if not recently_checked:
+                        if ownership_notice is not None:
+                            await ownership_notice(static.name(code))
+                        roster = await fetch_roster()
+                        roster_fetched = True
+                        owned = next((row for row in roster if integer(row.get('name_code')) == code), None)
+                        recovered = owned is not None
+                if roster_fetched:
+                    # Commit ownership even if detail fetch fails or the role is absent.
+                    # Release the binding lock before making another network request.
+                    async with AsyncExitStack() as commit_stack:
+                        if publish_lock is not None:
+                            await commit_stack.enter_async_context(publish_lock)
+                        if current_check is not None and not await current_check():
+                            raise CharacterDataError('绑定或权限已变化，已停止保存和展示旧账号数据。')
+                        if self._epochs.get(account, 0) != epoch:
+                            raise CharacterDataError('面板已刷新，请重新查询；未保存旧结果。')
+                        if store is not None:
+                            saved = store.read(identity)
+                            codes = {str(c) for c in self.roster_codes(roster)}
+                            details = {k:v for k,v in saved.get('details', {}).items() if k in codes}
+                            if recovered or owned is None:
+                                details.pop(str(code), None)
+                            updated = dict(saved, roster=roster, details=details, roster_checked_at=community_checked_at)
+                            updated['complete'] = bool(saved.get('complete') and set(details) == codes)
+                            if isinstance(updated.get('profile'), dict):
+                                updated['profile'] = dict(updated['profile'], chars=roster)
+                            store.write(identity, updated)
+                        if roster_entry is not None and roster_entry[1] != roster:
+                            self._epochs[account] = self._epochs.get(account, 0) + 1
+                            epoch = self._epochs[account]
+                        self._rosters[revision] = (self.clock(), roster)
+                        self._ownership_checks[revision] = (self.clock(), community_roster)
+                        owned_codes = set(self.roster_codes(roster))
+                        for detail_key in list(self._details):
+                            if detail_key[:-1] == revision and (detail_key[-1] not in owned_codes
+                                                               or (recovered and detail_key[-1] == code)):
+                                self._details.pop(detail_key, None)
                 if owned is None:
-                    raise CharacterNotOwned(f'当前绑定账号未持有「{static.name(code)}」，不会请求该角色详情。')
+                    from ..nikke_commands import command_prefix
+                    prefix = command_prefix()
+                    raise CharacterNotOwned(
+                        f'当前社区数据中，绑定账号未持有「{static.name(code)}」。'
+                        f'若刚获得该角色，社区数据可能尚未同步，请稍后使用 {prefix}刷新{static.name(code)}面板，'
+                        f'或使用 {prefix}刷新面板 同步社区数据。')
                 key = revision + (code,)
                 detail_entry = self._details.get(key)
                 if refresh or not fresh(detail_entry):
@@ -204,6 +260,7 @@ class CharacterQueryService:
                     saved_details[str(code)]={'detail':detail,'effects':effects,
                                               'checked_at':time.time() if detail_fetched else old_checked}
                     updated = dict(saved, roster=roster, details=saved_details)
+                    updated['complete'] = bool(saved.get('complete') and set(saved_details) == {str(c) for c in self.roster_codes(roster)})
                     if isinstance(updated.get('profile'), dict):
                         updated['profile'] = dict(updated['profile'], chars=roster)
                     store.write(identity, updated)
