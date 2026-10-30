@@ -75,7 +75,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}兑换码', 'description': '列出当前码；已绑定用户自动兑换本人未领取项，需Bot主开启CDK兑换'},
             {'command': f'{command_prefix()}兑换码ABCDEFG', 'description': '将ABCDEFG换成单个兑换码；只操作本人，成功附可用的第三方报酬说明'},
             {'command': f'{command_prefix()}兑换官方兑换码 / {command_prefix()}第三方兑换码', 'description': '仅兑换对应来源的当前码；第三方历史区不参与'},
-            {'command': f'{command_prefix()}增加兑换码ABCDEFG', 'description': '成员可用：本人成功后入库，48小时内成功记录可补录'},
+            {'command': f'{command_prefix()}增加兑换码ABCDEFG', 'description': '成员可用：成功/官方明确已领取入库，48小时内可补录'},
         ]}
     ]
     if permission == 0:

@@ -7,7 +7,7 @@ import sqlite3
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
-from .models import PRODUCT, RECENT_SUCCESS, retirement_at, clean, code_text, code_key
+from .models import PRODUCT, RECENT_SUCCESS, retirement_at, clean, code_text, code_key, DIRECT_CLAIMED_RESULT
 
 
 class Store:
@@ -224,7 +224,7 @@ class Store:
             return self._admit(db, account, product, code, now, now)
 
     @staticmethod
-    def _admit(db, account, product, code, now, verified):
+    def _admit(db, account, product, code, now, verified, reason="官方明确成功记录"):
         if db.execute('SELECT 1 FROM blocks WHERE product=? AND code=? COLLATE NOCASE', (product, code)).fetchone():
             return 'blocked'
         detail = Store._details(db, product).get(code_key(code), {})
@@ -240,16 +240,33 @@ class Store:
             return 'existing'
         Store._remember_inventory(db, product, code)
         db.execute('INSERT INTO member_codes VALUES(?,?,?,?,?,?,?)',
-                   (product, code, 'active', account, verified, verified, '官方明确成功记录'))
+                   (product, code, 'active', account, verified, verified, reason))
         return 'added'
 
-    def contribute_recent(self, account, product, code, now):
-        """Reuse only this bound account's actual success; never renew its timestamp."""
+    def complete_claimed(self, account, product, code, now, *, contribute=False):
+        """Journal direct official 1302016 and optional member admission atomically."""
         with self.tx() as db:
             receipt = self._receipt(db, account, code)
-            if not receipt or receipt['state'] != 'success' or not 0 <= now - receipt['updated'] <= RECENT_SUCCESS:
+            if not receipt or receipt['state'] != 'submitting':
+                raise RuntimeError('official claimed response has no matching journal entry')
+            db.execute('UPDATE receipts SET state=?,result=?,updated=? WHERE account=? AND code=? COLLATE NOCASE',
+                       ('claimed', DIRECT_CLAIMED_RESULT, now, account, code))
+            if contribute:
+                return self._admit(db, account, product, code, now, now, '官方明确本人已领取；供其他账号尝试')
+            return None
+
+    def contribute_recent(self, account, product, code, now):
+        """Reuse owned success or direct 1302016 within 48h; never renew its timestamp."""
+        with self.tx() as db:
+            receipt = self._receipt(db, account, code)
+            if not receipt or not 0 <= now - receipt['updated'] <= RECENT_SUCCESS:
                 return None
-            return self._admit(db, account, product, code, now, receipt['updated'])
+            if receipt['state'] == 'success':
+                return self._admit(db, account, product, code, now, receipt['updated'])
+            if receipt['state'] == 'claimed' and receipt['result'] == DIRECT_CLAIMED_RESULT:
+                return self._admit(db, account, product, code, now, receipt['updated'],
+                                   '官方明确本人已领取；供其他账号尝试')
+            return None
 
     def receipt(self, account, code):
         with self.tx() as db:

@@ -49,7 +49,9 @@ def result_text(results):
     for row in results:
         label = {'success': '兑换成功✅', 'claimed': '已领取✅'}.get(row['status'], row['result'])
         lines.append((row['code'] + '：' if row.get('code') else '') + label)
-        if row.get('pool_status') in ('added', 'existing'):
+        if row.get('pool_status') == 'added' and row.get('pool_basis') == 'claimed':
+            lines.append('共享缓存：官方已确认本人领取，已加入供其他绑定角色尝试')
+        elif row.get('pool_status') in ('added', 'existing'):
             lines.append('共享缓存：已验证并加入，同码自动合并' if row['pool_status'] == 'added' else '共享缓存：同码已收录，保留原记录')
         elif row.get('pool_status') == 'blocked':
             lines.append('共享缓存：已存在停用标记，未重新入池')
@@ -180,7 +182,7 @@ class Commands:
             await self.send(bot, ev, '此命令无需附加参数')
             return
         if mode == 'add' and not argument:
-            await self.send(bot, ev, f'用法：{self.prefix()}增加兑换码ABCDEFG；本人兑换成功后入库，也可复用48小时内成功记录')
+            await self.send(bot, ev, f'用法：{self.prefix()}增加兑换码ABCDEFG；本人成功或官方明确已领取后入库，也可复用48小时内明确记录')
             return
         if mode in ('redeem', 'add') and argument:
             try:
@@ -242,7 +244,7 @@ class Commands:
             if not items:
                 await self.send(bot, ev, '当前来源暂无待兑换的有效码', bind)
                 return
-            notice = (f'将核验 {items[0]["code"]}；本人本次或48小时内明确兑换成功后加入共享缓存'
+            notice = (f'将核验 {items[0]["code"]}；本人本次或48小时内成功/官方明确已领取后加入共享缓存'
                       if mode == 'add' else f'将为当前绑定角色尝试处理{len(items)}个码，已领取或已知过期项自动跳过')
             if not await self.send(bot, ev, notice, bind):
                 return
@@ -260,7 +262,7 @@ class Commands:
             results = await self.redemptions.run(client, bind, items,
                 current=lambda: self.current(ev, bind), enabled=self.enabled, contribute=contribute)
             if contribute and not any(r.get('pool_status') in ('added', 'existing', 'blocked') for r in results):
-                results.append(dict(code='', status='info', result='无本次或48小时内明确成功记录，未新增共享码；已有缓存记录保留'))
+                results.append(dict(code='', status='info', result='无本次或48小时内成功/官方明确已领取记录，未新增共享码；已有缓存记录保留'))
             if detailed_result(results) and self.result_forward_enabled():
                 await self.send_detail(bot, ev, result_text(results), '兑换结果详情', bind,
                                        config_key='AliceUID_CDKResultForward')

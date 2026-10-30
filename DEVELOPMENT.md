@@ -156,7 +156,7 @@ Store启动从旧来源和成员记录回填库存，以已有成员写法映射
 
 ### 1.0.23 近期成功补录与库存生命周期
 
-contribute_recent在单个SQLite事务读取当前identity(account/game/area/UID)的success回执，要求0<=now-updated<=48h，再按全局停用和期限原子入库。旧版success回执兼容；claimed、历史核验和uncertain不作为成功证明。补录不提交官方兑换、不改回执时间；重复补录不延长48小时。member_codes验证时间保留原成功时刻，入库失败不会丢失原成功证据。原绑定、权限、有效凭据和CDK写开关继续适用。
+contribute_recent在单个SQLite事务读取当前identity(account/game/area/UID)的success或直接官方1302016回执，要求0<=now-updated<=48h，再按全局停用和期限原子入库。直接1302016使用固定DIRECT_CLAIMED_RESULT标记，兼容旧版相同回包记录；普通claimed、历史核验和uncertain不入库。complete_claimed将直接1302016回执与主动贡献入库原子提交；普通兑换仍不自动共享。已领取状态保持claimed，不冒充兑换成功。补录不提交官方兑换、不改回执时间；重复补录不延长48小时。member_codes验证时间保留原成功时刻，入库失败不会丢失原成功证据。原绑定、权限、有效凭据和CDK写开关继续适用。
 
 新增code_details保存GameWith的报酬、可靠截止/开始时间和更新时间；启动时从旧sources回填。刷新更新非空报酬和可靠日期，空列表、空报酬或来源TTL不清除此证据。报酬覆盖对应库存条目的展示，但不会把历史来源标记为当前推荐。原始expires_at保持来源语义，retirement_at=expires_at+86400；查询、速查、各来源合并、成员池与提交前均按该时刻过滤。期限失效只退出可用库存，保留账本审计；明确官方停用优先，后续公共刷新和近期成功补录不能恢复停用码。
 

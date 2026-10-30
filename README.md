@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.10-ff69b4?style=flat-square" alt="Version: 1.1.10"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.11-ff69b4?style=flat-square" alt="Version: 1.1.11"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.10**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.11**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -28,14 +28,14 @@
 
 ### 兑换码便捷查询与兑换
 
-汇总官方、GameWith 和成员补充码。成员贡献即时共享，GameWith 后续补全报酬详情，期限优先采用官网；同码忽略大小写合并，现有码名与排列保持稳定。本人通过插件明确兑换成功后，**48小时内可补入共享库存**，无需再次兑换；已领取提示和超时后的历史确认不算成功凭证。
+汇总官方、GameWith 和成员补充码。成员贡献即时共享，GameWith 后续补全报酬详情，期限优先采用官网；同码忽略大小写合并，现有码名与排列保持稳定。本人通过插件明确兑换成功，或官方兑换接口明确返回“本账号已领取”，均可在主动增加时共享；**48小时内的这两类本地记录可直接补录**，无需重复兑换。已领取只表示贡献者已领，不保证其他账号当前可领；超时后的历史确认不作为入库凭证。
 
 | 指令 | 用途 |
 |---|---|
 | `nk查询兑换码` | 只读查看当前码与报酬，无需绑定 |
 | `nk兑换码速查` | 每行一码，直接发送 |
 | `nk兑换码` / `nk兑换码ABCDE` | 尝试本人未领码，或兑换指定码 |
-| `nk增加兑换码ABCDE` | 本次成功入库；已有本人48小时内成功记录则直接补录 |
+| `nk增加兑换码ABCDE` | 本次成功或官方明确已领取后入库；本人48小时内明确记录可补录 |
 | `nk兑换官方兑换码` / `nk第三方兑换码` | 尝试对应来源的当前码 |
 | `nk刷新兑换码` | Bot主更新公开来源，不兑换 |
 

@@ -13,6 +13,8 @@ SOURCE_URL = 'https://gamewith.jp/nikke/article/show/371014'
 PARSER_VERSION = 3
 EXPIRY_GRACE = 5 * 60
 RECENT_SUCCESS = 48 * 3600
+# Exact durable marker emitted only for a direct, unambiguous official response.
+DIRECT_CLAIMED_RESULT = "本账号已领取（1302016）"
 
 
 def code_text(value):

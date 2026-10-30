@@ -95,7 +95,8 @@ class Redemptions:
                     if contribute:
                         pool_status = self.store.contribute_recent(account, PRODUCT, code, self.clock())
                         if pool_status is not None:
-                            row.update(pool_status=pool_status, result='本人48小时内兑换成功记录已验证，本次未重复提交')
+                            row.update(pool_status=pool_status, result='本人48小时内官方明确记录已核验，本次未重复提交',
+                                       pool_basis='claimed' if receipt['state'] == 'claimed' else 'success')
                     results.append(row)
                     continue
                 if receipt and receipt['state'] in ('submitting', 'uncertain'):
@@ -140,10 +141,17 @@ class Redemptions:
                         self.store.block(PRODUCT, code, 'expired' if expired else 'out_of_window', result, self.clock())
                     elif exc.code in (1302003, 1302015):
                         self.store.block(PRODUCT, code, 'invalid', result, self.clock())
-                    self.store.record(account, code, status, result, self.clock())
+                    pool_status = None
+                    if status == 'claimed':
+                        pool_status = self.store.complete_claimed(account, PRODUCT, code, self.clock(), contribute=contribute)
+                    else:
+                        self.store.record(account, code, status, result, self.clock())
                     if uncertain and await self.confirm(client, account, code):
                         status, result = 'claimed', '官方记录确认本账号已领取'
-                    results.append(dict(code=code, status=status, result=result))
+                    row = dict(code=code, status=status, result=result)
+                    if pool_status is not None:
+                        row.update(pool_status=pool_status, pool_basis='claimed')
+                    results.append(row)
                     if exc.code in STOP or uncertain:
                         break
                 except Exception:
