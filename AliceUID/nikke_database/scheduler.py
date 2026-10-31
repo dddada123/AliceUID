@@ -25,4 +25,14 @@ def register_scheduler(runner, scheduler=None):
 
 
 def setup(config_getter=None, scheduler=None):
-    return register_scheduler(DatabaseScheduler(get_database(config_getter)), scheduler)
+    service = get_database(config_getter)
+    weekly = register_scheduler(DatabaseScheduler(service), scheduler)
+    if scheduler is None:
+        from gsuid_core.aps import scheduler
+    from datetime import datetime, timezone
+    from .calendar_update import CalendarUpdates
+    runner = CalendarUpdates(service)
+    scheduler.add_job(runner.tick, 'interval', seconds=60, next_run_time=datetime.now(timezone.utc),
+                      id='aliceuid-database-calendar', name='AliceUID日历数据库静默检查',
+                      replace_existing=True, max_instances=1, coalesce=True)
+    return weekly

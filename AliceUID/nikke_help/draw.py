@@ -81,9 +81,9 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
     if permission == 0:
         sections.extend([
             {'title': '数据库与全局管理', 'tag': '仅 Bot 主', 'description': '公开数据库、账号与用户权限，以及全局外观维护。', 'items': [
-                {'command': f'{command_prefix()}数据库更新', 'description': '后台补公开基础及皮肤头像 / 半身像 / 立绘'},
+                {'command': f'{command_prefix()}数据库更新', 'description': '先角色资料后图库；招募日历静默更新，保留周检'},
                 {'command': f'{command_prefix()}刷新兑换码', 'description': '手动维护官方+GameWith共享缓存；不兑换。00/08/16点静默更新，按需缓存4小时'},
-                {'command': f'{command_prefix()}数据库更新 状态 / 帮助', 'description': '查看队列/预算/失败；未完成不报全成功'},
+                {'command': f'{command_prefix()}数据库更新 状态 / 帮助', 'description': '查看日历排期、小时补查及24小时结果、图库队列'},
                 {'command': '后台：每日签到时间', 'description': '北京时间HH:MM，默认08:33；保存后更新调度，手动签到仍可立即执行'},
                 {'command': f'{command_prefix()}更新资源', 'description': '兼容旧命令，同样进入增量数据库任务'},
                 {'command': f'{command_prefix()}用户黑名单 / {command_prefix()}用户白名单', 'description': '添加 / 移除 QQ号；黑用户禁全部Nikke指令与登录'},

@@ -222,6 +222,9 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
     "DatabaseWeeklyUpdate": GsBoolConfig(
         "每周自动更新公开数据库", "每周五北京时间02:33增量检查公开角色资料与基础图库；不使用用户Token，关闭后仍可手动更新", True,
     ),
+    "DatabaseCalendarUpdate": GsBoolConfig(
+        "按招募日历静默更新数据库", "依官网招募起止时间静默更新，先角色列表/映射后图库；每小时补查，24小时仍未取得新角色结束本轮，资料就绪后一小时稳定复查。无需绑定，不发群消息，与周检/手动更新共用任务锁。", True,
+    ),
     "DatabaseIncludeSkins": GsBoolConfig(
         "数据库包含公开皮肤变体", "默认纳入公开清单皮肤的SI/MI/full，关闭则只补基础图；资源清单不证明账号拥有，展示按本人接口报告", True,
     ),

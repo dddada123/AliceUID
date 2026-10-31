@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.13-ff69b4?style=flat-square" alt="Version: 1.1.13"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.14-ff69b4?style=flat-square" alt="Version: 1.1.14"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.13**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.14**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -258,6 +258,12 @@ NapCat转发的「转发回执等待秒数」默认 **30秒**，可设 **5～300
 从1.0.11及更早版本升级时，首次启动会将已启用的旧插件前缀迁移到Core；若Core已有自定义配置，以Core为准并记录提示。迁移只执行一次，原值保存在 `data/AliceUID/prefix_migration_v112.json`，旧的三项插件前缀设置退出WebUI。本文命令采用默认 `nk`，独占自定义时替换为实际前缀。
 
 Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库更新 帮助`；公共资料库默认每周五北京时间02:33增量检查，已有合格素材复用。维护只取公开资料，不使用玩家 Cookie。第一次补齐图库较慢，任务会保存队列并报告剩余项。
+
+**招募日历自动更新默认开启**，不需要先发送`nk日历`。插件读取官网默认“隊員招募”的角色编码和起止时间，在新招募开始或旧招募结束后静默检查数据库。社区尚未补齐时每隔一小时再查；本轮等待窗口为24小时，仍未获取到新角色或目标资料未齐就结束等待，重新按日历规划，不无限请求。
+
+角色资料和映射就绪后，隔一小时复查；没有新变化就结束本轮，有补充资料则继续隔一小时观察。临近等待截止才到达的新资料仍会保留这次一小时复查。复刻池不强求新增角色，日历中的送角活动也会核对；同一计划跨重启去重。平时仅每6小时轻量核对日历，后台计时器不等于每分钟访问社区。
+
+更新**先完成角色列表、角色ID/技能图标等结构化表并保存，再逐步补图库**。结构化表失败时保留旧数据、暂缓图库；图像下载失败不冒充“没有新角色”。自动任务只写日志和状态、不发群消息，与手动更新及周检共用任务锁和失败冷却。用`nk数据库更新 状态`查看排期、等待/复查和上轮结果；后台“按招募日历静默更新数据库”可独立关闭，手动更新及周检保留。
 
 角色别名可用 `nk红莲暗影新增别名黑莲` 或 `nk红莲暗影注册别名黑莲`。群查询状态可由群管理员查看；群/用户白名单、黑名单和全局别名由Bot主维护。四名单为空时默认允许，白名单非空先限定范围，再排除黑名单。
 

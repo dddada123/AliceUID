@@ -6,7 +6,9 @@ from .service import get_database
 
 HELP = (f'命令：{command_prefix()}数据库更新（仅 Bot 主）\n'
         '后台增量检查公开角色资料、装备/技能等已配置静态表及图库，无需账号、Token 或 Cookie。\n'
-        '默认每周五北京时间 02:33 自动运行。NIKKE 通常约 21 天更新一次，周检用于发现变化。\n'
+        '默认每周五北京时间 02:33 自动周检补漏，招募更新另按官网日历安排，不使用固定游戏更新周期。\n'
+        '默认另按官网招募日历静默更新：先角色清单与映射，再补图库；每小时补查，连续24小时无新角色结束等待。\n'
+        '新资料就绪后一小时再次检查，稳定后规划下一轮；可在后台关闭“按招募日历静默更新数据库”。\n'
         '已有有效图片不按 TTL 重下；默认补公开清单的基础及皮肤头像（SI）、半身像（MI）和完整立绘。\n'
         'DatabaseIncludeSkins=False可只补基础图；公共资源清单不代表账号已拥有，展示仍依据本人接口报告。\n'
         '首装无需打包大图库；默认每批 40 项、128 MiB 下载、图库预算 2048 MiB；后台连续续传最多 30 分钟，'
@@ -46,12 +48,14 @@ class DatabaseCommands:
             await bot.send(HELP, at_sender=True)
             return
         if text in {'状态', 'status'}:
+            from .calendar_update import CalendarUpdates
+            calendar_status = '\n日历计划：' + CalendarUpdates(self.service).status()
             if self.service.running():
                 pending = len(self.service.state()['queue'])
-                await bot.send(f'数据库更新正在后台运行；当前持久队列待处理 {pending} 项（静态表检查阶段尚未生成新队列）；进度与最终摘要会写入日志。', at_sender=True)
+                await bot.send(f'数据库更新正在后台运行；当前持久队列待处理 {pending} 项（静态表检查阶段尚未生成新队列）；进度与最终摘要会写入日志。' + calendar_status, at_sender=True)
             else:
                 report = self.service.state().get('last_report')
-                await bot.send(summary(report) if report else '尚无数据库维护记录。' + '\n' + HELP, at_sender=True)
+                await bot.send((summary(report) if report else '尚无数据库维护记录。' + '\n' + HELP) + calendar_status, at_sender=True)
             return
         if text:
             await bot.send(HELP, at_sender=True)

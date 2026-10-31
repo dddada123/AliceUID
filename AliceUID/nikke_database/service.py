@@ -21,6 +21,7 @@ from ..nikke_resource.badges import FIXED_BADGE_URLS, local_badge
 log = logging.getLogger(__name__)
 DEFAULTS = {
     'DatabaseWeeklyUpdate': True,
+    'DatabaseCalendarUpdate': True,
     'DatabaseIncludeSkins': True,
     'DatabaseMaxTasks': 40,
     'DatabaseMaxDownloadMB': 128,
@@ -339,8 +340,15 @@ class DatabaseService:
                 try:
                     if reason != 'resume':
                         report['tables'] = await resources.update_tables(force=True)
+                        state['structured_checked_at'] = self.clock()
+                        state['structured_tables'] = report['tables']
+                        self.save(state)
+                        if any(value in {'fallback', 'cooldown'} for value in report['tables'].values()):
+                            await emit('structured_incomplete', public)
+                            raise BatchStopped('结构化资料尚未核验完整，本轮暂缓图库，旧表与队列保留')
                         report['changes'] = self._plan(state, resources)
                         self.save(state)
+                        await emit('structured_ready', public)
                     report['skipped'] = max(0,len(state['assets'])-len(state['queue']))
                     await emit('base_icons',public)
                     max_tasks = int(self.number('DatabaseMaxTasks', 1))

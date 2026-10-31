@@ -672,6 +672,7 @@ CookieCipher使用独立secret.key进行加密。备份运行环境时保留密�
 | `AliceUID_CommunityAccountRange` | GsStrConfig | `10-120` | 换账号随机等待范围，重启生效 |
 | `AliceUID_CommunityDailyRequests` | GsIntConfig | `30` | 社区每日请求上限 |
 | `DatabaseWeeklyUpdate` | GsBoolConfig | `true` | 每周自动更新公开数据库 |
+| `DatabaseCalendarUpdate` | GsBoolConfig | `true` | 按招募日历静默更新公开数据库 |
 | `DatabaseIncludeSkins` | GsBoolConfig | `true` | 数据库包含公开皮肤变体 |
 | `DatabaseMaxTasks` | GsIntConfig | `40` | 数据库每批图片任务上限 |
 | `DatabaseMaxDownloadMB` | GsIntConfig | `128` | 数据库每批下载预算MiB |
@@ -971,3 +972,16 @@ nk出刀与nk查刀在同一个on_command四项元组注册到nikke_union_cmd(bo
 根因：Core SV._on返回wrapper(bot,msg)，旧nikke_union_lookup向这个wrapper传detail_alias=True，触发TypeError；旧边界测试把装饰器模拟为原函数，漏掉了这一差异。本版边界测试执行冻结Core真实_on与Trigger，复现旧失败并验证出刀/查刀、详情、刷新、权限和单次路由。
 
 帮助第1行并列出刀/查刀，第3行仅列出刀详情[排名]，更新帮助缓存版本以替换旧帮助图。滑刀统计仅保留开发笔记，未增加命令、WebUI配置或统计模块。
+
+
+## 1.1.14 日历驱动数据库更新
+
+calendar_update.py匿名POST固定GetCalendarDetail（请求体{}），仅解析data.character_gacha.items的start_time/end_time/characters.name_code/resource_id。无Cookie/Token，不调用订阅写接口；不运行时下载JS。日历截图路径保持。日历状态保存database/calendar_update.json，事件身份由起止时间和角色集合摘要确定。首次启动忽略已结束事件，当前缺资料角色立即补查；后续新公告、起止边界与改期重排。
+
+Core共享scheduler新增aliceuid-database-calendar，60秒本地检查、启动即检查，max_instances=1/coalesce/replace_existing。无活跃任务时6小时取日历；到边界强制刷新，活跃窗口每小时取日历/资料。所有到期事件合并进同一持久周期，不建立每群/每角色网络任务。与manual/weekly共用DatabaseService所有者锁，busy不算完成或无新增。
+
+等待发现窗口24小时，不因普通资料变化续长。name_code目标全部有角色行、匹配ID映射及技能图标才进入observing；不存在明确目标的旧池结束事件等待新角色编码。获取资料后一小时再次检查规范化角色/ID/技能/头像表摘要，稳定即结束；有变化再观察一小时，截止附近的新资料保留一次后续确认。空响应、网络/格式错误或冷却不作为稳定。源错误持续到截止记录source_unavailable；正常检查但未齐记录timeout。处理过的事件保留去重，完成后重新取日历排期，重启不重复小时检查。
+
+DatabaseService先更新全部7张结构化表，再_plan及原子保存manifest的structured_checked_at/structured_tables，发布structured_ready进度后才处理图片。任一结构化表fallback/cooldown则发布structured_incomplete并保留旧表/队列，停止本轮图库请求。日历判定使用结构化表状态与本地内容，图库错误/旧皮肤队列不冒充角色缺失。沿用原每批/下载字节/磁盘/总时长预算和有效图片复用。
+
+后台DatabaseCalendarUpdate默认True，独立于周检；日历任务不持有Bot、不提供发送回调。只有用户主动数据库更新状态时显示北京时间排期/阶段/上轮结果。该状态文件及运行数据不打包。
