@@ -1,0 +1,21 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;width:1072px;font:16px 'Microsoft YaHei',sans-serif;color:{{theme.ink}}}
+.solo-page{width:1072px;padding:30px 40px;background:{{theme.page}} url('{{frost_scene_uri}}') center top/cover}
+{% include 'glass_finish.css' %}
+.hero,.notes,.shot-panel{border:1px solid {{theme.line}};background:{{theme.container_glass}};background-image:none;box-shadow:0 6px 20px #0812201a,inset 0 1px #ffffff26}
+.hero,.notes{border-radius:22px;padding:24px}
+.shot-panel{width:992px;border-radius:28px;padding:15px;margin:20px 0}
+.eyebrow{font-size:13px;letter-spacing:2px;color:{{theme.accent}}}.experimental{display:inline-block;width:110px;white-space:nowrap;text-align:center;margin-left:12px;letter-spacing:0;border-radius:7px;padding:4px 9px;background:#664b27;color:#ffe2a7}
+h1{font-size:32px;margin:10px 0;color:{{theme.ink}}}.source{font-size:15px;color:{{theme.accent}};line-height:1.8;overflow-wrap:anywhere}
+.meta{font-size:13px;color:{{theme.muted}};line-height:1.9;margin-top:12px}
+.shot{width:960px;border-radius:22px;overflow:hidden;margin:0;background:transparent;line-height:0}
+.shot img{display:block;width:960px;height:{{image_height}}px;border-radius:22px;object-fit:contain}
+.notes{font-size:14px;line-height:1.8;color:{{theme.muted}}}.notes p{margin:3px 0}.disclaimer{color:{{theme.ink}};font-weight:700}
+.credit{white-space:pre-wrap;font-size:14px;text-align:center;color:{{theme.muted}};padding:20px 0 4px;line-height:1.8}
+</style></head><body><main class="solo-page"><header class="hero"><div class="eyebrow">NIKKE / SOLO RAID<span class="experimental">实验性功能</span></div>
+<h1>个人突袭推荐</h1>{% include 'commander.html' %}
+<div class="source">数据与推荐来自dildoro.com 妮姬伤害计算器·DILDORO</div>
+<div class="meta">网站当前弱点：{{weakness}}{% if rank_season %} · 推荐参考赛季：{{rank_season}}{% endif %}<br>查询时间：{{captured_at}}（北京时间）</div></header>
+<section class="shot-panel"><div class="shot"><img src="{{image_uri}}" alt="DILDORO排行玩家编队推荐与模拟伤害"></div></section>
+<section class="notes"><p class="disclaimer">伤害预估仅为模拟计算值参考，详细数据敬请访问dildoro.com获取。</p>{% for note in notes %}<p>{{note}}</p>{% endfor %}<p>实验性功能，网站更新可能影响导入、推荐或截图。</p></section>
+<footer class="credit">Powered By GsCore &amp; Created By AliceUID &amp; dildoro</footer></main></body></html>

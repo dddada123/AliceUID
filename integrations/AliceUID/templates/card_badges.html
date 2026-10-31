@@ -1,0 +1,6 @@
+{% macro progression(n, star_on, star_off, core_icon, extra='') -%}
+<div class="progress-badges {{extra}}" title="{{n.progression_notice}}">{% for active in n.star_states %}<img class="star" src="{{star_on if active else star_off}}" alt="{{'已点亮星级' if active else '未点亮星级'}}">{% endfor %}{% if n.core_display %}<span class="core-emblem"><img src="{{core_icon}}" alt="核心"><b>{{n.core_display}}</b></span>{% elif n.progression_known is defined and not n.progression_known %}<span class="progression-unknown">?</span>{% endif %}</div>
+{%- endmacro %}
+{% macro role_corners(n, neutral_frame) -%}
+<div class="game-left-badges">{% for kind in ['weapon','burst'] %}{% if n[kind+'_icon'] %}<span class="game-symbol"><img class="hex-frame" src="{{neutral_frame}}" alt=""><img class="symbol-icon {{kind}}-icon" src="{{n[kind+'_icon']}}" alt="{{n[kind+'_label']}}"></span>{% endif %}{% endfor %}</div>{% if n.element_icon %}<span class="game-element"><img class="hex-frame" src="{{n.element_frame}}" alt=""><img class="symbol-icon" src="{{n.element_icon}}" alt="{{n.element_label}}"></span>{% endif %}
+{%- endmacro %}

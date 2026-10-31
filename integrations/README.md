@@ -1,52 +1,472 @@
-# NapCat ↔ GsCore 标准转发说明
+<p align="center">
+  <a href="https://github.com/dddada123/AliceUID">
+    <img src="https://raw.githubusercontent.com/dddada123/AliceUID/main/ICON.png" width="256" alt="AliceUID">
+  </a>
+</p>
 
-## 1.0.08：只更新AliceUID
+<h1 align="center">AliceUID</h1>
 
-2026-10-20，用户实机确认candidate3的nk卡片、nk帮助、nk出刀转发均成功。正式交付沿用该发送代码，不调整节点结构或重新编码默认值。以下阶段性待验收提示已由此三项成功结果更新，仍保留不同环境的实验性与失败回退。
+<p align="center">
+  <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
+  <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.15-ff69b4?style=flat-square" alt="Version: 1.1.15"></a>
+  <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
+  <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
+</p>
 
-当前主线按用户要求恢复fix1曾成功的标准方式：
+适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-`卡片完整原图 → Core磁盘缓存/读回校验 → 标题文字节点＋图片节点 → 现有GScore适配器 → NapCat`
+当前版本 **1.1.15**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
-只替换Core的plugins/AliceUID并重启Core，保留data/AliceUID、数据库和密钥。无需安装新NapCat插件、修改插件ID、GScore适配器源码或全局packetBackend。原卡片本来就有cache/roster磁盘JPG缓存，发送时读取；这次不是第一次引入磁盘缓存。
+[亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
-转发始终是纯node帧，不附外层at，输入中的at/at_all子段过滤；节点内保留标题text和完整image。普通消息或失败回退可@发起者。帮助标题与快速开始说明合成一个文字节点；图鉴标题为AliceUID·游戏昵称·图鉴展示，出刀为AliceUID·公会名-出刀统计。
+<p align="center">
+  <img src="https://count.getloli.com/@AliceUID?theme=nixietube-1&amp;padding=7&amp;offset=0&amp;align=top&amp;scale=1&amp;pixelated=1&amp;darkmode=auto" alt="AliceUID 访问计数">
+</p>
 
-帮助、卡片、出刀、登录四个开关默认开启，已有设置不覆盖，功能仍为实验性。登录/重新登录共用开关，二维码独立且不重新编码。短卡片、文字版帮助、进度和错误仍按原方式发送。
+## 亮点功能
 
-## 原图与可选JPG转换
+### 日期与数据时间
 
-“转发图片转换JPG”默认关闭：完整PNG/JPG/WEBP保持原字节、全部尺寸、DPI和元数据，不分页、不缩放。对照保存的1.0.07 fix1 ZIP，离线验证原/新代码经过真实Core和固定TS适配器后的最终send_msg参数一致。
+插件显示的时间优先使用**北京时间（UTC+8）**，包括会战数据、赛季区间、日历截图和账号有效期。官网截图内部的日期保留官网原文，以截图说明中的北京时间区分拍摄时刻。活动起止、资料核对与卡片生成是不同时间，复用图片保留图内原时间，不代表实时同步。
 
-需要转换时可手动开启，使用既有JPG编码流程；质量默认95、0–100整数，下次发送生效，100仍非无损。已有JPG直接发送，透明图保留PNG。关闭转换时质量设置仍保留但不参与编码。登录二维码和普通发送不编码。
+后台仍按原时间戳及既有规则判断缓存、冷却、签到周期、收菜提醒和数据库更新排期。会战及面板快照另外记录UTC、区服；日服补充日本时间（UTC+9），仅供核对，不改变游戏日界或后台任务时区。
 
-成品传输缓存位于data/AliceUID/cache/forward_outbox：原子写入、读取SHA256校验后发送，64MiB/32张、15分钟有效，后续写入清理。缓存失败整体普通回退，不形成自动重放队列。完整图片超过8MiB插件保护上限或像素/格式无效时整体普通发送原内容；该大小不是QQ官方限制。
+### 兑换码便捷查询与兑换
 
-## 回执与自动回退
+汇总官方、GameWith 和成员补充码。成员贡献即时共享，GameWith 后续补全报酬详情，期限优先采用官网；同码忽略大小写合并，现有码名与排列保持稳定。本人通过插件明确兑换成功，或官方兑换接口明确返回“本账号已领取”，均可在主动增加时共享；**48小时内的这两类本地记录可直接补录**，无需重复兑换。已领取只表示贡献者已领，不保证其他账号当前可领；超时后的历史确认不作为入库凭证。
 
-实际链路为AliceUID → GsCore → xiowo/napcat-plugin-gscore-adapter → NapCat → QQ。[固定适配器源码](https://github.com/xiowo/napcat-plugin-gscore-adapter/blob/df1859b396ffbd73bd2b72ce4a35147667281472/src/services/gscore-service.ts)将node转换成OneBot节点并调用send_msg。默认bot.send只确认Core入队，不证明QQ送达。
+| 指令 | 用途 |
+|---|---|
+| `nk查询兑换码` | 只读查看当前码与报酬，无需绑定 |
+| `nk兑换码速查` | 每行一码，直接发送 |
+| `nk兑换码` / `nk兑换码ABCDE` | 尝试本人未领码，或兑换指定码 |
+| `nk增加兑换码ABCDE` | 本次成功或官方明确已领取后入库；本人48小时内明确记录可补录 |
+| `nk兑换官方兑换码` / `nk第三方兑换码` | 尝试对应来源的当前码 |
+| `nk刷新兑换码` | Bot主更新公开来源，不兑换 |
 
-保留fix1的wait_recall=True观察参数，由现有适配器回传消息ID；该参数不改变最终send_msg节点内容。取得ID才确认，未确认时普通发送原内容一次并暂停该连接转发60秒，不重新取数、重绘、创建登录会话或无限重试。普通回退不会递归转发。旧Core不支持回执、私聊、Core禁止转发或连接处于暂停期时直接普通发送。取消不回退，权限和发送前绑定核验照常执行。
+**有效期限优先采用官网，截止后延长5分钟退出可用库存**；无官方期限时才参考GameWith期限。官网推荐提前撤下时，已收录且仍在官方有效期内的码继续保留；刷新失败、列表暂空或GW期限不同，不会抹掉该有效期。官方明确确认无效、不存在或过期则立即停用。成员记录、详情及领取去重跨重启保留。
 
-Core通常等待约10秒，不能据此判断NapCat已经终止上传；迟到成功仍可能与普通回退重复。缓存命中只说明Core本地有图，不证明QQ资源缓存命中或网络可达。
+兑换回执仅列逐码结果和统计：`兑换成功✅` / `已领取✅`；报酬在查询详情中查看。
 
-## 测试与日志
+**查询详情转发默认开启，兑换结果转发默认关闭**，可在后台分别设置。转发首条说明用途并列出指挥官、区服和UID，不带@；速查及简短回执始终直发。
 
-1. 更新Core的AliceUID并重启；这会清空本插件内存暂停状态。四个转发开关旧值保留，需要测试的开关请确认开启，JPG转换先保持默认关闭。
-2. 测试nk卡片、nk帮助及nk出刀。正常应出现一个标题节点、一张完整图，不带@；日志为strategy=classic_original及strategy=classic_node。
-3. 成功以群中实际转发和Core消息ID确认判断。失败可见普通回退及60秒暂停；暂停期内后续普通图片不是开关失效。
-4. 失败时保留Core格式/尺寸/体积/回执日志与同期NapCat错误，隐藏登录链接和凭据。若NapCat仍报Highway connect ETIMEDOUT，恢复旧节点结构不能保证修复出站网络。不要仅凭Core“发送消息”或本地cache_ready判断成功。
+不带参数的 `nk兑换码` 在确认可以处理后，将指挥官身份、正在尝试的数量与数据汇总时间放在转发顶部，后面展示码列表；完成后单独返回兑换结果。未绑定、未开启兑换或无候选码时说明实际状态，不提示已开始兑换。
 
-用户明确报告最初卡片以及fix1标题＋图片形式曾实机成功。该事实作为对照依据保留；后来完整卡片也失败，尚不能仅凭历史成功定位当前故障。离线协议一致不等于当前QQ上传成功。
+兑换需本人有效绑定，并由Bot主开启“允许本人CDK兑换”。公开目录每8小时静默汇总，按需缓存4小时，每日首次无参兑换更新。来源：[官方](https://www.blablalink.com/cdk)、[GameWith](https://gamewith.jp/nikke/article/show/371014)；实际领取以官方结果为准。
 
-## 头像昵称
+### 本人练度全量导出
 
-AliceUID不添加身份控制段或独立头像QQ选项，沿用现有适配器。固定适配器支持customForwardInfo：关闭使用默认小助手；开启且customForwardQQ/customForwardName留空时读取当前机器人selfId/selfNickname；有自定义值则用相应值。这是NapCat端现有GScore适配器设置，影响其发送的其它转发，非本次必须修改的项目。[身份读取源码](https://github.com/xiowo/napcat-plugin-gscore-adapter/blob/df1859b396ffbd73bd2b72ce4a35147667281472/src/core/state.ts)。
+`nk练度全量导出` 将本人全部妮姬练度导出为 Excel，双角色并排展示，支持爆裂阶段、定位、企业和角色属性联合筛选。属性下拉位于H5，可选燃烧、水冷、铁甲、电击、风压等。包含T10装备词条与同类汇总，高阶数字标蓝，15阶黑底亮蓝；词条数据行采用淡灰／白交替底色。总览保留5行紧凑表头，I2说明、I3导出人数、I4匹配人数。
 
-## 可选的candidate2实验
+导出使用本地缓存，注明账号与更新时间；需要最新数据时先发送 `nk刷新面板`。
 
-[原生转发配套](napcat-plugin-aliceuid-native-forward/README.md)仅留作可选实验，不是candidate3安装条件，也未自动启用。它需要用户主动另装NapCat插件，会在机器人自身会话产生准备消息，再原生合并到群；Core缓存到期不会删除QQ历史。
+### ⚔️ 会战血量、联盟出刀总览与个人出刀详情
 
-用户19:42测试只更新Core，未安装配套，故未进入该原生路径。现在优先验收标准fix1路线，不要求继续安装配套。此前若已安装，请禁用该配套并重启NapCat，才能对照当前标准路线；现有GScore适配器保持启用。
+`nk会战血量` 查看BOSS进度，`nk出刀` / `nk查刀` 查看同一张联盟总览图，包含联盟伤害、击杀排行与未完成名单。支持指定会战日期，用 `nk出刀详情` 查看本人队伍和战斗记录。追加伤害排名（如 `nk出刀详情1`、`nk出刀详情10`、`nk出刀详情15`）查看本工会对应成员的阵容，排名与速查表使用同一快照、同一排序。
 
-1.0.11 fix1：后台“转发回执等待秒数”默认30秒（原Core为10秒），范围5～300秒；保存后下次AliceUID转发生效。等待包含发送后的回执确认，不包含图片渲染。超时回退一次并暂停60秒，迟到成功仍可能重复。
+进行中：完成绿色，未出完蓝色，0/3为黄色“待出刀”；休赛期：完成绿色，未出完黄色，0/3为红色“漏刀”。未完成名单均分双列，16人左8右8。成员记录按产品/区服/工会/赛季共享；进行中默认180秒更新，休赛期复用已结算历史快照，定期确认本人联盟及名单，跨重启保留。
+
+会战转发最后一条附查询指挥官、游戏UID与北京时间的数据时间，不再另发@时间通知；排名详情同时区分被查询成员。`nk日历` 的截图与拍摄说明也合并发送。
+
+角色面板下方提供 `nk刷新角色完整原名面板` 提示，实际按查询结果生成可复制命令；使用别名查询也显示对应原名。刷新信息、刷新面板和数据库更新等原有阶段反馈保留。
+
+### 📦 资源查询与满仓时间预估
+
+`nk资源查询` 展示八类资源、保管箱容量，以及预计达到90%和满仓的北京时间，方便安排上线收菜。
+
+查询遇到临时社区或网络故障时会静默尝试，最多三次；成功后正常返回图片，连续失败才提示稍后重试。Cookie失效时直接提示重新登录。
+
+### ⏰ 本人收菜提醒
+
+在群聊或私聊发送 `nk开启收菜提醒`，接收容量与睡前收菜提醒；用 `nk关闭收菜提醒` 关闭。各会话独立设置，开启时发送一次资源卡，后续只发文字。
+
+90%和满仓在每轮积累中分别提醒一次，满仓后不反复催收。预计满仓时间后1分钟复查，99%及以上按满仓提醒；低于99%继续等待新预测时间。默认北京时间00:00～08:00免打扰，满仓通知可延至免打扰结束并复查后发送。连续两晚23点自动关闭规则仍使用原始100%容量。
+
+### 🗓️ 社区签到
+
+`nk签到` 完成本人社区签到，也可主动授权自动签到、浏览和点赞。支持执行状态查询与群内汇总通知，自动任务默认关闭。
+
+### 🧮 **DILDORO** 个人突袭编队推荐（实验性）
+
+`nk个人突袭推荐` 将本人养成数据导入 **DILDORO**，生成编队推荐与模拟伤害卡片。结果缓存5天，练度变化后用 `nk个人突袭推荐刷新` 重新计算。
+
+需公开blablalink个人档案与妮姬列表，Cookie不会传给DILDORO；推荐结果仅供模拟参考。
+
+## 功能说明
+
+除上述亮点外，AliceUID还提供账号绑定、个人资料与角色养成查询、通用帮助、可选AI查询和消息转发等功能。
+
+### 🔐 账号绑定与区服支持
+
+支持本人账号登录、查看绑定、重新登录和解绑；支持日服、北美服、韩服、国际服、东南亚服，登录时需明确选服。港澳台网页登录暂未支持。具体步骤见[快速开始](#快速开始)。 登录失败后可在原链接有效期内重试，成功后正常通知；Cookie失效时使用 `nk重新登录`。
+
+### 🎨 个人名片、角色练度与统一刷新
+
+`nk信息` / `nk名片` 使用横版名片：一张大立绘搭配四个小头像，集中展示指挥官资料、战力、养成指标、战役爬塔和前哨数据。亮暗主题使用对应Wallpaper壁纸，旧竖版信息卡已替换。角色面板展示装备、技能、词条、魔方、收藏品与好感。`nk卡片` 以十列头像展示本人已持有角色和皮肤，指挥官头像与练度卡共享；信息卡保留方形显示，头像缺失或分辨率不足时使用大立绘对应妮姬的头像。
+
+普通查询优先复用本地数据和成品图。`nk信息刷新` / `nk刷新信息` 只更新名片资料；`nk刷新面板` 全量更新本人角色练度与皮肤；`nk刷新爱丽丝面板` 只更新指定角色。新角色不在缓存时，先查单体详情并出图，发送后后台同步，无需等待全量刷新。
+
+账号缓存不自动到期，刷新失败保留原数据；解绑清除，重新登录重建。复用图片保留原生成时间，消息另列最近资料核对时间。
+
+#### 角色练度卡片主题
+
+后台「角色练度卡片主题」提供四种样式，默认宽版亮色：
+
+| 布局 | 亮色 | 暗色 |
+|---|---|---|
+| 宽版 | `wide_light`（默认） | `wide_dark` |
+| 窄版 | `compact_light` | `compact_dark` |
+
+「角色练度卡随机主题」默认 `off`；可设 `wide`、`compact` 或 `all`，分别在宽版、窄版或全部主题中随机。只在新绘图时选择，命中缓存不重复随机。
+
+宽版使用对应亮暗壁纸，展示职业与企业循环室等级；窄版沿用毛玻璃设置。两版总属性最多显示六项，T10 Lv5 装备和15阶有效词条分别突出显示。字体可在后台调整；毛玻璃强度只影响竖版/窄版卡片，横版信息卡与横版练度卡不受该设置影响。横版主要信息底板统一为亮色70%、暗色74%不透明度，文字、图标与立绘保持清晰。
+
+### 🧭 通用帮助与长效缓存
+
+`nk帮助` 提供普通用户、Bot主两类通用指南，不展示昵称、UID或区服等个人信息。两张图分别缓存30天，重启可复用，到期首次访问按主题设置重建；帮助内容或相关配置变化会提前重建。需要复制命令时使用 `nk帮助 文字`，图片渲染失败也会回退文字。
+
+### 🤖 AI自然语言查询
+
+开启插件「允许AI调用只读查询」及Core AI并完整重启后，可用自然语言查询本人资料、角色练度、角色别名和插件帮助，例如“看看我的妮姬资料”“查爱丽丝练度”“黑莲有哪些别名”。复用原有查询与缓存，仍受Core权限、群聊范围以及AliceUID四名单约束，不接受替他人查询。
+
+后台「允许AI调用只读查询」默认关闭，不注册AI工具；按需开启并重启后生效。关闭后立即停止AI查询，普通指令照常使用。AI帮助返回文字，资料类返回必要数据摘要和图片资源，由Core AI决定最终回复。登录、解绑、社区操作、强制刷新及DILDORO计算未开放AI调用。
+
+### 📨 转发与可调等待
+
+登录链接、帮助、图鉴和出刀各有独立转发开关，默认开启。完整图片配文字标题展示，支持自定义消息回执等待；未确认时普通回退一次，短暂暂停后恢复尝试。配置和兼容说明见[转发设置](#转发设置)。
+
+命令速查见[常用命令](#常用命令)，六组示例图见[效果预览](#效果预览)。
+
+## 安装与升级
+
+插件依赖 GsCore 的命令、数据库、WebUI、调度器和原生渲染服务，不能作为独立 Bot 运行。项目声明 Python ≥3.10，具体依赖见 [requirements.txt](requirements.txt) 和 [pyproject.toml](pyproject.toml)。
+
+1. 首次安装或升级前备份原插件及其运行数据。解压安装包，把整个外壳放入 `plugins/AliceUID/`。
+2. 保留以下嵌套结构，不要只拷内层包，也不要将开发工作区的版本目录 当成插件目录。
+3. 在运行 GsCore 的 Python 环境安装插件依赖。使用网页登录、官网日历或DILDORO个人突袭推荐时，准备 Playwright Chromium。
+4. 完整重启 GsCore，在 WebUI 的 AliceUID 配置中检查登录地址、访问名单和主题，再发送 `nk帮助`。
+
+```text
+plugins/
+└─ AliceUID/
+   ├─ __init__.py
+   ├─ __nest__.py
+   ├─ AliceUID/             # 内层 Python 包、模板与静态表
+   ├─ assets/              # 登录与资源图标
+   ├─ card_bg/             # 卡片背景
+   ├─ formts/              # 字体，目录名称保留该拼写
+   ├─ README.md
+   ├─ CHANGELOG.md
+   └─ DEVELOPMENT.md
+```
+
+依赖安装示例（使用 GsCore 实际使用的 Python）：
+
+```bash
+python -m pip install -r plugins/AliceUID/requirements.txt
+python -m playwright install chromium
+```
+
+常规卡片使用Core的 `render_html_to_bytes` 原生渲染。DILDORO需要执行网站JavaScript、导入本人资料、操作推荐界面并截取真实结果；pytakumi不能替代浏览器自动化，因此保留Playwright。官网日历截图与网页登录同样保留浏览器。
+
+从其他 AliceUID 版本升级，继续使用原 `data/AliceUID` 和 `AliceBind`，无须因版本更新重新绑定。不要同时启用多份 AliceUID。
+
+从旧 NikkeUID 首次迁移时，将旧插件移出扫描目录留作备份；只复用公开 `static/` 和 `resource/`，用户在 AliceUID 中重新登录。旧账号、Cookie、密钥与私人缓存不自动迁移。
+
+## 快速开始
+
+网页登录使用账号密码；邮箱验证码选项暂未开放，页面保留置灰选项与提示。
+
+```text
+nk登陆日服
+nk我的账号
+nk信息
+nk爱丽丝练度
+nk卡片
+nk资源查询
+```
+
+`登录` / `登陆` 均可使用；不带区服会给出选服提示。打开本人命令返回的链接完成验证，Cookie失效用 `nk重新登录` 更新同账号同区服凭据；换号或换服先 `nk解绑`。已知失效凭据不会继续读取旧图，网络异常、403和429分别提示。
+
+## 常用命令
+
+| 命令 | 用途 |
+|---|---|
+| `nk帮助` / `nk帮助 文字` | 普通用户/Bot主两类通用指南，图片缓存30天；文字可复制 |
+| `nk登录日服` | 五区登录；日服可替换为国际服/北美服/韩服/东南亚服 |
+| `nk重新登录` | 更新原账号同区服 Cookie，失败保留原绑定 |
+| `nk我的账号` / `nk解绑` | 查看或解除登录绑定 |
+| `nk信息` / `nk名片` | 本人个人资料与展示队伍 |
+| `nk信息刷新` / `nk刷新信息` | 轻量更新名片资料并回图，不读取全部角色装备详情 |
+| `nk刷新面板` | 全量更新本人资料、全部角色练度及皮肤，完成后发送信息图 |
+| `nk爱丽丝练度` / `nk爱丽丝面板` | 查询指定角色练度 |
+| `nk刷新爱丽丝面板` | 更新指定角色练度与皮肤数据，并渲染角色卡片 |
+| `nk卡片` | 完整已持有角色图鉴 |
+| `nk出刀` / `nk查刀` | 同一张联盟总览图，出刀速查与排行 |
+| `nk出刀 Day1` / `nk出刀速查 Day2` | 选择会战阶段 |
+| `nk出刀详情 [排名]` | 不带数字查本人，带数字按本工会伤害排名查成员阵容 |
+| `nk出刀缺刀` / `nk出刀尾刀` | 未完成双列名单、尾刀统计 |
+| `nk会战血量 [刷新]` | 联盟阶段及 BOSS 血量 |
+| `nk资源查询 [刷新]` | 本人资源与保管箱状态 |
+| `nk开启收菜提醒` / `nk关闭收菜提醒` | 当前群聊或私聊的本人收菜提醒开关 |
+| `nk收菜提醒状态` / `nk收菜免打扰 00:00-08:00` | 本地状态与当前会话免打扰时段 |
+| `nk个人突袭推荐 [亮色/暗色/随机]` | 查看本人编队推荐，优先复用五天缓存 |
+| `nk个人突袭推荐刷新 [亮色/暗色/随机]` | 重新导入养成数据并计算推荐 |
+| `nk日历` / `nk日历 帮助` | 官网当前默认活动日历及范围说明 |
+| `nk黑莲别名查询` | 查询角色本名及已注册别名 |
+| `nk绑定UID` / `nk我的UID` / `nk解绑UID` | 单独登记、查看或清理社区/游戏/分享标识 |
+
+方括号表示可选参数，不需要输入方括号。UID登记只保存标识，不代表登录成功或允许查询他人的私人资料。
+
+## 社区任务
+
+| 命令 | 行为 |
+|---|---|
+| `nk签到` | 立即执行本人本周期签到；已成功不重复请求 |
+| `nk开启全量签到` | 为本人开启签到、浏览及点赞，并立即执行一轮 |
+| `nk自动社区 状态` | 查看授权、暂停原因和执行状态 |
+| `nk自动社区 开启` / `关闭` | 开启签到与浏览，或停止自动任务 |
+| `nk自动社区 点赞开启` / `点赞关闭` | 单独调整点赞授权 |
+
+周期以北京时间08:00划分，默认每天08:33执行已授权账号。后台「每日签到时间（北京时间）」支持HH:MM，保存后更新调度；手动签到仍须排队、限频。同账号重新登录成功后恢复此前已开启或因连续失败被系统关闭的自动签到；手动关闭和从未授权的不自动开启。
+
+请求间隔默认随机 **5～15秒**，换号等待默认 **10～120秒**。后台填写如 `5-15`、`10-120`，允许1～3600秒及最多三位小数，同值为固定间隔，重启生效。每账号每周期最多30次请求，签到一次、浏览和点赞各最多5帖；短期连接/服务器故障最多三轮，约2分钟、10分钟后静默重试；不确定的签到提交先读状态确认。连续三个签到周期未确认成功才自动关闭，同周期多次异常只记一天。单次认证异常不立即关闭，不额外查询保管箱判断Cookie。预算不因重启或开关重置。不自动评论、发帖或兑换金币。
+
+Bot主可用 `nk签到查询 [页码]` 查看本群绑定或近30天使用过插件账号的本周期本地记录。群通知也只覆盖这些已知用户，同账号跨群不重复签到；未确认不冒报成功，缺少有效群消息路由时不发送通知。
+
+| Bot主指令 | 功能 |
+|---|---|
+| `nk签到群通知 开启/关闭/状态` | 仅操作当前群；私聊不会改全群 |
+| `nk开启签到群通知` / `nk关闭签到群通知` | 单独设置当前群，其他群不受影响 |
+| `nk全群签到通知 开启/关闭/状态` | 一次性批量设置全部群，之后仍可单群覆盖 |
+
+后台「签到群通知：全群批量设置」改变时覆盖此前单群选择，并作为新群默认值；同值保存不抹掉单群设置，需要再次应用同值时用全群命令。原通知白黑名单升级时迁移为初始策略并退出编辑；业务权限四名单不变。
+
+群汇总列出异常用户的昵称/QQ、原因、尝试轮数和连续失败天数，第三天自动关闭仍明确显示。重试中不反复通知，最终结果按群发送；结果未确认不冒报为明确失败。
+
+## 转发设置
+
+使用现有GsCore适配器的标准转发，无需额外NapCat插件。默认保留完整原图、尺寸与DPI，以“文字标题＋图片”发送，转发内外不附加@；头像昵称沿用适配器设置。登录二维码开关独立，普通发送和回退均保留二维码。
+
+NapCat转发的「转发回执等待秒数」默认 **30秒**，可设 **5～300秒**，保存后下次发送生效；等待不包含图片渲染。未确认时普通回退原内容一次，并暂停本连接转发 **60秒**，到期恢复尝试。超过等待窗口的迟到成功仍可能重复。OneBot私聊、Core不允许转发或不支持回执时使用普通消息。
+
+“转发图片转换JPG”默认关闭；开启后新编码质量默认95，可设0～100，100仍非无损。已有JPG保持原样，透明图保留PNG；超出8MiB插件安全上限或准备失败时普通发送完整原图，不拆页、缩放或降低质量。
+
+转发仍属实验性功能；群内不可见时可关闭对应开关。适配器、可选配套与传输缓存细节见 [integrations/README.md](integrations/README.md)。
+
+## 管理与配置
+
+### 自定义唤醒指令
+
+在GsCore的**插件管理 → AliceUID**中配置框架自带的 `prefix` 与 `disable_force_prefix`，保存后**完整重启Core**。保存配置本身不会重建已经注册的命令。1.0.13在首个SV注册前，通过Core公开接口同步生效前缀到插件对象，帮助文案通过Core的 `get_plugin_available_prefix()` 读取同一份启动状态。插件默认提供 `force_prefix=["nk"]`；前缀前后的空格由Core识别。
+
+- 默认：`nk登录`、`nk 个人突袭推荐`。
+- `prefix` 添加 `alice`，保留默认前缀：`nk登录` 和 `alice登录` 均可用，帮助优先显示 `nk`。
+- 添加 `alice` 并开启 `disable_force_prefix`：仅自定义前缀可用，帮助和提示同步显示 `alice`。关闭默认前缀前先设置可用的自定义前缀。
+
+从1.0.12升级会保留已有Core前缀及迁移记录，无需重新配置。
+
+从1.0.11及更早版本升级时，首次启动会将已启用的旧插件前缀迁移到Core；若Core已有自定义配置，以Core为准并记录提示。迁移只执行一次，原值保存在 `data/AliceUID/prefix_migration_v112.json`，旧的三项插件前缀设置退出WebUI。本文命令采用默认 `nk`，独占自定义时替换为实际前缀。
+
+Bot主可使用 `nk数据库更新`、`nk数据库更新 状态`、`nk数据库更新 帮助`；公共资料库默认每周五北京时间02:33增量检查，已有合格素材复用。维护只取公开资料，不使用玩家 Cookie。第一次补齐图库较慢，任务会保存队列并报告剩余项。
+
+**招募日历自动更新默认开启**，不需要先发送`nk日历`。插件读取官网默认“隊員招募”的角色编码和起止时间，在新招募开始或旧招募结束后静默检查数据库。社区尚未补齐时每隔一小时再查；本轮等待窗口为24小时，仍未获取到新角色或目标资料未齐就结束等待，重新按日历规划，不无限请求。
+
+角色资料和映射就绪后，隔一小时复查；没有新变化就结束本轮，有补充资料则继续隔一小时观察。临近等待截止才到达的新资料仍会保留这次一小时复查。复刻池不强求新增角色，日历中的送角活动也会核对；同一计划跨重启去重。平时仅每6小时轻量核对日历，后台计时器不等于每分钟访问社区。
+
+更新**先完成角色列表、角色ID/技能图标等结构化表并保存，再逐步补图库**。结构化表失败时保留旧数据、暂缓图库；图像下载失败不冒充“没有新角色”。自动任务只写日志和状态、不发群消息，与手动更新及周检共用任务锁和失败冷却。用`nk数据库更新 状态`查看排期、等待/复查和上轮结果；后台“按招募日历静默更新数据库”可独立关闭，手动更新及周检保留。
+
+角色别名可用 `nk红莲暗影新增别名黑莲` 或 `nk红莲暗影注册别名黑莲`。群查询状态可由群管理员查看；群/用户白名单、黑名单和全局别名由Bot主维护。四名单为空时默认允许，白名单非空先限定范围，再排除黑名单。
+
+Bot管理员可用 `nk账号列表` / `nk绑定列表` 查看账号概览和连续编号分页，默认合并转发。群内QQ中间脱敏，不列群组明细；私聊显示完整号码，转发失败按相同规则分页回退。
+
+| WebUI 配置 | 作用 |
+|---|---|
+| `AliceUID_LoginUrl` | 用户能访问的 Core 登录页面基地址，反向代理需转发 `/nikke/` 路由 |
+| `AliceUID_LoginMode` | `browser` 网页账号密码，或 `cookie` 仅私聊导入 |
+| `AliceUID_LoginForward` | 登录/重新登录链接转发，默认开启，保留已有值 |
+| `AliceUID_HelpForward` | 帮助图片转发，默认开启 |
+| `AliceUID_RosterForward` | 完整阵容卡片转发，默认开启 |
+| `AliceUID_UnionForward` | 出刀总览/速查/详情/缺刀/尾刀图片转发，默认开启 |
+| `AliceUID_ForwardReceiptSeconds` | 转发回执等待秒数，默认30，可设5～300；保存后下次发送生效 |
+| `AliceUID_ForwardReencode` | 转发图片转换JPG，默认关闭，优先原图直通 |
+| `AliceUID_ForwardJpegQuality` | 新编码转发图片的JPG质量，整数0–100，默认95；100仍非无损 |
+| `AliceUID_LoginQRCode` | 同时发送二维码；普通、转发及失败回退均适用，默认关闭 |
+| `AliceUID_BrowserChannel` / `AliceUID_Headless` | 登录浏览器通道及无头运行 |
+| `AliceUID_CardTheme` | 全局卡片亮暗主题，默认随机；练度卡和个人推荐独立设置 |
+| `AliceUID_CharacterCardStyle` / `AliceUID_CharacterRandomTheme` | 练度卡固定主题与随机范围，见上文主题说明 |
+| `AliceUID_SoloCardTheme` | 个人突袭推荐卡片主题，默认暗色 |
+| `AliceUID_CardLanguage` / `AliceUID_CardFont` | 显示语言及 `formts/` 内字体，失败使用兜底字体 |
+| `AliceUID_GlassStrength` | 仅调整竖版/窄版背景毛玻璃，默认20%；横版信息卡、横版练度卡不受影响，已有值保留 |
+| `AliceUID_UnionCacheSeconds` | 当期会战共享缓存，默认180秒 |
+| `AliceUID_RemoteRenderEnable` | 可选外置HTML渲染服务；默认关闭，失败回退Core原生渲染 |
+| `AliceUID_CommunitySignTime` | 每日自动签到的北京时间，默认`08:33`，支持`00:00`～`23:59`，保存后更新调度 |
+| `AliceUID_SignGroupNotify` | 改变时批量设置全部群通知，之后可单群覆盖 |
+| `AliceUID_CommunityPaused` | 暂停全部社区任务 |
+| `AliceUID_CommunityRequestRange` / `AliceUID_CommunityAccountRange` | 请求/换号随机秒数范围，默认`5-15` / `10-120`，重启生效 |
+| `AliceUID_AIQueryEnabled` | 允许Core AI调用四类只读查询，默认关闭，开启后重启，关闭立即生效 |
+| `Database*` | 公共数据库任务数、下载/存储/时间预算及周检开关 |
+
+`AliceUID_ResourceCacheSeconds` 是兼容键，当前成功图片窗口固定300秒。`AliceUID_MasterQQ` 只作主人标记，不提升Core权限。完整配置字段见[开发文档](DEVELOPMENT.md)。
+
+## 数据与使用范围
+
+运行数据统一位于 Core 资源目录的 `AliceUID/`：公开静态表与图库可复用，配置、密钥、绑定数据库、用户快照及图片缓存按原部署备份。开发工作区中的版本目录名不参与生产路径。
+
+当前只查询发命令者本人的绑定。公开图库有某套皮肤不表示账号拥有；皮肤展示依据本人接口报告并标注缺图/基础回退。分享链接或登记UID不会提供匿名私人练度查询。
+
+官网日历使用官网默认内容，不按绑定区服筛选，暂不支持历史月份。当前不提供跨成员私人练度、任意历史赛季选择或评分系统。
+
+## 排查入口
+
+| 现象 | 先检查什么 |
+|---|---|
+| 登录页无法打开 | 登录基地址是否可达、`/nikke/` 是否正确转发、浏览器是否安装 |
+| Cookie失效 | 使用 `nk重新登录`；换号才需要解绑 |
+| 用户/群不能查询 | Core权限及插件群/用户四名单 |
+| 图鉴或立绘缺图 | `nk数据库更新 状态`、公开源冷却、角色/皮肤映射 |
+| 收菜1302127 | 自动静默尝试最多三次；仍失败时提示可能是网络原因，请稍后重试，Cookie失效则重新登录 |
+| 图片生成失败 | 字体与原生渲染依赖、外置渲染配置；`nk帮助 文字` 可获取文字指南 |
+| 转发迟到、重复或临时变成普通消息 | 检查消息ID回执、转发等待配置及60秒暂停状态，详见[转发设置](#转发设置) |
+| 升级后仍像旧版 | 确认覆盖整个外壳并完整重启Core，未同时加载旧插件 |
+
+开发入口、缓存状态机、接口参数和验证方法见 [DEVELOPMENT.md](DEVELOPMENT.md)。本文件介绍当前功能与使用方式，历史变化集中在 [CHANGELOG.md](CHANGELOG.md)。
+
+## 效果预览
+
+**点击每张图片上方的标题或小三角，即可展开或收起图片。** 前五组默认展开，可按需折叠；Day2出刀总览较长，默认折叠。点击图片可查看高清原图。
+
+以下为功能展示示例，具体数据以实际查询为准；命令采用默认 `nk` 前缀。
+
+<details open>
+<summary><strong>图1 · 妮姬练度查询｜点击展开 / 收起</strong></summary>
+
+使用 `nk角色名练度`，例如 `nk爱丽丝练度`，查看本人角色的装备、技能与养成详情。
+
+<p align="center"><strong>宽版亮色</strong></p>
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/29/2bfd48fe190ca4da68c49d29739fc3da.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/29/2bfd48fe190ca4da68c49d29739fc3da.png" width="900" alt="宽版亮色角色练度卡：角色立绘、装备词条、技能与循环室">
+  </a>
+</p>
+<p align="center"><strong>宽版暗色</strong></p>
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/29/20103cbcd1626d374df0ab5f2b146911.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/29/20103cbcd1626d374df0ab5f2b146911.png" width="900" alt="宽版暗色角色练度卡：角色立绘、装备词条、技能与循环室">
+  </a>
+</p>
+
+<p align="center"><strong>纵版暗色（窄版）</strong></p>
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/29/27af72b039f827da4ec7a53de114463d.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/29/27af72b039f827da4ec7a53de114463d.png" width="600" alt="纵版暗色角色练度卡：角色立绘、装备词条与技能养成">
+  </a>
+</p>
+
+</details>
+
+<details open>
+<summary><strong>图2 · 指挥官信息名片｜点击展开 / 收起</strong></summary>
+
+使用 `nk信息` 或 `nk名片`，以横版名片展示指挥官资料、主页队伍、角色立绘、战役爬塔和前哨数据。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/29/ad94378a318bc927b3302e2d86e2b15d.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/29/ad94378a318bc927b3302e2d86e2b15d.png" width="900" alt="横版指挥官信息名片：指挥官资料、角色立绘、主页队伍、战役爬塔与前哨数据">
+  </a>
+</p>
+
+</details>
+
+<details open>
+<summary><strong>图3 · 资源查询与预计满仓时间 · 暗色主题｜点击展开 / 收起</strong></summary>
+
+使用 `nk资源查询`，查看资源、保管箱容量与预计回满时间；时间预估基于本次查询快照。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/20/1b94addf6276f536bd6628aa8bd0c49e.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/20/1b94addf6276f536bd6628aa8bd0c49e.png" width="900" alt="暗色主题资源查询：资源与保管箱容量、预计满仓时间">
+  </a>
+</p>
+
+</details>
+
+<details open>
+<summary><strong>图4 · 保管箱接近满仓的颜色提示 · 亮色主题｜点击展开 / 收起</strong></summary>
+
+资源查询图中的保管箱提示条会随占用比例变色。此图展示接近满仓时的红色警戒色；这是查询图片内的状态提示，不是定时或主动推送提醒。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/20/a363a6f9c270f4fe24001417e8e0f7e3.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/20/a363a6f9c270f4fe24001417e8e0f7e3.png" width="900" alt="亮色主题资源查询：保管箱接近满仓时，提示条变为红色警戒色">
+  </a>
+</p>
+
+</details>
+
+<details open>
+<summary><strong>图5 · 个人出刀详情｜点击展开 / 收起</strong></summary>
+
+使用 `nk出刀详情`，查看本人会战队伍与对应的伤害、击杀记录。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/20/69d53dbc204a634d511d40c0e2cabb6d.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/20/69d53dbc204a634d511d40c0e2cabb6d.png" width="900" alt="个人出刀详情示例：本人会战队伍、伤害及击杀信息">
+  </a>
+</p>
+
+</details>
+
+<details>
+<summary><strong>图6 · Day2联盟成员出刀总览 · 长图默认折叠｜点击展开 / 收起</strong></summary>
+
+使用 `nk出刀速查 Day2`，查看成员出刀总览、输出前三、击杀前三，以及尚未完成出刀的成员。图片较长，可点击打开高清原图查看细节。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/10/20/c6214312dc66e19bf15358682e2ab903.png">
+    <img src="https://s1.imagehub.cc/images/2026/10/20/c6214312dc66e19bf15358682e2ab903.png" width="900" alt="Day2联盟出刀总览长图：成员出刀情况、输出前三、击杀前三与未完成名单">
+  </a>
+</p>
+
+</details>
+
+## 鸣谢
+
+感谢 [dildoro.com 妮姬伤害计算器·DILDORO](https://dildoro.com/) 提供妮姬伤害模拟、排行编队推荐及本功能采用的网站截图内容。AliceUID不将这些推荐与截图内容声明为独立原创，结果卡片同时标注来源与联合署名：
+
+`Powered By GsCore & Created By AliceUID & dildoro`
+
+感谢 GsCore 提供插件运行、消息处理与卡片渲染基础。NIKKE角色、图片与游戏资料的权利归各权利人所有。
+
+## 反馈与贡献
+
+遇到问题或有功能建议，欢迎提交 [Issue](https://github.com/dddada123/AliceUID/issues)。请附插件版本、GsCore版本、复现步骤，以及脱敏后的日志或截图；不要上传 Cookie、Token、密码或验证码。
+
+想参与开发可先阅读 [开发文档](DEVELOPMENT.md)，也欢迎通过 [Pull Request](https://github.com/dddada123/AliceUID/pulls) 改进代码和文档。如果觉得插件有帮助，点一颗 Star 也是很好的支持 ⭐
+
+## Star History
+
+<p align="center">
+  <a href="https://www.star-history.com/?repos=dddada123%2FAliceUID&amp;type=date&amp;legend=top-left">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=dddada123/AliceUID&amp;type=date&amp;theme=dark&amp;legend=top-left">
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=dddada123/AliceUID&amp;type=date&amp;legend=top-left">
+      <img src="https://api.star-history.com/chart?repos=dddada123/AliceUID&amp;type=date&amp;legend=top-left" width="800" alt="AliceUID Star History Chart">
+    </picture>
+  </a>
+</p>
+
+## ☕ 赞助与支持（完全自愿）
+
+本插件及其核心逻辑**完全免费、永久开源**。
+
+如果 AliceUID 帮你更方便地查询妮姬资料、查看联盟会战或完成社区日常，欢迎随缘打赏，就当请作者喝杯咖啡或者买个甜甜圈啦～ ❤️
+
+赞助完全自愿，不影响任何现有功能的使用。感谢每一位使用、反馈和支持插件的指挥官！
+
+<div align="left">
+  <img src="https://raw.githubusercontent.com/dddada123/astrbot_plugin_chisa_still_eating/main/assets/wechat_pay.png" width="200" height="200" alt="微信赞助码">
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://raw.githubusercontent.com/dddada123/astrbot_plugin_chisa_still_eating/main/assets/alipay.png" width="200" height="200" alt="支付宝赞助码">
+</div>

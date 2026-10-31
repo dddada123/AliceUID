@@ -1,0 +1,9 @@
+{
+  "name": "napcat-plugin-aliceuid-native-forward",
+  "plugin": "AliceUID 原生图片转发（实验性）",
+  "version": "1.0.08",
+  "type": "module",
+  "main": "index.mjs",
+  "description": "仅对 AliceUID 帮助、图鉴和出刀图片采用先准备自身消息、再原生合并转发的路线",
+  "napcat": { "minVersion": "4.18.37" }
+}

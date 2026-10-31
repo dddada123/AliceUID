@@ -1,0 +1,19 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>指挥官名片 · AliceUID</title><style>{% include 'profile_wide.css' %}</style></head><body>{% from 'card_badges.html' import progression as rank_badges, role_corners %}
+<div class="profile-wide profile-page {{card_theme}}">
+  <section class="lead-pane glass" title="{{lead.skin_notice}}">
+    {% if hero_shadow_url %}<img class="hero-shadow" src="{{hero_shadow_url}}" style="{{hero_shadow_style}}" alt="">{% endif %}
+    {% if hero_art_url %}<img class="hero-art" src="{{hero_art_url}}" style="{{hero_art_style}}" alt="{{lead.name}}立绘">{% else %}<div class="hero-empty">暂无展示立绘</div>{% endif %}
+    <div class="lead-kicker">NIKKE / FEATURED CHARACTER</div>
+    <div class="lead-caption"><div class="lead-name-row"><h1>{{lead.name}}</h1><span>Lv.{{lead.level}}</span></div><div class="lead-meta"><span class="tag">{{lead.rarity}}</span>{% for icon in lead.role_icons or [] %}{% if icon.kind in ['class','element'] and icon.icon_url %}<span class="role-icon" title="{{icon.label}}">{% if icon.icon_shadow_url %}<img class="role-shadow" src="{{icon.icon_shadow_url}}" alt="">{% endif %}<img class="role-image" src="{{icon.icon_url}}" alt="{{icon.label}}"></span>{% endif %}{% endfor %}<span class="lead-power">{{lead.combat_text}}</span></div><div class="lead-bottom">{{rank_badges(lead,star_on,star_off,core_icon,'lead-rank')}}<span>{{hero_art_notice or team_source}}</span></div></div>
+  </section>
+  <header class="identity glass">
+    <img class="commander-avatar" src="{{avatar_url}}" title="{{avatar_hint}}" alt="指挥官头像">
+    <div class="identity-copy"><div class="eyebrow">COMMANDER / 指挥官档案</div><div class="name-row"><h2>{{nickname}}</h2><span class="level-tag">Lv.{{level}}</span></div><div class="identity-meta"><span>{{area_label}}</span><span>UID {{uid}}</span>{% if guild_name %}<span>{{guild_name}}</span>{% endif %}</div></div>
+    <div class="team-power"><span>部队战斗力</span><strong>{{stats[1].value}}</strong><small>NIKKE · AliceUID</small></div>
+  </header>
+  <section class="metric-strip glass">{% for i in [4,0,2,5,3] %}<div class="metric{% if i==3 %} date{% endif %}"><span>{{stats[i].label}}</span><b>{{stats[i].value}}</b></div>{% endfor %}</section>
+  <section class="campaign panel glass"><div class="panel-heading"><h3>战役与爬塔</h3><span>CAMPAIGN / TOWER</span></div><div class="campaign-pair">{% for p in progress[:2] %}<div class="campaign-stat"><span>{{p.label}}</span><b>{{p.value}}</b></div>{% endfor %}</div><div class="tower-line"><div class="tower-main"><span>无限之塔</span><b>{{progress[2].value}}</b></div>{% for t in corp_towers %}<div class="tower"><span>{{t.label}}</span><b>{{t.value}}</b></div>{% endfor %}</div></section>
+  <section class="outpost panel glass"><div class="panel-heading"><h3>前哨基地</h3><span>OUTPOST</span></div><div class="outpost-grid">{% for p in outpost %}<div class="outpost-stat"><span>{{p.label}}</span><b>{{p.value}}</b></div>{% endfor %}</div><div class="outpost-note"><span>资料范围</span><b>本人当前绑定账号</b></div></section>
+  <section class="squad panel glass"><div class="panel-heading"><h3>主页展示队伍</h3><span>{{team_source}}</span></div><div class="squad-grid">{% for n in top_nikke[1:5] %}<div class="squad-member"><div class="member-thumb"><img class="member-icon" src="{{n.icon_url}}" alt="{{n.name}}头像"><span class="member-level">Lv.{{n.level}}</span>{{role_corners(n,neutral_frame)}}{{rank_badges(n,star_on,star_off,core_icon,'corner-rank')}}</div><div class="member-name">{{n.name}}</div><div class="member-power"><span>战斗力</span><b>{{n.combat_text}}</b></div></div>{% endfor %}</div></section>
+  <div class="preview-note">{{preview_notice or team_source}}</div><footer class="footer brand-credit">Powered By GsCore &amp; Created By AliceUID·{{credit_timestamp}}（北京时间）</footer>
+</div></body></html>
