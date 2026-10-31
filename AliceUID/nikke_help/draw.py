@@ -64,9 +64,9 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}日历 帮助', 'description': '查看截图范围与缓存说明；暂不支持历史月份'},
         ]},
         {'title': '联盟查询', 'tag': '联盟与会战', 'description': '联盟出刀、缺刀、尾刀及会战血量。', 'items': [
-            {'command': f'{command_prefix()}出刀', 'description': '出刀、输出与击杀前三；当期共享180秒，休赛期复用已结算记录并检测新赛季'},
+            {'command': f'{command_prefix()}出刀 / {command_prefix()}查刀', 'description': '出刀、输出与击杀前三；当期共享180秒，休赛期复用已结算记录并检测新赛季'},
             {'command': f'{command_prefix()}出刀速查 Day2 / {command_prefix()}出刀 Day1', 'description': '选择会战阶段；Day1只统计BOSS击杀进度'},
-            {'command': f'{command_prefix()}出刀详情 / {command_prefix()}出刀缺刀 / {command_prefix()}出刀尾刀', 'description': '本人队伍、未完成名单及尾刀；当前名单对照上期时明确标注来源'},
+            {'command': f'{command_prefix()}出刀详情 [排名]', 'description': '不带数字查本人；如出刀详情10，查本工会伤害第10名；缺刀/尾刀保留'},
             {'command': f'{command_prefix()}会战血量 [刷新]', 'description': '联盟阶段与BOSS血量；休赛期展示上一期，卡片注明赛季与状态'},
         ]},
         {'title': '兑换码', 'tag': 'CDK', 'description': '官方、GameWith与成员验证码，同码合并；只操作本人，查询始终不兑换。', 'items': [

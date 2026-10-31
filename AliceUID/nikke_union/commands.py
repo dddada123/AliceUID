@@ -18,7 +18,7 @@ from .service import UnionCooldown, union_queries
 
 sv_union = SV('妮姬联盟突袭', pm=6, priority=3)
 _before_send = None
-USAGE = f'用法：{command_prefix()}出刀 / {command_prefix()}出刀速查 Day2 / {command_prefix()}出刀 Day1 / {command_prefix()}出刀详情（本人三队） / {command_prefix()}出刀缺刀 / {command_prefix()}出刀尾刀。'
+USAGE = f'用法：{command_prefix()}出刀 / {command_prefix()}出刀速查 Day2 / {command_prefix()}出刀 Day1 / {command_prefix()}查刀 / {command_prefix()}出刀详情10（按伤害排名查成员，不带数字查本人） / {command_prefix()}出刀缺刀 / {command_prefix()}出刀尾刀。'
 
 
 def set_before_send(callback):
@@ -60,14 +60,30 @@ def parse_arguments(text):
     return view, day, refresh
 
 
-@sv_union.on_command(('出刀', '联盟突袭', '突袭'))
+def parse_request(text):
+    text = ''.join(str(text or '').split())
+    refresh = text.endswith('刷新')
+    body = text[:-2] if refresh else text
+    for prefix in ('详情', '详细'):
+        if body.startswith(prefix):
+            number = body[len(prefix):]
+            if number and number.isascii() and number.isdigit():
+                rank = int(number)
+                if not 1 <= rank <= 1000:
+                    raise UnionDataError('请输入大于0的成员伤害排名；不带数字查询本人。')
+                return 'detail', 1, refresh, rank
+    view, day, refresh = parse_arguments(text)
+    return view, day, refresh, None
+
+
+@sv_union.on_command(('出刀', '查刀', '联盟突袭', '突袭'))
 async def nikke_union_cmd(bot, ev):
     client = None
     bind = None
     result = None
     forward_title = None
     try:
-        view, day, refresh = parse_arguments(ev.text)
+        view, day, refresh, target_rank = parse_request(ev.text)
         if not await get_policy().query_allowed(ev.group_id):
             result = '本群未开放妮姬查询，请联系群管理员或 Bot 主。'
         else:
@@ -84,7 +100,7 @@ async def nikke_union_cmd(bot, ev):
                     # interpret tid ordering / suffixes as a character code.
                     character_map = resources._load_rows('character_id_map.json')
                 context = await union_queries.query(client, bind, view=view, day=day, refresh=refresh,
-                                                    static=static, character_map=character_map)
+                                                    static=static, character_map=character_map, target_rank=target_rank)
                 from ..nikke_character.cache import panel_identity
                 async def current_card():
                     current = await AliceBind.get_bind(ev.user_id, ev.bot_id)
@@ -127,3 +143,4 @@ async def nikke_union_cmd(bot, ev):
                     await _send(bot,ev,result,title=forward_title)
                     if getattr(result, 'type', None) == 'image' and 'context' in locals() and context.get('fetched_at'):
                         await bot.send('本次所用数据时间：'+context['fetched_at']+'；复用图片时保留图内原快照时间。', at_sender=True)
+

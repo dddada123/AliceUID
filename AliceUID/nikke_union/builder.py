@@ -113,7 +113,7 @@ def _progress(attacks):
 
 
 def build_union_context(attacks, members, *, own_openid, fetched_at, guild_name='当前联盟',
-                        view='quick', day=1, static=None, character_map=(), warnings=(), members_reference=False):
+                        view='quick', day=1, static=None, character_map=(), warnings=(), members_reference=False, raid_active=False, target_rank=None):
     if day not in (0, 1):
         raise UnionDataError('仅支持Day1或Day2。')
     progress, cleared = _progress(attacks)
@@ -132,9 +132,14 @@ def build_union_context(attacks, members, *, own_openid, fetched_at, guild_name=
         rows.append({'openid': uid, 'name': name, 'count': count, 'damage': sum(a['damage'] for a in own),
                      'tail_damage': sum(a['damage'] for a in own if a['is_final_hit']),
                      'tails': sum(a['is_final_hit'] for a in own), 'attacks': own,
-                     'status': '异常：超过3刀' if count > 3 else ('完成' if count == 3 else ('漏刀' if count == 0 else '未出完')),
+                     'status': '异常：超过3刀' if count > 3 else ('完成' if count == 3 else (('待出刀' if raid_active else '漏刀') if count == 0 else '未出完')),
                      'own': uid == str(own_openid)})
     rows.sort(key=lambda x: (-x['damage'], -x['count'], x['name'], x['openid']))
+    for rank, row in enumerate(rows, 1):
+        row['rank'] = rank
+        row['status_color'] = ('ok' if row['count'] == 3 else 'bad' if row['count'] > 3
+                               else ('warm' if raid_active else 'bad') if row['count'] == 0
+                               else 'pending' if raid_active else 'warm')
     counts = Counter(row['count'] for row in rows)
     context = {'title': 'Day 1 简单模式' if day == 0 else 'Day 2 困难模式', 'day': day,
                'guild_name': guild_name, 'source': '社区当前可用记录 · 赛季未知',
@@ -159,10 +164,19 @@ def build_union_context(attacks, members, *, own_openid, fetched_at, guild_name=
         context['coverage'] = '当前完整名单对照上期记录（含历史出刀成员）'
         context['completion'] = ('当前对照名单均有3条Day2记录' if rows and all(r['count'] == 3 for r in rows)
                                  else '仍有未完成或异常成员（按当前名单对照上期记录）')
+    missing = context['missing']
+    middle = (len(missing) + 1) // 2
+    context['missing_columns'] = [missing[:middle], missing[middle:]]
+    context['target_rank'] = target_rank
     if view == 'detail':
         if day == 0:
             raise UnionDataError('Day1只看Boss通关进度，不统计个人详情。')
-        own = next((row for row in rows if row['own']), None)
+        if target_rank is not None:
+            if type(target_rank) is not int or not 1 <= target_rank <= len(rows):
+                raise UnionDataError(f'当前伤害榜共{len(rows)}名成员，请输入1～{len(rows)}的排名；不带数字查询本人。')
+            own = rows[target_rank - 1]
+        else:
+            own = next((row for row in rows if row['own']), None)
         if own is None:
             if known:
                 raise UnionDataError('当前绑定成员不在联盟名单中，无法确认本人详情。')

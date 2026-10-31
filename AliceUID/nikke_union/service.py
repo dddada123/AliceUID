@@ -174,6 +174,7 @@ class UnionService:
                       'finalized':bool(historical and attacks and level.get('level_info')
                                        and (not local or previous.get('finalized',False))),
                       'season':season_context(season, local=local),
+                      '_group': (*group, season['id'], season['active'], season['live_endpoint']),
                       '_period':(season['id'],season['active'],season['live_endpoint'])}
             if local:
                 notes.append('复用本联盟该赛季已验证历史快照；数据时间见卡片，可用刷新指令主动重新查询。')
@@ -208,8 +209,12 @@ class UnionService:
         period = (season['id'],season['active'],season['live_endpoint'])
         async with self._locks.setdefault(account, asyncio.Lock()):
             cached = self._cache.get(key)
-            if not refresh and cached is not None and cached[1].get('_period') == period and 0 <= self.clock() - cached[0] < self.cache_ttl():
+            if not refresh and cached is not None and cached[1].get('_period') == period and 0 <= self.clock() - cached[0] < self.cache_ttl() and 0 <= self.clock() - cached[1]['_cached_at'] < self.cache_ttl():
                 data = cached[1]
+                shared = self._guild_cache.get(data.get('_group'))
+                if shared and str(bind.intl_open_id) in (shared[1].get('_verified_members') or {}):
+                    data = shared[1]
+                    self._cache[key] = cached[0], data
             else:
                 now = self.clock()
                 if account in self._last_remote and now - self._last_remote[account] < self.cooldown:
@@ -219,7 +224,7 @@ class UnionService:
                     # Validate membership consistency before publishing cache.
                     build_union_context(data['attacks'], data['members'], own_openid=bind.intl_open_id,
                                         fetched_at=data['fetched_at'])
-                    self._cache[key] = data['_cached_at'], data
+                    self._cache[key] = self.clock(), data
                 except NikkeLoginRequired:
                     self.invalidate(bind)
                     raise
@@ -229,14 +234,15 @@ class UnionService:
                     raise
             return data
 
-    async def query(self, client, bind, *, view='quick', day=None, refresh=False, static=None, character_map=()):
+    async def query(self, client, bind, *, view='quick', day=None, refresh=False, static=None, character_map=(), target_rank=None):
         data = await self._snapshot(client,bind,refresh=refresh)
         requested_day = day
         if day is None:
             day = 1 if view in ('detail','missing','tails') or not data['attacks'] or any(a['day'] == 1 for a in data['attacks']) else 0
         context = build_union_context(**{k:data[k] for k in ('attacks','members','guild_name','warnings','fetched_at')}, own_openid=bind.intl_open_id, day=day, view=view,
                                       static=static, character_map=character_map,
-                                      members_reference=data.get('members_reference', False))
+                                      members_reference=data.get('members_reference', False),
+                                      raid_active=data['season'].get('raid_active', False), target_rank=target_rank)
         if requested_day == 1 and not context['day2_active']:
             context['warnings'].append('当前没有Day2出刀记录，Day2是否激活未知；不据此断言本期已开打。')
         context.update(data['season'])

@@ -12,7 +12,7 @@ _env = Environment(loader=FileSystemLoader(str(Path(__file__).parent.parent / 't
 
 def render_union_html(context):
     detail_attacks=sum(len(member.get('attacks',[])) for member in context.get('details',[]))
-    scene_height=max(1600,2000+72*len(context.get('rows',[]))+64*len(context.get('missing',[]))
+    scene_height=max(1600,2000+72*len(context.get('rows',[]))+64*((len(context.get('missing',[]))+1)//2)
                      +80*len(context.get('tails',[]))+440*detail_attacks)
     scene_height=min(23000,scene_height)
     return _env.get_template('union.html').render(**apply_theme(context, context.get("card_theme"),scene_height=scene_height))

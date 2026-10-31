@@ -764,7 +764,7 @@ python tools_alice/build_release.py --plugin-only --build-tag docs
 | [AliceUID/nikke_uid/commands.py](AliceUID/nikke_uid/commands.py) | `nikke_bind_uid_cmd` | on_command | `["绑定UID", "绑定uid"]` |
 | [AliceUID/nikke_uid/commands.py](AliceUID/nikke_uid/commands.py) | `nikke_my_uid_cmd` | on_command | `["我的UID", "我的uid"]` |
 | [AliceUID/nikke_uid/commands.py](AliceUID/nikke_uid/commands.py) | `nikke_clear_uid_cmd` | on_command | `["解绑UID", "解绑uid"]` |
-| [AliceUID/nikke_union/commands.py](AliceUID/nikke_union/commands.py) | `nikke_union_cmd` | on_command | `["出刀", "联盟突袭", "突袭"]` |
+| [AliceUID/nikke_union/commands.py](AliceUID/nikke_union/commands.py) | `nikke_union_cmd` | on_command | `["出刀", "查刀", "联盟突袭", "突袭"]` |
 
 与真实Core端点或社区响应发生变化时，优先补充构造回归和明确的字段校验，再更新映射；不要用旧图片、静态图库或猜测值填补缺失的私人数据。
 
@@ -953,3 +953,21 @@ notify_state.py保存全群初始策略和按bot/self_id/group的覆盖。后台
 旧WAIT_MAX预测时间与旧WAIT_REARM缺失full通知的账户做一次stages_v118迁移，旧通知状态不清空；开启卡已展示的阶段视为当前会话已通知。两晚自动关闭仍按原始100%判断，不把99%容差用于自动关闭。关闭/绑定变化/权限和实际路由复核沿用原实现。
 
 验证使用模拟HTTP、时钟和真实临时SQLite；详见test_v118_upgrade.py及继承回归。运行中真实QQ/社区/后台验收需单独记录。
+
+
+## 1.1.12 按排名查刀与成员快照
+
+parse_request仅在详情路径将ASCII正整数解析为排名，普通出刀Day1/Day2规则不变。全程只加载发送者本人凭据；target_rank只在已核验本人联盟的完整快照中选成员，不加载目标账号Cookie或访问目标私有面板。排序与速查rows一致（伤害降序、刀数降序、昵称、成员ID），同伤害稳定排序，零刀也可定位。无数字保留本人路径；越界给出现有榜单人数和有效范围。
+
+持久成员库沿用UnionHistory的工会/产品/区服/赛季JSON快照，members保存完整名单，attacks保存所有成员阵容、伤害及外观；不另建重复账号库。内存_guild_cache共享同工会当前快照，_cache只是本人身份租期；进行中同时检查原数据_cached_at，晚到成员不能顺延180秒。已有账号在租期内可读取同工会更新的快照。休赛期已结算数据仍通过现有finalized路径长期复用，本人联盟/当前成员确认保留短TTL；赛季阶段改变、换工会、刷新及凭据变化均触发原有核验。数据源没有任何记录时继续显示真实未知，不把空响应捏造成零刀。
+
+raid_active取官方赛季时间，构建器统一产生status/status_color，所有视图共用；missing_columns均分名单，保证16人8+8，32人16+16。模板只显示选中目标，卡片内容指纹包含排名/成员/快照，避免本人图误用于他人。
+
+
+## 1.1.13 总览别名修复
+
+nk出刀与nk查刀在同一个on_command四项元组注册到nikke_union_cmd(bot, ev)，默认view=quick，不再通过另一个已装饰函数传入detail_alias关键字。本人/按排名阵容使用nk出刀详情[数字]；别名后参数沿用出刀解析器，查刀1为Day1，不再是伤害第1名。180秒共享数据、休赛期持久快照、阶段配色及双列逻辑未变。
+
+根因：Core SV._on返回wrapper(bot,msg)，旧nikke_union_lookup向这个wrapper传detail_alias=True，触发TypeError；旧边界测试把装饰器模拟为原函数，漏掉了这一差异。本版边界测试执行冻结Core真实_on与Trigger，复现旧失败并验证出刀/查刀、详情、刷新、权限和单次路由。
+
+帮助第1行并列出刀/查刀，第3行仅列出刀详情[排名]，更新帮助缓存版本以替换旧帮助图。滑刀统计仅保留开发笔记，未增加命令、WebUI配置或统计模块。

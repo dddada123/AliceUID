@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.11-ff69b4?style=flat-square" alt="Version: 1.1.11"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.13-ff69b4?style=flat-square" alt="Version: 1.1.13"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.11**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.13**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -55,7 +55,9 @@
 
 ### ⚔️ 会战血量、联盟出刀总览与个人出刀详情
 
-`nk会战血量` 查看BOSS进度，`nk出刀` 查看联盟伤害、击杀排行与未完成名单。支持指定会战日期，并用 `nk出刀详情` 查看本人队伍和战斗记录。
+`nk会战血量` 查看BOSS进度，`nk出刀` / `nk查刀` 查看同一张联盟总览图，包含联盟伤害、击杀排行与未完成名单。支持指定会战日期，用 `nk出刀详情` 查看本人队伍和战斗记录。追加伤害排名（如 `nk出刀详情1`、`nk出刀详情10`、`nk出刀详情15`）查看本工会对应成员的阵容，排名与速查表使用同一快照、同一排序。
+
+进行中：完成绿色，未出完蓝色，0/3为黄色“待出刀”；休赛期：完成绿色，未出完黄色，0/3为红色“漏刀”。未完成名单均分双列，16人左8右8。成员记录按产品/区服/工会/赛季共享；进行中默认180秒更新，休赛期复用已结算历史快照，定期确认本人联盟及名单，跨重启保留。
 
 ### 📦 资源查询与满仓时间预估
 
@@ -189,9 +191,10 @@ nk资源查询
 | `nk爱丽丝练度` / `nk爱丽丝面板` | 查询指定角色练度 |
 | `nk刷新爱丽丝面板` | 更新指定角色练度与皮肤数据，并渲染角色卡片 |
 | `nk卡片` | 完整已持有角色图鉴 |
-| `nk出刀` | 联盟出刀速查与排行 |
+| `nk出刀` / `nk查刀` | 同一张联盟总览图，出刀速查与排行 |
 | `nk出刀 Day1` / `nk出刀速查 Day2` | 选择会战阶段 |
-| `nk出刀详情` / `nk出刀缺刀` / `nk出刀尾刀` | 本人队伍、未完成名单、尾刀统计 |
+| `nk出刀详情 [排名]` | 不带数字查本人，带数字按本工会伤害排名查成员阵容 |
+| `nk出刀缺刀` / `nk出刀尾刀` | 未完成双列名单、尾刀统计 |
 | `nk会战血量 [刷新]` | 联盟阶段及 BOSS 血量 |
 | `nk资源查询 [刷新]` | 本人资源与保管箱状态 |
 | `nk开启收菜提醒` / `nk关闭收菜提醒` | 当前群聊或私聊的本人收菜提醒开关 |
