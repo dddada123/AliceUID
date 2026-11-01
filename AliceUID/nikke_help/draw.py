@@ -15,7 +15,8 @@ _ENV = Environment(loader=FileSystemLoader(str(PACKAGE / 'templates')), autoesca
 
 @lru_cache(maxsize=1)
 def _hero_art() -> str:
-    path = PACKAGE.parent / 'assets/ALICEUID_Login_liberalio_.jpg'
+    from ..nikke_resource.media import media_path
+    path = media_path('assets/ALICEUID_Login_liberalio_.jpg')
     return 'data:image/jpeg;base64,' + base64.b64encode(path.read_bytes()).decode() if path.is_file() else ''
 
 
@@ -69,32 +70,35 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}出刀详情 [排名]', 'description': '不带数字查本人；如出刀详情10，查本工会伤害第10名；缺刀/尾刀保留'},
             {'command': f'{command_prefix()}会战血量 [刷新]', 'description': '联盟阶段与BOSS血量；休赛期展示上一期，卡片注明赛季与状态'},
         ]},
-        {'title': '兑换码', 'tag': 'CDK', 'description': '官方、GameWith与成员验证码，同码合并；只操作本人，查询始终不兑换。', 'items': [
+        {'title': '兑换码', 'tag': 'CDK', 'description': '官方、GameWith与成员验证码，同码合并；手动仅操作本人；成员/官方/GW新码可自动兑换，查询入口只读。', 'items': [
             {'command': f'{command_prefix()}查询兑换码', 'description': '无需绑定，分块列出当前码、来源和报酬详情，始终不兑换'},
             {'command': f'{command_prefix()}兑换码速查', 'description': '无需绑定，只列当前兑换码，不显示报酬，不执行兑换'},
             {'command': f'{command_prefix()}兑换码', 'description': '列出当前码；已绑定用户自动兑换本人未领取项，需Bot主开启CDK兑换'},
             {'command': f'{command_prefix()}兑换码ABCDEFG', 'description': '将ABCDEFG换成单个兑换码；只操作本人，成功附可用的第三方报酬说明'},
             {'command': f'{command_prefix()}兑换官方兑换码 / {command_prefix()}第三方兑换码', 'description': '仅兑换对应来源的当前码；第三方历史区不参与'},
-            {'command': f'{command_prefix()}增加兑换码ABCDEFG', 'description': '成员可用：成功/官方明确已领取入库，48小时内可补录'},
+            {'command': f'{command_prefix()}增加兑换码ABCDEFG', 'description': '本人核验入库后触发新增码自动兑换；疑似一次性或次数耗尽码停止并移出库存'},
+            {'command': f'{command_prefix()}自动兑换码 / {command_prefix()}关闭自动兑换码', 'description': '默认开启；成员/官方/GW新码自动处理，静默核对全部当前有效码并记录'},
         ]}
     ]
     if permission == 0:
         sections.extend([
             {'title': '数据库与全局管理', 'tag': '仅 Bot 主', 'description': '公开数据库、账号与用户权限，以及全局外观维护。', 'items': [
                 {'command': f'{command_prefix()}数据库更新', 'description': '先角色资料后图库；招募日历静默更新，保留周检'},
-                {'command': f'{command_prefix()}刷新兑换码', 'description': '手动维护官方+GameWith共享缓存；不兑换。00/08/16点静默更新，按需缓存4小时'},
                 {'command': f'{command_prefix()}数据库更新 状态 / 帮助', 'description': '查看日历排期、小时补查及24小时结果、图库队列'},
-                {'command': '后台：每日签到时间', 'description': '北京时间HH:MM，默认08:33；保存后更新调度，手动签到仍可立即执行'},
                 {'command': f'{command_prefix()}更新资源', 'description': '兼容旧命令，同样进入增量数据库任务'},
-                {'command': f'{command_prefix()}用户黑名单 / {command_prefix()}用户白名单', 'description': '添加 / 移除 QQ号；黑用户禁全部Nikke指令与登录'},
-                {'command': f'{command_prefix()}红莲：暗影新增别名黑莲', 'description': f'添加全局角色别名；可省略符号，如 {command_prefix()}红莲暗影新增别名黑莲'},
+                {'command': '后台：每日签到时间', 'description': '北京时间HH:MM，默认08:33；保存后更新调度，手动签到仍可立即执行'},
+                {'command': f'{command_prefix()}刷新兑换码', 'description': '维护官方/GW库存；新码交给后台自动兑换。00/08/16点更新，缓存4小时'},
+                {'command': f'{command_prefix()}启用自动兑换码 / {command_prefix()}停用自动兑换码', 'description': '系统总开关；停用不修改个人开关，重新启用不补跑历史新增码'},
+                {'command': f'{command_prefix()}全员自动兑换码 / {command_prefix()}关闭全员自动兑换码', 'description': '批量设置全部绑定用户个人开关；成员可自行修改，系统停用时开启操作会提示'},
                 {'command': f'{command_prefix()}账号列表', 'description': '查看绑定摘要，不展示账号凭据'},
-                {'command': f'{command_prefix()}红莲暗影注册别名黑莲', 'description': '与新增别名相同；旧的「角色名别名别名」写法已停用'},
+                {'command': f'{command_prefix()}用户黑名单 / {command_prefix()}用户白名单', 'description': '添加 / 移除 QQ号；黑用户禁全部Nikke指令与登录'},
                 {'command': '后台：AliceUID 用户绑定管理', 'description': '查看绑定摘要与脱敏导出；修改凭据需通过登录流程，解绑走专用接口'},
+                {'command': f'{command_prefix()}红莲：暗影新增别名黑莲', 'description': f'添加全局角色别名；可省略符号，如 {command_prefix()}红莲暗影新增别名黑莲'},
+                {'command': f'{command_prefix()}红莲暗影注册别名黑莲', 'description': '与新增别名相同；旧的「角色名别名别名」写法已停用'},
                 {'command': '后台：主题与卡片语言', 'description': '亮色/暗色/随机毛玻璃，简繁可选；出刀缓存按秒调整'},
                 {'command': '后台：全局毛玻璃强度', 'description': '0～100%，默认20%；只模糊背景，修改后下次出图生效'},
             ]},
-            {'title': '群组查询', 'tag': '仅 Bot 主', 'description': '群查询状态、签到记录与通知，以及群名单维护。', 'items': [
+            {'title': '群组查询与管理', 'tag': '仅 Bot 主', 'description': '群查询、签到通知、自动兑换与群名单维护。', 'items': [
                 {'command': f'{command_prefix()}群查询 状态', 'description': '查看本群实际查询权限，不能绕过Bot主名单'},
                 {'command': f'{command_prefix()}签到查询 [页码]', 'description': '本群绑定/近期使用账号的本周期签到记录；本地确认结果，非实时全员名单'},
                 {'command': f'{command_prefix()}群查询 开启 / 关闭', 'description': 'Bot主操作本群名单；白名单非空仍须在内'},
@@ -103,6 +107,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
                 {'command': f'{command_prefix()}开启签到群通知 / 关闭签到群通知', 'description': 'Bot主在群内单独开关通知，其他群不受影响'},
                 {'command': f'{command_prefix()}群黑名单 / {command_prefix()}群白名单', 'description': '添加 / 移除 群号；同群号跨两表拒绝保存'},
                 {'command': f'{command_prefix()}全群签到通知 开启/关闭/状态', 'description': '一次性批量应用全部群，之后仍可单独修改各群'},
+                {'command': f'{command_prefix()}全群自动兑换码 / {command_prefix()}关闭全群自动兑换码', 'description': '批量设置当前群绑定成员个人开关；只影响本群，成员之后可自行修改'},
             ]}
         ])
     steps = [

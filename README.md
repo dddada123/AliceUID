@@ -1,3 +1,17 @@
+## 1.1.20 · 官方/GW新码自动兑换与全量核对
+
+官方、GameWith扫描发现新码，以及成员成功新增兑换码，均可为开启自动兑换的绑定用户执行自动兑换。公开来源继续每天北京时间00/08/16点检查；后台每分钟检查一次本地新码记录，Bot主刷新兑换码后也会交给后台处理。重复扫描、大小写差异及双来源同码不会重复发起任务。首次升级后的后台检查会将当前可用官方/GW码纳入核对。
+
+每个用户处理时静默核对当前全部有效兑换码。例如当前8个码，已在本地确认5个、官方记录确认2个，则只补领剩余1个。已确认的成功/已领取回执永久按账号、产品、区服、角色保存；下次不再向官方逐码请求这些码。未知项先批量查询官方领取记录，历史支持分页；结果未确认不盲目重复提交。全部已确认时无需构造Cookie客户端或调用账号接口。
+
+cdk.sqlite3的receipts保存逐码回执，redemption_audits保存每个账号最近一次全量核对：当前码列表、逐码状态、已确认数量、是否全部完成和更新时间，不保存Cookie。失败、未确认及未执行不会标为全部领取。核对过程不逐码刷屏，仍按群发送开始/完成及异常提示。
+
+开关沿用1.1.19：nk自动兑换码 / nk关闭自动兑换码；Bot主nk全群自动兑换码 / nk关闭全群自动兑换码，nk全员自动兑换码 / nk关闭全员自动兑换码；系统总开关nk启用自动兑换码 / nk停用自动兑换码及后台同项。总开关与个人默认开启，但仍须既有“允许本人CDK兑换”写开关开启。批量设置后成员可自行修改，停用系统不改个人设置。重新启用本身不补跑；之后新的兑换事件会核对所有仍有效的码，包括此前漏领项。
+
+成员触发时顺序仍为触发者、Bot主、触发群其他成员、非本群绑定用户；公开来源无触发者时从Bot主开始。沿用本人绑定/角色核验、Core与插件权限、账号锁、跨群通知去重、疑似一次性码及失效移库规则。后台只复用已经观察到的在线Bot连接。只读查询本身不调用账号接口，独立后台监测按自动设置处理发现的新码。
+
+Release包含源码ZIP与图片字体ZIP，均以AliceUID/开头。首次安装同时解压至plugins父目录；升级覆盖源码并保留原assets、card_bg、formts，已有完整素材无需重复解压。完整重启Core，不删除data/AliceUID中的绑定、个人设置和cdk.sqlite3。开发素材继续共享AliceUID_Pic，不重复复制到版本目录。
+
 <p align="center">
   <a href="https://github.com/dddada123/AliceUID">
     <img src="https://raw.githubusercontent.com/dddada123/AliceUID/main/ICON.png" width="256" alt="AliceUID">
@@ -9,14 +23,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.18-ff69b4?style=flat-square" alt="Version: 1.1.18"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.20-ff69b4?style=flat-square" alt="Version: 1.1.20"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.18**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.20**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -28,7 +42,7 @@
 
 ### 首次启动自动更新角色列表
 
-安装或升级到1.1.18并完整重启GsCore后，插件会在后台从官方CDN获取最新 `nikke_list_zh-TW_v2.json`，已有内置旧表也会刷新；无需先配置主人账号或手动发命令。成功结果持久保存，后续重启不重复下载；网络失败保留旧表，默认冷却一小时后自动重试。此任务只更新角色列表，不启动整套图库下载；查询发现未知角色时也会尝试补查，避免输出空白卡片。
+首次安装或从旧角色表版本升级，并完整重启GsCore后，插件会在后台从官方CDN获取最新 `nikke_list_zh-TW_v2.json`，已有内置旧表也会刷新；无需先配置主人账号或手动发命令。成功结果持久保存，后续重启不重复下载；网络失败保留旧表，默认冷却一小时后自动重试。此任务只更新角色列表，不启动整套图库下载；查询发现未知角色时也会尝试补查，避免输出空白卡片。
 
 ### 日期与数据时间
 
@@ -354,7 +368,7 @@ Bot管理员可用 `nk账号列表` / `nk绑定列表` 查看账号概览和连�
 | `BrowserType.launch: Executable doesn't exist` | 在GsCore实际Python环境中执行 `python -m playwright install chromium`；Docker需在运行容器内安装并检查浏览器路径/访问权限，也可改用Cookie导入登录，见[依赖安装](#依赖安装) |
 | Cookie失效 | 使用 `nk重新登录`；换号才需要解绑 |
 | 用户/群不能查询 | Core权限及插件群/用户四名单 |
-| 新角色不显示或卡片资料空白 | 先请Bot主发送 `nk数据库更新`；手动执行前须在GsCore核心设置中配置主人账号（`masters`）。1.1.18首次启动会自动刷新角色列表，失败则冷却重试；新资料未就绪时会明确提示 |
+| 新角色不显示或卡片资料空白 | 先请Bot主发送 `nk数据库更新`；手动执行前须在GsCore核心设置中配置主人账号（`masters`）。首次安装会自动刷新角色列表，失败则冷却重试；新资料未就绪时会明确提示 |
 | 帮助缺少管理指令、数据库更新提示无权限 | 确认发送者已被GsCore的 `masters` 识别为主人，再发送 `nk帮助`；插件Bot主QQ配置不能替代Core主人权限 |
 | 图鉴或立绘缺图 | `nk数据库更新 状态`、公开源冷却、角色/皮肤映射 |
 | 收菜1302127 | 自动静默尝试最多三次；仍失败时提示可能是网络原因，请稍后重试，Cookie失效则重新登录 |

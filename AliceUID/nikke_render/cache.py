@@ -47,9 +47,10 @@ def style_version(*, dpi=None, theme=None):
         except (ImportError, AttributeError, KeyError, TypeError, ValueError):
             dpi = 144
     from ..nikke_time import DISPLAY_VERSION
+    from ..nikke_resource.media import media_path
     return dict(time_display=DISPLAY_VERSION, font=resolve_font().fingerprint, language=get_card_language(), backgrounds=backgrounds,
-                bundled_assets=[(str(p.relative_to(PACKAGE.parent)), file_version(p))
-                                for p in sorted((PACKAGE.parent/'assets').rglob('*'))
+                bundled_assets=[(str(p.relative_to(media_path('assets'))), file_version(p))
+                                for p in sorted(media_path('assets').rglob('*'))
                                 if p.is_file() and p.suffix.lower() in ('.png', '.jpg', '.svg', '.webp')],
                 glass=get_glass_strength(), theme=theme or get_card_theme_mode(), dpi=dpi,
                 templates=[(p.name, file_version(p)) for p in sorted((PACKAGE/'templates').iterdir())

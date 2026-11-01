@@ -1,3 +1,19 @@
+# 1.1.20 当前开发说明
+
+PublicDiscoveries在cdk.sqlite3保存auto_public_codes与auto_public_dispatch，按归一化码和Bot平台去重。每分钟仅检查本地库存，无新码不加载账号或调用私有API；定时公开刷新结束和Bot主刷新后也触发检查。没有已观察到的在线连接时保留待处理新码，连接恢复后处理；停用时丢弃待执行记录但保留个人设置。已有成员码不会因后来出现在官方/GW而再触发。
+
+Automatic为每位参与者合并触发码和当前有效库存，过滤停用/过期项。Redemptions.run(reconcile=True)持有原账号租约，未知码先角色核验、批量读取本人历史、再次核验，再持久记录明确已领取项。全已知时只读本地回执，不构造客户端、不发账号接口请求。未知提交仍遵守原回执事务、重新校验与限流规则。官方历史最多50页，重复页有界退出；没有看到记录不等于未领取，只代表尚未确认。
+
+receipts保留逐码结果；redemption_audits按账号/产品/区服/角色记录当前清单、状态、完成数、完成标记、更新时间及绑定revision哈希，均不含Cookie。结果未确认保留回执不盲目重投。每个新事件会补齐当前有效漏领项，不在每分钟空转时重复请求已失败账号。
+
+以下为继承版本的历史实现说明，当前规则以上文及README/CHANGELOG为准。
+
+# 1.1.19 当前开发说明
+
+新增nikke_cdk/automatic.py，个人设置及连接观察存cdk.sqlite3；系统总开关保存在Core配置。AutoStore默认缺省开启，批量修改事务提交。复用Redemptions的账号租约、绑定revision、角色核验及回执；auto队列串行，只处理新增成员库存，不补跑。后台请求与发送再次校验Core及插件名单/开关。
+
+媒体路径由nikke_resource/media.py解析；开发从workspace_paths.media_root读取，生产保留标准AliceUID/assets、card_bg、formts路径。源码ZIP不带媒体，Release另带素材ZIP，两个包覆盖到同一plugins父目录。
+
 # AliceUID 开发文档
 
 适用版本：**1.1.18**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。

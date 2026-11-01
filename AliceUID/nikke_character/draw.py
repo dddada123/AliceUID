@@ -196,7 +196,8 @@ def render_character_html(context: dict, style: str | None = None, theme: str | 
     context['card_width'] = CARD_WIDTH
     context.setdefault('bond', None)
     import base64
-    bond_path=Path(__file__).resolve().parents[2]/'assets/status/bond-heart.png'
+    from ..nikke_resource.media import media_path
+    bond_path=media_path('assets/status/bond-heart.png')
     context['bond_icon_url']='data:image/png;base64,'+base64.b64encode(bond_path.read_bytes()).decode('ascii')
     for key in ('char_class', 'element', 'corporation'):
         value = context.get(key)

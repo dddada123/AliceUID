@@ -26,7 +26,8 @@ for directory in (*(RESOURCE_PATH / item.directory for item in RESOURCE_TYPES.va
 
 # 随插件分发的静态表（角色/词条/关卡）与登录页素材
 PACKAGE_DATA_PATH = PACKAGE_ROOT / "data"
-ASSETS_PATH = PLUGIN_ROOT / "assets"
+from ..nikke_resource.media import media_path
+ASSETS_PATH = media_path('assets')
 
 AliceUIDConfig = ValidatedStringConfig(
     "AliceUID", CONFIG_PATH, CONFIG_DEFAULT,

@@ -12,6 +12,10 @@ from gsuid_core.utils.plugins_config.models import (
 from ..nikke_render.fonts import factory_default, font_options
 
 CONFIG_DEFAULT: Dict[str, GSC] = {
+    'AliceUID_AutoCDKEnabled': GsBoolConfig(
+        '自动兑换码系统总开关',
+        '默认启用；成员新增及官方/GameWith扫描新码后逐个兑换，并核对当前全部有效码。停用不修改个人开关、不补跑停用期间新增的码；仍需开启CDK兑换写操作。', True,
+    ),
     # 登录地址与浏览器
     "AliceUID_LoginUrl": GsStrConfig(
         "登录页反代 / 外网地址（优先配置）",

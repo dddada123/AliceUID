@@ -10,7 +10,8 @@ import re
 from threading import RLock
 from PIL import ImageFont
 
-FONT_ROOT=Path(__file__).resolve().parents[2]/'formts'
+from ..nikke_resource.media import media_path
+FONT_ROOT=media_path('formts')
 FONT_KEY='AliceUID_CardFont'
 FALLBACK='黑体（兜底）'
 SHIPPED_DEFAULT='AaZongYiYuan-2.ttf'

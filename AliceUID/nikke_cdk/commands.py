@@ -9,7 +9,9 @@ from . import api
 
 
 def listing(report, prefix, *, include_summary=True):
-    blocks = ['当前兑换码｜官方 + GameWith + 成员补充（已过滤历史及已知停用码）']
+    codes = '\n'.join(item['code'] for item in report['items']) or '当前暂无可尝试兑换码'
+    blocks = ['当前兑换码列表\n' + codes,
+              '兑换码详情｜官方 + GameWith + 成员补充（已过滤历史及已知停用码）']
     for item in report['items']:
         labels = {'official': '官方', 'gamewith': 'GameWith', 'member': '成员补充'}
         sources = '、'.join(labels[s] for s in item['sources'] if s in labels)
@@ -49,7 +51,8 @@ def result_text(results):
     lines = ['兑换结果']
     for row in results:
         label = {'success': '兑换成功✅', 'claimed': '已领取✅'}.get(row['status'], row['result'])
-        lines.append((row['code'] + '：' if row.get('code') else '') + label)
+        if row['status'] != 'claimed':
+            lines.append((row['code'] + '：' if row.get('code') else '') + label)
         if row.get('pool_status') == 'added' and row.get('pool_basis') == 'claimed':
             lines.append('共享缓存：官方已确认本人领取，已加入供其他绑定角色尝试')
         elif row.get('pool_status') in ('added', 'existing'):
@@ -149,6 +152,7 @@ class Commands:
         self.tasks = set()
         self.forward, self.profile = forward, profile
         self.result_forward_enabled = result_forward_enabled
+        self.automatic = None
 
     async def send_detail(self, bot, ev, text, kind, bind=None, *, config_key='AliceUID_CDKForward',
                           header_note=None, quiet=False):
@@ -164,7 +168,11 @@ class Commands:
         header = detail_header(kind, bind)
         if header_note:
             header += '\n'+header_note
-        message = [header, *pages(text)]
+        parts = text.split('\n\n兑换码详情', 1)
+        if len(parts) == 2:
+            message = [header, *pages(parts[0]), *pages('兑换码详情' + parts[1])]
+        else:
+            message = [header, *pages(text)]
         options = dict(at_sender=False) if quiet else {}
         result = await self.forward(_DeliveryBot(bot, self, ev, bind), ev, message,
                                     config_key=config_key, **options)
@@ -185,6 +193,7 @@ class Commands:
             await self.send(bot, ev, '仅Bot主可以刷新兑换码缓存')
             return
         argument = (argument or '').strip()
+        auto_candidates = None
         if mode == 'redeem' and argument == '速查':
             mode, argument = 'quick', ''
         combined = mode == 'redeem' and not argument
@@ -202,6 +211,8 @@ class Commands:
                 return
             report = self.catalog.report()
             cached = next((r for r in report['items'] if code_key(r['code']) == code_key(code)), None)
+            if mode == 'add':
+                auto_candidates = set() if cached else {code_key(code)}
             items = [cached or dict(code=code, sources=[], reward=self.catalog.reward(code))]
         else:
             report = await self.catalog.ensure(first=mode == 'redeem', force=mode == 'refresh')
@@ -214,6 +225,10 @@ class Commands:
                                 'GameWith' + ('：检查未完成' if 'gamewith' in report['errors'] else '：已有可用快照')]
                 await self.send(bot, ev, f"{state}｜当前候选{len(items)}个｜{action}\n"
                                 + '\n'.join(source_lines + report['warnings']) + '\n过期标记和本人领取记录已保留')
+                if getattr(self, 'public_tick', None) is not None:
+                    task = asyncio.create_task(self.public_tick())
+                    self.tasks.add(task)
+                    task.add_done_callback(self.tasks.discard)
                 return
             if mode == 'quick':
                 await self.send(bot, ev, quick_listing(report, self.prefix()))
@@ -279,7 +294,8 @@ class Commands:
             elif not await self.send(bot, ev, notice, bind):
                 return
             # Keep the client alive in the retained worker; delivery failure must not cause a new submit.
-            task = asyncio.create_task(self._worker(bot, ev, client, bind, items, contribute=mode == 'add'))
+            task = asyncio.create_task(self._worker(bot, ev, client, bind, items, contribute=mode == 'add',
+                                                   auto_candidates=auto_candidates))
             self.tasks.add(task)
             task.add_done_callback(self.tasks.discard)
             client = None
@@ -287,10 +303,22 @@ class Commands:
             if client is not None:
                 await client.close()
 
-    async def _worker(self, bot, ev, client, bind, items, *, contribute=False):
+    async def _worker(self, bot, ev, client, bind, items, *, contribute=False, auto_candidates=None):
         try:
             results = await self.redemptions.run(client, bind, items,
                 current=lambda: self.current(ev, bind), enabled=self.enabled, contribute=contribute)
+            if contribute and getattr(self, 'public_discoveries', None) is not None:
+                new_members = {code_key(r['code']) for r in results if r.get('pool_status') == 'added'}
+                self.public_discoveries.remember_member([item for item in items if code_key(item['code']) in new_members])
+            if contribute and self.automatic is not None and self.automatic.enabled():
+                added = {code_key(r['code']) for r in results if r.get('pool_status') == 'added'}
+                if auto_candidates is not None:
+                    added &= auto_candidates
+                fresh = [item for item in items if code_key(item['code']) in added]
+                if fresh:
+                    reason = await self.automatic.run(bot, ev, bind, fresh, results, seed_client=client)
+                    if reason:
+                        results.append(dict(code='', status='info', result=reason))
             if contribute and not any(r.get('pool_status') in ('added', 'existing', 'blocked') for r in results):
                 results.append(dict(code='', status='info', result='无本次或48小时内成功/官方明确已领取记录，未新增共享码；已有缓存记录保留'))
             if detailed_result(results) and self.result_forward_enabled():
@@ -341,4 +369,19 @@ def register(commands):
     @admin.on_command('刷新兑换码')
     async def refresh(bot, ev):
         await invoke(bot, ev, 'refresh')
+
+    def control(service, name, scope, enabled):
+        @service.on_fullmatch(name)
+        async def handler(bot, ev):
+            if commands.automatic is not None:
+                await commands.automatic.control(bot, ev, scope, enabled)
+
+    control(user, '自动兑换码', 'self', True)
+    control(user, '关闭自动兑换码', 'self', False)
+    control(admin, '启用自动兑换码', 'system', True)
+    control(admin, '停用自动兑换码', 'system', False)
+    control(admin, '全群自动兑换码', 'group', True)
+    control(admin, '关闭全群自动兑换码', 'group', False)
+    control(admin, '全员自动兑换码', 'all', True)
+    control(admin, '关闭全员自动兑换码', 'all', False)
     return user, admin

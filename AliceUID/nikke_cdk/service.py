@@ -57,7 +57,7 @@ class Redemptions:
             pass
         return False
 
-    async def run(self, client, bind, items, *, current, enabled, contribute=False):
+    async def run(self, client, bind, items, *, current, enabled, contribute=False, reconcile=False):
         account = identity(bind)
         lease_key = 'account:' + account
         token = self.store.acquire(lease_key, self.clock())
@@ -65,6 +65,7 @@ class Redemptions:
             return [dict(code='', status='stopped', result='本账号已有兑换任务，本次未重复提交')]
         results = []
         seen, sent = set(), False
+        history_checked = False
         def source_expired(item):
             detail = self.store.detail(PRODUCT, item['code']) or {}
             window = {**item, **{k: v for k, v in detail.items() if v is not None}}
@@ -73,6 +74,24 @@ class Redemptions:
             return ((end is not None and now >= end)
                     or (window.get('valid_from') and now < window['valid_from']))
         try:
+            unknown = [item for item in items if not (
+                (receipt := self.store.receipt(account, item['code']))
+                and receipt['state'] in ('success', 'claimed'))]
+            if reconcile and unknown:
+                if not await current() or not enabled():
+                    raise OwnedError('绑定、权限或兑换开关已变化，本次未核验')
+                await self.role_matches(client, bind)
+                history = await self.read_history(client)
+                await self.role_matches(client, bind)
+                if not await current() or not enabled():
+                    raise OwnedError('绑定、权限或兑换开关已变化，本次未核验')
+                owned = {row['cdk'].strip().casefold() for row in history if isinstance(row, dict)
+                         and isinstance(row.get('cdk'), str)
+                         and (row.get('status') is True or (type(row.get('status')) is int and row['status'] == 1))}
+                for item in unknown:
+                    if code_key(item['code']) in owned:
+                        self.store.record(account, item['code'], 'claimed', '官方批量记录确认本账号已领取', self.clock())
+                history_checked = True
             for item in items:
                 code = code_text(item['code'])
                 key = code_key(code)
@@ -100,7 +119,7 @@ class Redemptions:
                     results.append(row)
                     continue
                 if receipt and receipt['state'] in ('submitting', 'uncertain'):
-                    confirmed = await self.confirm(client, account, code)
+                    confirmed = False if history_checked else await self.confirm(client, account, code)
                     results.append(dict(code=code, status='claimed' if confirmed else 'uncertain',
                         result='官方记录确认本账号已领取' if confirmed else '上次提交结果未确认，本次未重复提交'))
                     if not confirmed:
@@ -167,11 +186,14 @@ class Redemptions:
                     results.append(row)
         except (OwnedError, NikkeApiError) as exc:
             reason = str(exc) if isinstance(exc, OwnedError) else ERRORS.get(exc.code, '角色核验请求失败')
-            results.append(dict(code='', status='stopped', result=reason))
+            uncertain = reconcile and isinstance(exc, NikkeApiError) and exc.code in UNCERTAIN
+            results.append(dict(code='', status='uncertain' if uncertain else 'stopped', result=reason))
         finally:
             self.store.release(lease_key, token)
         processed = {code_key(r['code']) for r in results if r.get('code')}
         remaining = len({code_key(i['code']) for i in items} - processed)
         if remaining:
             results.append(dict(code='', status='remaining', result=f'其余{remaining}个码未尝试'))
+        if reconcile:
+            self.store.audit_inventory(bind, items, results, self.clock())
         return results

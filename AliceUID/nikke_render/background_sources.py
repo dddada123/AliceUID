@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
-LOCAL_ROOT=Path(__file__).resolve().parents[2]/'card_bg'
+from ..nikke_resource.media import media_path
+LOCAL_ROOT=media_path('card_bg')
 
 
 class BackgroundProvider(Protocol):

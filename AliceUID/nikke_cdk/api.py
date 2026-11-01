@@ -112,11 +112,20 @@ async def redeem(client, code):
 
 
 async def history(client):
-    data = await private(client, 'GetCdkRedemptionHistory', {'page_num': 1, 'page_size': 20})
-    rows = data.get('cdk_redemption_list')
-    if not isinstance(rows, list):
-        raise NikkeApiError(-1, '历史响应异常', PATH)
-    return rows
+    history_rows, seen = [], set()
+    for page in range(1, 51):
+        data = await private(client, 'GetCdkRedemptionHistory', {'page_num': page, 'page_size': 20})
+        rows = data.get('cdk_redemption_list')
+        if not isinstance(rows, list):
+            raise NikkeApiError(-1, '历史响应异常', PATH)
+        signature = json.dumps(rows, sort_keys=True, ensure_ascii=False)
+        if signature in seen:
+            break  # A server ignoring page_num must not cause an endless loop.
+        seen.add(signature)
+        history_rows.extend(rows)
+        if not rows or data.get('is_last_page') is True or (len(rows) < 20 and data.get('is_last_page') is not False):
+            break
+    return history_rows
 
 
 async def fetch_public(source, now):

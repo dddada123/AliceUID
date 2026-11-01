@@ -48,7 +48,8 @@ def status_html(context,theme=None):
     context=copy.deepcopy(context)
     if context['kind']=='resources':
         for item in context['items']:
-            path=PACKAGE.parent/'assets/status'/item['icon_name']
+            from ..nikke_resource.media import media_path
+            path=media_path('assets/status')/item['icon_name']
             item['icon_url']='data:image/png;base64,'+base64.b64encode(path.read_bytes()).decode('ascii')
     height=max(900,520+155*len(context.get('bosses',[])))
     context=apply_theme(context,theme or context.get('card_theme'),scene_width=1000,scene_height=height)

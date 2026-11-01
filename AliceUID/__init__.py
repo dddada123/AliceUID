@@ -70,6 +70,8 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
     def observe_conversation(ev):
         observe_group(ev)
         observe_route(ev)
+        from .nikke_cdk.runtime import observe_group as observe_cdk_group
+        observe_cdk_group(ev)
     set_group_observer(observe_conversation)
     setup_roster(policy=policy)
     _union_commands.set_before_send(_query_before_send)

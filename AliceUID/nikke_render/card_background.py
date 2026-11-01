@@ -8,7 +8,8 @@ from PIL import Image,ImageFilter
 from .glass_settings import blur_radius
 from .glass import compose_frost, image_uri
 
-BACKGROUND_ROOT = Path(__file__).resolve().parents[2] / 'card_bg'
+from ..nikke_resource.media import media_path
+BACKGROUND_ROOT = media_path('card_bg')
 
 
 def background_candidates(theme='dark'):

@@ -38,6 +38,10 @@ class Store:
                 CREATE TABLE IF NOT EXISTS inventory_codes (
                     position INTEGER PRIMARY KEY AUTOINCREMENT, product TEXT NOT NULL,
                     code_key TEXT NOT NULL, code TEXT NOT NULL, UNIQUE(product,code_key));
+                CREATE TABLE IF NOT EXISTS redemption_audits (
+                    account TEXT PRIMARY KEY, user_id TEXT, bot_id TEXT, revision TEXT,
+                    total INTEGER, confirmed INTEGER, complete INTEGER,
+                    items TEXT NOT NULL, updated REAL NOT NULL);
             ''')
             members = list(db.execute("SELECT * FROM member_codes WHERE state='active' ORDER BY first_verified,code"))
             names = {}
@@ -272,6 +276,36 @@ class Store:
         with self.tx() as db:
             row = self._receipt(db, account, code)
             return dict(row) if row else None
+
+    def audit_inventory(self, bind, items, results, now):
+        """Latest full-inventory outcome; no Cookie, token or raw upstream payload."""
+        from .models import identity, revision
+        account = identity(bind)
+        outcomes = {code_key(r['code']): r for r in results if r.get('code')}
+        overall = next((r.get('result', '') for r in results if not r.get('code') and r['status'] in ('stopped', 'uncertain')), '')
+        states = []
+        with self.tx() as db:
+            for item in items:
+                code = item['code']
+                receipt = self._receipt(db, account, code)
+                outcome = outcomes.get(code_key(code), {})
+                state = receipt['state'] if receipt else outcome.get('status', 'pending')
+                reason = receipt['result'] if receipt else outcome.get('result', overall or '尚未确认领取')
+                states.append(dict(code=code, state=state, result=clean(reason)))
+            confirmed = sum(row['state'] in ('success', 'claimed') for row in states)
+            db.execute('INSERT OR REPLACE INTO redemption_audits VALUES(?,?,?,?,?,?,?,?,?)',
+                (account, str(getattr(bind, 'user_id', '')), str(getattr(bind, 'bot_id', '')),
+                 revision(bind), len(states), confirmed, int(bool(states) and confirmed == len(states)),
+                 json.dumps(states, ensure_ascii=False), now))
+
+    def inventory_audit(self, account):
+        with self.tx() as db:
+            row = db.execute('SELECT * FROM redemption_audits WHERE account=?', (account,)).fetchone()
+        if row is None:
+            return None
+        result = dict(row)
+        result['items'] = json.loads(result['items'])
+        return result
 
     @staticmethod
     def _receipt(db, account, code):
