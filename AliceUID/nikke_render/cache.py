@@ -46,7 +46,8 @@ def style_version(*, dpi=None, theme=None):
             dpi = int(AliceUIDConfig.get_config('AliceUID_RenderDpi').data or 144)
         except (ImportError, AttributeError, KeyError, TypeError, ValueError):
             dpi = 144
-    return dict(font=resolve_font().fingerprint, language=get_card_language(), backgrounds=backgrounds,
+    from ..nikke_time import DISPLAY_VERSION
+    return dict(time_display=DISPLAY_VERSION, font=resolve_font().fingerprint, language=get_card_language(), backgrounds=backgrounds,
                 bundled_assets=[(str(p.relative_to(PACKAGE.parent)), file_version(p))
                                 for p in sorted((PACKAGE.parent/'assets').rglob('*'))
                                 if p.is_file() and p.suffix.lower() in ('.png', '.jpg', '.svg', '.webp')],

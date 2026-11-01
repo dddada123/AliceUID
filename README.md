@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.14-ff69b4?style=flat-square" alt="Version: 1.1.14"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.17-ff69b4?style=flat-square" alt="Version: 1.1.17"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.14**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.17**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -25,6 +25,12 @@
 </p>
 
 ## 亮点功能
+
+### 日期与数据时间
+
+插件显示的时间优先使用**北京时间（UTC+8）**，包括会战数据、赛季区间、日历截图和账号有效期。官网截图内部的日期保留官网原文，以截图说明中的北京时间区分拍摄时刻。活动起止、资料核对与卡片生成是不同时间，复用图片保留图内原时间，不代表实时同步。
+
+后台仍按原时间戳及既有规则判断缓存、冷却、签到周期、收菜提醒和数据库更新排期。会战及面板快照另外记录UTC、区服；日服补充日本时间（UTC+9），仅供核对，不改变游戏日界或后台任务时区。
 
 ### 兑换码便捷查询与兑换
 
@@ -45,6 +51,8 @@
 
 **查询详情转发默认开启，兑换结果转发默认关闭**，可在后台分别设置。转发首条说明用途并列出指挥官、区服和UID，不带@；速查及简短回执始终直发。
 
+不带参数的 `nk兑换码` 在确认可以处理后，将指挥官身份、正在尝试的数量与数据汇总时间放在转发顶部，后面展示码列表；完成后单独返回兑换结果。未绑定、未开启兑换或无候选码时说明实际状态，不提示已开始兑换。
+
 兑换需本人有效绑定，并由Bot主开启“允许本人CDK兑换”。公开目录每8小时静默汇总，按需缓存4小时，每日首次无参兑换更新。来源：[官方](https://www.blablalink.com/cdk)、[GameWith](https://gamewith.jp/nikke/article/show/371014)；实际领取以官方结果为准。
 
 ### 本人练度全量导出
@@ -57,7 +65,13 @@
 
 `nk会战血量` 查看BOSS进度，`nk出刀` / `nk查刀` 查看同一张联盟总览图，包含联盟伤害、击杀排行与未完成名单。支持指定会战日期，用 `nk出刀详情` 查看本人队伍和战斗记录。追加伤害排名（如 `nk出刀详情1`、`nk出刀详情10`、`nk出刀详情15`）查看本工会对应成员的阵容，排名与速查表使用同一快照、同一排序。
 
+仅赛季开始后的Day1/Day2（48小时）属于出刀期；Day2结束立即按结算口径显示：完成绿色、未出完黄色、0/3红色“漏刀”。结算期首次成功读取的快照供同工会复用至官方赛季结束，不再每180秒重拉出刀；正式结束后按原采集时间保留5天缓存并默认显示前一赛季，接口路由与本人入会校验独立保留；卡片分别注明出刀期和含结算期的官方区间。
+
 进行中：完成绿色，未出完蓝色，0/3为黄色“待出刀”；休赛期：完成绿色，未出完黄色，0/3为红色“漏刀”。未完成名单均分双列，16人左8右8。成员记录按产品/区服/工会/赛季共享；进行中默认180秒更新，休赛期复用已结算历史快照，定期确认本人联盟及名单，跨重启保留。
+
+会战转发最后一条附查询指挥官、游戏UID与北京时间的数据时间，不再另发@时间通知；排名详情同时区分被查询成员。`nk日历` 的截图与拍摄说明也合并发送。
+
+角色面板下方提供 `nk刷新角色完整原名面板` 提示，实际按查询结果生成可复制命令；使用别名查询也显示对应原名。刷新信息、刷新面板和数据库更新等原有阶段反馈保留。
 
 ### 📦 资源查询与满仓时间预估
 
@@ -164,7 +178,11 @@ python -m playwright install chromium
 
 ## 快速开始
 
-网页登录使用账号密码；邮箱验证码选项暂未开放，页面保留置灰选项与提示。
+网页登录支持账号密码或Cookie导入；邮箱验证码选项暂未开放，页面保留置灰选项与提示。
+
+选择“导入Cookie”后，可粘贴Cookie请求头、cookies.txt全文，或选择本地UTF-8文本文件（最多256KiB）。允许文件包含其他站点，插件只提取适用于Blablalink API的登录字段；同名字段冲突会提示重新导出。长输入框**默认打码**，点击眼睛按钮显示明文，再点一次隐藏；切换方式、取消、提交或导入文件后恢复打码。导入后核验账号与所选区服，凭据沿用原加密保存流程。
+
+可选使用 [Get cookies.txt Clean](https://chromewebstore.google.com/detail/get-cookiestxt-clean/ahmnmhfbokciafffnknlekllgcnafnie)：安装后登录 [Blablalink](https://www.blablalink.com/)，通过扩展复制当前站点Cookie或导出cookies.txt，再回Bot登录页导入。扩展无需参与登录过程；账号密码登录无需安装它。浏览器导出的到期时间仅作为可用期限上界，实际有效性仍以官方核验为准，缺失期限不编造。
 
 ```text
 nk登陆日服
@@ -237,6 +255,8 @@ Bot主可用 `nk签到查询 [页码]` 查看本群绑定或近30天使用过插
 
 使用现有GsCore适配器的标准转发，无需额外NapCat插件。默认保留完整原图、尺寸与DPI，以“文字标题＋图片”发送，转发内外不附加@；头像昵称沿用适配器设置。登录二维码开关独立，普通发送和回退均保留二维码。
 
+登录转发依次放入说明、**单独一条纯登录链接**、可选二维码，最后附可选Cookie扩展安装与操作说明，方便全选复制链接。二维码关闭时仍保留独立链接和说明。
+
 NapCat转发的「转发回执等待秒数」默认 **30秒**，可设 **5～300秒**，保存后下次发送生效；等待不包含图片渲染。未确认时普通回退原内容一次，并暂停本连接转发 **60秒**，到期恢复尝试。超过等待窗口的迟到成功仍可能重复。OneBot私聊、Core不允许转发或不支持回执时使用普通消息。
 
 “转发图片转换JPG”默认关闭；开启后新编码质量默认95，可设0～100，100仍非无损。已有JPG保持原样，透明图保留PNG；超出8MiB插件安全上限或准备失败时普通发送完整原图，不拆页、缩放或降低质量。
@@ -244,6 +264,14 @@ NapCat转发的「转发回执等待秒数」默认 **30秒**，可设 **5～300
 转发仍属实验性功能；群内不可见时可关闭对应开关。适配器、可选配套与传输缓存细节见 [integrations/README.md](integrations/README.md)。
 
 ## 管理与配置
+
+### 登录HTTPS
+
+后台“登录页面要求HTTPS”**默认关闭**，兼容现有HTTP部署；关闭也可以使用已配置的HTTPS地址。开启后，外部登录地址必须为HTTPS，登录页和登录API拒绝HTTP请求。此开关不生成证书，也不改变Core监听端口。
+
+使用HTTPS反代、隧道或 [SakuraFrp自动HTTPS](https://doc.natfrp.com/frpc/auto-https.html) 时，可采用“浏览器HTTPS → 反代/frpc → 本地Core HTTP”。外部登录地址填写完整 `https://域名:端口`，登录页内部API和静态资源走同源相对路径。SakuraFrp的HTTP反代模式会附带 `X-Forwarded-Proto: https`（见[手册](https://doc.natfrp.com/frpc/manual.html)）；开启插件HTTPS要求前，需确认Core/ASGI服务器仅信任实际代理来源并正确还原请求协议，不能仅伪造请求头绕过检查。容器或跨机器部署应核对代理实际来源地址。Core的客户端IP信任设置与ASGI协议还原不可混为一谈。
+
+若本地服务已是HTTPS，不要再次套用SakuraFrp自动HTTPS。证书需匹配访问域名；自动生成的自签名证书可能出现浏览器提示，可按其[证书说明](https://doc.natfrp.com/frpc/ssl.html)配置。当前仅完成本地离线协议与页面验证，未进行SakuraFrp或生产HTTPS实机部署。
 
 ### 自定义唤醒指令
 

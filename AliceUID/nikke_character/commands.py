@@ -96,14 +96,13 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
         sent = False
         async with binding_lock(ev.user_id, ev.bot_id):
             if await current() and character_queries.context_current(context,bind):
+                from ..nikke_time import beijing_text
                 stamp = context.get('_detail_checked_at')
-                if stamp:
-                    from datetime import datetime
-                    from ..nikke_cdk.models import SHANGHAI
-                    text = '角色资料最近核对：'+datetime.fromtimestamp(stamp,SHANGHAI).strftime('%Y-%m-%d %H:%M:%S')+'（北京时间）；图片复用时保留原生成时间。'
-                    result = await bot.send([MessageSegment.image(png), text], at_sender=True)
-                else:
-                    result = await bot.send(MessageSegment.image(png), at_sender=True)
+                canonical = context['name']  # Canonical static name, already resolved by name_code.
+                text = ('角色资料最近核对：'+beijing_text(stamp)+'\n') if stamp else ''
+                text += ('如卡片数据不是最新，请发送以下命令重新获取最新数据：\n'
+                         f'{command_prefix()}刷新{canonical}面板')
+                result = await bot.send([MessageSegment.image(png), text], at_sender=True)
                 sent = result is not False
         if sent and context.get('_needs_full_refresh'):
             try:

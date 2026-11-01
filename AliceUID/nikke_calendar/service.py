@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
+from ..nikke_time import beijing_text, time_metadata
 
 from PIL import Image
 
@@ -38,7 +39,7 @@ class CalendarImage:
     from_cache: bool = False
 
     def caption(self) -> str:
-        stamp = datetime.fromtimestamp(self.captured_at, ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S UTC+8')
+        stamp = beijing_text(self.captured_at)
         state = '官网暂不可用，以下为旧缓存，活动可能已变化。' if self.stale else '官网当前默认活动日历（裁剪日历内容）。'
         return (f'{state}\n拍摄时间：{stamp}\n来源：{CALENDAR_URL}\n'
                 '官网默认页面，不按绑定区服筛选；多标签仅展示当前选中项。\n'
@@ -213,6 +214,7 @@ class CalendarService:
                 _atomic_write(self.image_path, data)
                 _atomic_write(self.meta_path, json.dumps({
                     'version': 1, 'url': CALENDAR_URL, 'captured_at': captured_at,
+                    'time_metadata': time_metadata(captured_at),
                     'last_attempt': now, 'retry_after': now + self.cooldown,
                     'sha256': hashlib.sha256(data).hexdigest(),
                 }, ensure_ascii=False).encode())

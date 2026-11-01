@@ -1,6 +1,34 @@
 # AliceUID 开发文档
 
-适用版本：**1.1.10**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+适用版本：**1.1.17**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+
+### 1.1.17 Cookie网页登录与传输
+
+nikke_api.cookie_import纯解析UTF-8/BOM的Cookie请求头和TAB七列Netscape文本，输入上限256KiB；忽略非目标站点，精确接收可用于api.blablalink.com根路径的根域/主机Cookie，支持#HttpOnly_，保留不透明值。只选game_*白名单字段，冲突/过期/控制字符给出无原文错误，重建最小Credentials。已知正数expiry取更早者，0表示未知；不按导入时刻推算30天。
+
+POST /nikke/api/cookie要求token、cookie、generation。复用原会话与区服，解析后立即清空payload，后台仅保留最小凭据。worker先CheckLogin再selected_role，提交前复核权限、会话generation、35秒页面心跳及原绑定版本；save_login沿用锁、加密和同账号重新登录CAS，不接受网页自选他人UID。切换/取消使迟到worker失效。原密码/滑块流程保留，邮箱停用不变。前端本地读取文件，长textarea默认打码，眼睛按钮切换明文；切换/取消/提交/新文件恢复隐藏，迟到文件读取受epoch保护。fix1通过CSS.supports检测-webkit-text-security，Chrome/Edge直接在原生textarea绘制disc，避免透明文字与叠加层渲染后只剩白底；不支持时回退到白底、显式文字颜色和填充色的星号层，空内容时隐藏该层以保留placeholder。明文显示只切换呈现，原始Cookie值与提交协议保持。
+
+LoginRequireHTTPS默认False。生成链接时校验外部地址；开启时登录页/API必须具有https ASGI scheme，拒绝明文请求，不重定向密码POST、不直接相信任意X-Forwarded-Proto。响应no-store/no-referrer，422输入错误替换为通用提示避免回显。TLS证书与受信代理协议还原由Core部署负责，本插件不修改共享Core。SakuraFrp自动HTTPS的HTTP模式支持本地HTTP回源和X-Forwarded-Proto，是否被Core认作https须按实际ASGI代理信任设置核对；未实机验证。
+
+_send_login_link统一构造说明、纯URL、可选二维码、可选扩展指南的节点列表，既有转发/回退与发送前权限核验保持。help缓存键升为1.1.17；没有新增社区业务接口或改变会战/签到/收菜/CDK/数据库排期。
+
+### 1.1.16 两日出刀与结算缓存
+
+select_season保留active官方区间和live_endpoint原路由，新增combat_end_ts=min(start_ts+48小时,end_ts+1)、combat_phase/combat_active。配色与顶部标签只按出刀阶段，官方区间另行展示。_data_reusable将数据期限与本人入会短租约分离：Day1/Day2仍按配置的180秒数据缓存；截止前快照不能作为结算快照，截止后的成功记录同工会共享到end_ts；正式结束后以原fetched_at计5天，不因读取/重启顺延。过期后仍使用原live/history路由重新读取，不能因结算配色提前调用历史接口。显式刷新可正常重取。
+
+每次查询重算展示阶段，阶段改变使旧在途卡片token失效；不动CDK/签到/收菜/数据库等后台判定。结算期不另查排名、不把任意ranking视为结算证据。界面cache_seconds与实际阶段策略同步，旧快照JSON兼容，底层保存时刻不重写。
+
+### 1.1.15 显示时间与消息反馈
+
+union.html移除成员td的max-width:230px约束，避免原生表格分配列宽大于单元格绘制宽度时出现约62px高光/分割线空隙。统计格用数字b与说明span的flex居中，48px最小高度与8px上下内边距；亮暗主题共同使用，颜色与数据不改。双引擎预览和像素连续性证据在开发handoff保留。
+
+nikke_time.beijing_text仅将已有epoch格式化为北京时间；time_metadata记录同一时刻的epoch、UTC/北京时间ISO8601、area_id和已核对的区服民用时间。目前日服81对应Asia/Tokyo，其它区服不猜测时区，保留area_id与空region_time。该映射不代表游戏重置时区。会战历史/汇总、面板及轻量资料快照新增元信息；日历匿名快照不绑定玩家区服。旧JSON、原schema、原始数值时间戳及领取账本保持兼容，读缓存不补写或顺延。
+
+不将显示函数用于日界/过期比较。community.cycle、harvest.planner、数据库tick与排期、UnionService的180秒缓存和select_season边界、CDK 48小时及GameWith东京期限解析均沿用原算法。generated_at是生成时刻，checked_at是核对时刻，fetched_at是数据快照时刻，互不替代。显示版本进入成品样式指纹，旧UTC成品可重绘，底层资料缓存不清空。
+
+会战发送以标题、完整图片、尾部身份/数据说明组成同一转发；send_with_forward新增可选at_sender参数，默认行为保持，合并会战/兑换码显式False并传递到普通回退。发送前绑定、权限、快照校验保持。日历同一次send提交说明和图片，保持原截图内容与旧缓存警示。
+
+无参兑换将列表延后到绑定/开关/当前请求校验后发送，首节点detail_header加处理说明和原汇总时间，后续列表，最终worker结果独立。无候选/未绑定/关闭/失败路径不宣告兑换启动，发送失败不提交。只读查询与显式单码、成员补码、领取去重等流程保持；超长普通回退仍受原分页上限约束。角色提示取已解析context.name标准名，使用现有“前缀+刷新+原名+面板”，不新增后置刷新语法。
 
 ### 1.1.10 横版信息卡（当前实现）
 

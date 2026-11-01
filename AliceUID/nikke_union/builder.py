@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import datetime, timezone
+from ..nikke_time import beijing_text
 
 
 class UnionDataError(ValueError):
@@ -143,7 +143,7 @@ def build_union_context(attacks, members, *, own_openid, fetched_at, guild_name=
     counts = Counter(row['count'] for row in rows)
     context = {'title': 'Day 1 简单模式' if day == 0 else 'Day 2 困难模式', 'day': day,
                'guild_name': guild_name, 'source': '社区当前可用记录 · 赛季未知',
-               'fetched_at': datetime.fromtimestamp(fetched_at, timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'),
+               'fetched_at': beijing_text(fetched_at), 'fetched_at_epoch': fetched_at,
                'members_known': known, 'coverage': '完整成员名单' if known else '仅已出刀成员；0刀未知',
                'rows': rows if day == 1 else [], 'counts': counts, 'progress': progress, 'day1_cleared': cleared,
                'day1_note': '已通关（有Day2记录或5 Boss×10级击杀证据）' if cleared else '未确认通关；仅列当前已记录击杀进度',

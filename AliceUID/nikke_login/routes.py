@@ -13,13 +13,16 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from fastapi import Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from gsuid_core.logger import logger
 from gsuid_core.web_app import app
 
 from ..nikke_api.auth import credentials_from_cookie
+from ..nikke_api.cookie_import import CookieInputError
+from .transport import require_https
 from ..nikke_api.client import NikkeClient, REGIONS
 from ..nikke_config.config import ASSETS_PATH, AliceUIDConfig
 from ..nikke_user.service import BindingPersistenceError, save_login
@@ -30,6 +33,25 @@ from .session import sessions
 from .expiry import expiry_notice
 from ..nikke_permissions.runtime import get_policy
 from .email_flow import cooldown, valid_email, email_login_available, EMAIL_LOGIN_NOTICE
+
+
+@app.middleware("http")
+async def login_transport_policy(request: Request, call_next):
+    login_path = request.url.path.startswith(("/nikke/i/", "/nikke/api/"))
+    if login_path and require_https() and request.scope.get("scheme") != "https":
+        # Core/Uvicorn must restore the scheme from explicitly trusted proxies.
+        # Never trust a raw forwarding header here or redirect a credential POST.
+        return JSONResponse({"ok": False, "msg": "此登录入口要求HTTPS，请检查外部地址及Core受信代理配置。"},
+                            status_code=403, headers={"Cache-Control":"no-store","Referrer-Policy":"no-referrer"})
+    response = await call_next(request)
+    if login_path:
+        if response.status_code == 422:
+            async for _ in response.body_iterator:
+                pass
+            response = JSONResponse({"ok":False,"msg":"登录输入格式不正确，请重新检查。"},status_code=422)
+        response.headers['Cache-Control'] = 'no-store'
+        response.headers['Referrer-Policy'] = 'no-referrer'
+    return response
 
 
 def _owner_allowed(session):
@@ -72,7 +94,7 @@ def _replacement_kwargs(session):
 class LoginPayload(BaseModel):
     token: str
     account: str
-    password: str
+    password: str = Field(repr=False)
     generation: Optional[int] = None
 
 
@@ -113,7 +135,8 @@ class CaptchaRefreshPayload(BaseModel):
 
 class CookiePayload(BaseModel):
     token: str
-    cookie: str
+    cookie: str = Field(repr=False)
+    generation: int
 
 
 def _render(token: str, area_label: str, ttl: int) -> str:
@@ -158,7 +181,7 @@ async def nikke_api_login(payload: LoginPayload):
     if session and not _owner_allowed(session):
         return _denied()
     if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie":
-        return JSONResponse({"ok": False, "msg": f"当前仅允许 Cookie 导入；请私聊 Bot 使用 {command_prefix()}导入cookie 区服 Cookie"}, status_code=403)
+        return JSONResponse({"ok": False, "msg": f"当前仅允许 Cookie 导入；请在此页面切换到导入Cookie"}, status_code=403)
     if not session:
         return JSONResponse({"ok": False, "msg": "登录会话已失效"}, status_code=410)
     if session.area_id not in REGIONS:
@@ -195,8 +218,10 @@ async def nikke_api_mode(payload: ModePayload):
         return _denied()
     if not session:
         return JSONResponse({"ok": False, "msg": "登录会话已失效"}, status_code=410)
-    if payload.mode not in ("email", "password", "cancel"):
+    if payload.mode not in ("email", "password", "cookie", "cancel"):
         return JSONResponse({"ok": False, "msg": "登录方式无效"})
+    if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" and payload.mode not in ('cookie','cancel'):
+        return JSONResponse({"ok":False,"msg":"当前仅允许Cookie导入"},status_code=403)
     if payload.mode == 'email' and not email_login_available():
         return _email_unavailable(session)
     if payload.generation is not None and payload.generation != session.generation:
@@ -385,6 +410,8 @@ async def _run_login(token: str, account: str, password: str, *, mode="password"
         if result.area_id != session.area_id:
             raise LoginError("返回区服与所选区服不一致，已停止绑定")
         existing = await AliceBind.get_bind(session.user_id, session.bot_id)
+        if not current():
+            return
         if _binding_blocks(session, existing):
             raise LoginError("已有绑定，已停止覆盖；换号请先解绑")
         if session.replace_revision and str(result.openid) != str(existing.intl_open_id):
@@ -515,55 +542,84 @@ async def nikke_api_captcha_refresh(payload: CaptchaRefreshPayload):
 
 @app.post("/nikke/api/cookie")
 async def nikke_api_cookie(payload: CookiePayload):
-    """Cookie 兜底沿用链接所选区服，不自动覆盖已有绑定。"""
-    session = sessions.get(payload.token)
-    if session and not _owner_allowed(session):
-        return _denied()
-    if not session:
-        return JSONResponse({"ok": False, "msg": "登录会话已失效"}, status_code=410)
-    if session.status not in ("created", "failed") or session.area_id not in REGIONS:
-        return JSONResponse({"ok": False, "msg": "链接正在使用或已完成，请重新选择区服获取链接"})
-    initial_generation = session.generation
-    existing = await AliceBind.get_bind(session.user_id, session.bot_id)
-    if not _owner_allowed(session):
-        return _denied()
-    if _binding_blocks(session, existing):
-        return JSONResponse({"ok": False, "msg": "已有绑定或原绑定已变化，请回聊天获取正确登录链接；不会自动覆盖"})
-    if sessions.get(payload.token) is not session or session.generation != initial_generation:
-        return JSONResponse({"ok": False, "msg": "登录状态已更新"})
-    cred = credentials_from_cookie(payload.cookie, 0)
-    if cred is None:
-        return JSONResponse({"ok": False, "msg": "Cookie 里缺少 game_openid / game_token"})
-    session.cancel()
-    generation = session.generation
+    try:
+        session = sessions.get(payload.token)
+        if session and not _owner_allowed(session):
+            return _denied()
+        if not session:
+            return JSONResponse({"ok":False,"msg":"登录会话已失效"},status_code=410)
+        if session.status not in ('created','failed') or session.area_id not in REGIONS:
+            return JSONResponse({"ok":False,"msg":"链接正在使用或已完成"})
+        if payload.generation != session.generation or session.mode != 'cookie':
+            return JSONResponse({"ok":False,"msg":"登录方式已更新，请重新选择Cookie登录"})
+        initial_generation = session.generation
+        existing = await AliceBind.get_bind(session.user_id,session.bot_id)
+        if not _owner_allowed(session):
+            return _denied()
+        if _binding_blocks(session,existing):
+            return JSONResponse({"ok":False,"msg":"已有绑定或绑定已变化，不会自动覆盖"})
+        if sessions.get(payload.token) is not session or session.generation != initial_generation or session.status not in ('created','failed'):
+            return JSONResponse({"ok":False,"msg":"登录状态已更新"})
+        try:
+            cred = credentials_from_cookie(payload.cookie,0)
+        except CookieInputError as exc:
+            return JSONResponse({"ok":False,"msg":str(exc)})
+        if cred is None:
+            return JSONResponse({"ok":False,"msg":"未找到可用于Blablalink的game_openid / game_token，请重新导出当前站点。"})
+        session.cancel()
+        session.mode = 'cookie'
+        session.status = 'logging_in'
+        session.operation_started_at = session.heartbeat_at = time.time()
+        session.error = ''
+        session.task = asyncio.create_task(_run_cookie(session.token,session.generation,cred))
+        return JSONResponse({"ok":True,"generation":session.generation})
+    finally:
+        payload.cookie = ''
+
+
+class CookieLoginError(ValueError):
+    pass
+
+
+async def _run_cookie(token, generation, cred):
+    session = sessions.get(token)
     def current():
-        return sessions.get(payload.token) is session and session.generation == generation and _owner_allowed(session)
-    session.status = "logging_in"
-    session.operation_started_at = time.time()
+        if sessions.get(token) is not session or session.generation != generation or session.status not in ('logging_in','success'):
+            return False
+        if session.status == 'logging_in' and time.time() - session.heartbeat_at > 35:
+            session.status = 'failed'
+            session.error = '页面已关闭或连接中断，本次Cookie验证已停止；请重新操作'
+            return False
+        return _owner_allowed(session)
+    if session is None or not current():
+        return
     try:
         async with NikkeClient(cred, REGIONS[session.area_id]) as client:
             if not await client.check_login():
-                raise ValueError("Cookie 无效或已过期")
+                raise CookieLoginError("Cookie 无效或已过期")
         if not current():
             return _denied() if not get_policy().user_allowed(session.user_id) else JSONResponse({"ok": False, "msg": "登录操作已取消"})
         region, role = await selected_role(cred, session.area_id)
         if not current():
             return JSONResponse({"ok": False, "msg": "登录操作已取消"})
         existing = await AliceBind.get_bind(session.user_id, session.bot_id)
+        if not current():
+            return
         if _binding_blocks(session, existing):
-            raise ValueError("已有绑定，已停止覆盖")
+            raise CookieLoginError("已有绑定，已停止覆盖")
         if session.replace_revision and str(cred.openid) != str(existing.intl_open_id):
-            raise ValueError("重新登录须使用原账号；原Cookie未替换")
+            raise CookieLoginError("重新登录须使用原账号；原Cookie未替换")
         await save_login(session.user_id, session.bot_id, session.group_id,
                          openid=cred.openid, area_id=region.area_id, game_id=region.game_id,
                          cookie=cred.cookie, nickname=role.get("role_name") or "",
-                         uid=str(role.get("role_id") or ""), expire_at=0,
+                         uid=str(role.get("role_id") or ""), expire_at=cred.expire_at,
                           still_current=current, **_replacement_kwargs(session))
         if not current():
             return JSONResponse({"ok": False, "msg": "登录操作已取消"})
         session.nickname = role.get("role_name") or ""
         session.uid = str(role.get("role_id") or "")
         session.area_label = region.label
+        session.cookie_expire = cred.expire_at
         session.success_at = time.time()
         session.status = "success"
         session.error = ""
@@ -573,7 +629,7 @@ async def nikke_api_cookie(payload: CookiePayload):
             return JSONResponse({"ok": False, "msg": "登录操作已取消"})
         session.error = f'绑定保存未确认，请回聊天发送 {command_prefix()}我的账号 检查后重试。'
         logger.warning('[AliceUID] Cookie绑定保存未确认（未记录凭据）')
-    except ValueError as exc:
+    except CookieLoginError as exc:
         if not current():
             return JSONResponse({"ok": False, "msg": "登录操作已取消"})
         session.error = str(exc)
@@ -584,3 +640,4 @@ async def nikke_api_cookie(payload: CookiePayload):
         logger.warning("[AliceUID] Cookie 导入失败（详情已省略以保护凭证）")
     session.status = "failed"
     return JSONResponse({"ok": False, "msg": session.error})
+

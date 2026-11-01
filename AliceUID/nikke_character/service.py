@@ -138,7 +138,7 @@ class CharacterQueryService:
         self.roster_codes(snapshot['roster'])
         store = self.store()
         if store is not None:
-            store.write(panel_identity(bind), snapshot)
+            store.write(panel_identity(bind), dict(snapshot, _area_id=int(bind.area_id)))
         account, revision = self._account(bind), self._revision(bind)
         self._epochs[account] = self._epochs.get(account, 0) + 1
         self._rosters[revision] = (self.clock(), snapshot['roster'])
@@ -273,7 +273,7 @@ class CharacterQueryService:
                             updated['complete'] = bool(saved.get('complete') and set(details) == codes)
                             if isinstance(updated.get('profile'), dict):
                                 updated['profile'] = dict(updated['profile'], chars=roster)
-                            store.write(identity, updated)
+                            store.write(identity, dict(updated, _area_id=int(bind.area_id)))
                         if roster_entry is not None and roster_entry[1] != roster:
                             self._epochs[account] = self._epochs.get(account, 0) + 1
                             epoch = self._epochs[account]
@@ -341,7 +341,7 @@ class CharacterQueryService:
                     updated['complete'] = bool(not fast_target and saved.get('complete') and set(saved_details) == {str(c) for c in self.roster_codes(roster)})
                     if isinstance(updated.get('profile'), dict):
                         updated['profile'] = dict(updated['profile'], chars=roster)
-                    store.write(identity, updated)
+                    store.write(identity, dict(updated, _area_id=int(bind.area_id)))
                     if refresh:
                         self._epochs[account] = self._epochs.get(account, 0) + 1
                         epoch = self._epochs[account]

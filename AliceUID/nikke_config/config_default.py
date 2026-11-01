@@ -20,9 +20,12 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         "",
         secret=True,
     ),
+    "AliceUID_LoginRequireHTTPS": GsBoolConfig(
+        "登录页面要求HTTPS", "默认关闭以兼容现有部署；开启后外部登录地址及请求必须为HTTPS。反代需配置证书和Core受信代理，HTTP回源可用；此开关不自动生成证书。", False,
+    ),
     "AliceUID_LoginMode": GsStrConfig(
         "登录方式",
-        "browser=网页账号密码登录；邮箱验证码选项暂不开放。cookie=仅私聊手动导入Cookie，不开放网页登录。",
+        "browser=网页账号密码或Cookie导入；cookie=网页仅开放Cookie导入。私聊导入命令保留，邮箱验证码暂不开放。",
         "browser",
         options=["browser", "cookie"],
     ),

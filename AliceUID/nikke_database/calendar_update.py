@@ -128,7 +128,8 @@ class CalendarUpdates:
         s = self.state()
         active = s.get('active')
         labels = {'waiting': '等待新妮姬/结构化资料', 'observing': '资料已就绪，等待一小时复查'}
-        stamp = lambda ts: datetime.fromtimestamp(ts, ZoneInfo('Asia/Shanghai')).strftime('%m-%d %H:%M')
+        from ..nikke_time import beijing_text
+        stamp = lambda ts: beijing_text(ts, label=False)
         if self.service.config('DatabaseCalendarUpdate') is False:
             return '日历自动更新已关闭'
         if active:

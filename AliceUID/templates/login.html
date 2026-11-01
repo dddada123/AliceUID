@@ -103,6 +103,25 @@
     body::before{background:rgba(8,9,15,.55)}
     .card{background:rgba(10,12,20,.92);padding:24px 22px 20px}
   }
+  .modes .btn[aria-selected="true"]:not(:disabled){background:var(--pink)}
+  .card.cookie-mode{width:min(560px,100%)}
+  .modes{flex-wrap:wrap}.modes button{flex:1;min-width:100px}
+  .cookie-editor{position:relative;height:220px;margin:8px 0}
+  .cookie-editor textarea,.cookie-mask{width:100%;height:100%;margin:0;padding:12px;box-sizing:border-box;border-radius:10px;font:14px/22px monospace;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;overflow:auto}
+  .cookie-editor textarea{position:relative;z-index:1;resize:none;background:#fff;border:1px solid #b4bac4;color:transparent!important;-webkit-text-fill-color:transparent!important;caret-color:#25324a}
+  .cookie-editor textarea::placeholder{color:#657083;-webkit-text-fill-color:#657083}
+  .cookie-editor textarea::selection{color:transparent;background:#b9d9f3}
+  .cookie-mask{position:absolute;inset:0;z-index:2;pointer-events:none;border:1px solid #b4bac4;background:#fff;color:#25324a;-webkit-text-fill-color:#25324a;scrollbar-width:none}
+  .cookie-mask::-webkit-scrollbar{display:none}
+  .cookie-editor textarea,.cookie-mask{padding-right:48px}
+  .cookie-editor.native-mask textarea{color:#25324a!important;-webkit-text-fill-color:#25324a!important;-webkit-text-security:disc}
+  .cookie-editor.native-mask textarea::selection{color:#25324a}
+  .cookie-editor.revealed textarea{-webkit-text-security:none}
+  .cookie-editor.revealed textarea{color:#25324a!important;-webkit-text-fill-color:#25324a!important}
+  .cookie-editor.revealed textarea::selection{color:#25324a}
+  .cookie-visibility{position:absolute;z-index:3;right:9px;top:9px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:1px solid #c2cad4;border-radius:7px;background:#f4f6f9;color:#344863;cursor:pointer}
+  .cookie-visibility svg{width:20px;height:20px}
+  #cookie-file{max-width:100%;font-size:12px}
 </style>
 </head>
 <body>
@@ -119,6 +138,7 @@
     <p class="hint">本链接仅绑定 <b>{{REGION}}</b>。查不到该服角色时会提示失败，不会自动换区。选错请回聊天发送 {{COMMAND_PREFIX}}登录，重新选择区服。</p>
     <div class="modes" role="tablist" aria-label="登录方式">
       <button class="btn ghost" id="mode-password" type="button" role="tab" aria-selected="true">账号密码</button>
+      <button class="btn ghost" id="mode-cookie" type="button" role="tab" aria-selected="false">导入Cookie</button>
       <button class="btn ghost" id="mode-email" type="button" role="tab" aria-selected="false" aria-describedby="email-unavailable" {{EMAIL_TAB_DISABLED}}>邮箱验证码</button>
     </div>
     <p class="hint" id="email-unavailable" {{EMAIL_NOTICE_HIDDEN}}>{{EMAIL_LOGIN_NOTICE}}</p>
@@ -133,6 +153,17 @@
       <label for="email-code">邮箱验证码</label>
       <input id="email-code" type="text" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{5}" maxlength="5" placeholder="5位邮箱验证码" disabled>
       <p class="hint">点击发送后才会请求邮件，可能需先完成滑块。官方会自动注册未注册邮箱，请确认使用已有游戏账号邮箱。验证码最多等待4分钟，过期后需手动重新发送。</p>
+    </div>
+    <div id="cookie-fields" hidden>
+      <label for="cookie-input">粘贴Cookie</label>
+      <div class="cookie-editor">
+        <textarea id="cookie-input" aria-label="Cookie输入" placeholder="粘贴Cookie请求头或cookies.txt全文，可包含其他站点，系统会提取Blablalink内容。" maxlength="262144" autocomplete="off" autocapitalize="off" spellcheck="false" disabled></textarea>
+        <pre id="cookie-mask" class="cookie-mask" aria-hidden="true"></pre>
+        <button id="cookie-visibility" class="cookie-visibility" type="button" aria-label="显示Cookie" aria-pressed="false" title="显示Cookie"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path id="cookie-eye-slash" d="m3 3 18 18"/></svg></button>
+      </div>
+      <label for="cookie-file">或选择导出的cookies.txt文件</label>
+      <input id="cookie-file" type="file" accept=".txt,text/plain" disabled>
+      <p class="hint">先在官网登录，再导出或复制Cookie即可。仅用于本次所选区服；导入后会核验账号和角色，不需要重新输入密码。</p>
     </div>
     <button class="btn" id="submit" type="submit" disabled>验证并绑定</button>
     <button class="btn ghost" id="cancel-login" type="button" hidden>取消本次登录 / 修改邮箱</button>
@@ -190,12 +221,22 @@ const statusBox = $("status");
 let successShown = false;
 let authMode = "password", generation = 0, viewEpoch = 0, activeStatus = "created", resendUntil = 0, changingMode = false, starting = false;
 function setModeButtonsDisabled(busy) {
-  $("mode-password").disabled = busy;
-  $("mode-email").disabled = busy || !EMAIL_LOGIN_AVAILABLE;
+  $("mode-password").disabled = busy || LOGIN_MODE === "cookie";
+  $("mode-cookie").disabled = busy;
+  $("mode-email").disabled = busy || !EMAIL_LOGIN_AVAILABLE || LOGIN_MODE === "cookie";
 }
 function showMode(mode) {
   if (mode === "email" && !EMAIL_LOGIN_AVAILABLE) mode = "password";
+  if (LOGIN_MODE === "cookie") mode = "cookie";
   authMode = mode;
+  document.querySelector('.card').classList.toggle('cookie-mode', mode === 'cookie');
+  $("account-label").hidden = $("account").hidden = mode === 'cookie';
+  $("account").disabled = mode === 'cookie';
+  $("account").required = mode !== 'cookie';
+  $("cookie-fields").hidden = mode !== 'cookie';
+  $("cookie-input").disabled = $("cookie-file").disabled = mode !== 'cookie';
+  $("cookie-input").required = mode === 'cookie';
+  $("mode-cookie").setAttribute("aria-selected", String(mode === 'cookie'));
   $("password-fields").hidden = mode !== "password";
   $("email-fields").hidden = mode !== "email";
   $("password").disabled = mode !== "password";
@@ -203,12 +244,58 @@ function showMode(mode) {
   $("mode-email").setAttribute("aria-selected", String(mode === "email"));
   $("mode-password").setAttribute("aria-selected", String(mode === "password"));
   $("account-label").textContent = mode === "email" ? "Blablalink 邮箱" : "Blablalink 邮箱（账号）";
-  $("submit").textContent = mode === "email" ? "验证并绑定" : "登录并绑定";
+  $("submit").textContent = mode === "cookie" ? "验证Cookie并绑定" : mode === "email" ? "验证并绑定" : "登录并绑定";
   $("submit").disabled = mode === "email";
   $("account").readOnly = false;
   $("email-code").disabled = true;
 }
-function clearSecrets() { $("password").value = ""; $("email-code").value = ""; }
+let cookieFileEpoch = 0;
+let cookieVisible = false;
+// Chromium paints the bullets inside the native textarea, without a transparent-text overlay.
+// Other engines retain an opaque, explicitly colored fallback mask.
+const nativeCookieMask = !!(window.CSS && CSS.supports && CSS.supports('-webkit-text-security', 'disc'));
+$("cookie-input").parentElement.classList.toggle('native-mask', nativeCookieMask);
+function setCookieVisibility(visible) {
+  cookieVisible = visible;
+  $("cookie-input").parentElement.classList.toggle('revealed', visible);
+  $("cookie-mask").hidden = visible || nativeCookieMask || !$("cookie-input").value;
+  $("cookie-eye-slash").style.display = visible ? 'none' : '';
+  $("cookie-visibility").setAttribute('aria-pressed', String(visible));
+  $("cookie-visibility").setAttribute('aria-label', visible ? '隐藏Cookie' : '显示Cookie');
+  $("cookie-visibility").title = visible ? '隐藏Cookie' : '显示Cookie';
+}
+$("cookie-visibility").addEventListener('click', () => setCookieVisibility(!cookieVisible));
+function scrollCookieMask() {
+  $("cookie-mask").scrollTop = $("cookie-input").scrollTop;
+  $("cookie-mask").scrollLeft = $("cookie-input").scrollLeft;
+}
+function maskCookie() {
+  $("cookie-mask").textContent = nativeCookieMask ? '' : $("cookie-input").value.replace(/[^\r\n]/g, '*');
+  $("cookie-mask").hidden = cookieVisible || nativeCookieMask || !$("cookie-input").value;
+  scrollCookieMask();
+}
+setCookieVisibility(false);
+$("cookie-input").addEventListener('input', maskCookie);
+$("cookie-input").addEventListener('scroll', scrollCookieMask);
+$("cookie-file").addEventListener('change', async () => {
+  const file = $("cookie-file").files[0], epoch = viewEpoch, readEpoch = ++cookieFileEpoch;
+  setCookieVisibility(false);
+  $("cookie-file").value = '';
+  if (!file) return;
+  if (file.size > 262144) { setStatus('Cookie文件过大，请只导出当前站点（最多256KiB）。','err'); return; }
+  try {
+    let text = await file.text();
+    if (epoch === viewEpoch && readEpoch === cookieFileEpoch && authMode === 'cookie' && !starting && !successShown) {
+      setCookieVisibility(false);
+      $("cookie-input").value = text; maskCookie();
+    }
+    text = '';
+  } catch (_) { setStatus('文件读取失败，请重新选择或直接粘贴。','err'); }
+});
+function clearSecrets() {
+  $("password").value = $("email-code").value = $("cookie-input").value = $("cookie-file").value = '';
+  cookieFileEpoch++; setCookieVisibility(false); maskCookie();
+}
 function updateCooldown() {
   const remaining = Math.max(0, Math.ceil((resendUntil - Date.now()) / 1000));
   const busy = ["sending_code", "logging_in", "captcha", "success", "expired"].includes(activeStatus);
@@ -218,7 +305,7 @@ function updateCooldown() {
 setInterval(updateCooldown, 1000);
 async function switchMode(mode) {
   if (mode === "email" && !EMAIL_LOGIN_AVAILABLE) return;
-  if (LOGIN_MODE === "cookie" || successShown || changingMode || starting) return;
+  if ((LOGIN_MODE === "cookie" && mode !== "cookie") || successShown || changingMode || starting) return;
   changingMode = true;
   $("submit").disabled = $("cancel-login").disabled = true;
   updateCooldown();
@@ -233,12 +320,13 @@ async function switchMode(mode) {
     if (!r.ok) { setStatus(r.msg || "切换失败，请刷新状态", "err"); return; }
     generation = r.generation; activeStatus = "created";
     showMode(r.mode); $("cancel-login").hidden = true;
-    setStatus("已取消上一操作。" + (r.mode === "email" ? "请输入邮箱并点击发送验证码。" : "请输入账号密码。"), "info");
+    setStatus("已取消上一操作。" + (r.mode === "email" ? "请输入邮箱并点击发送验证码。" : r.mode === "cookie" ? "请粘贴或选择Cookie文件。" : "请输入账号密码。"), "info");
   } catch (_) { setStatus("切换失败，请检查连接后重试。", "err"); }
   finally { changingMode = false; $("cancel-login").disabled = false; setModeButtonsDisabled(false); updateCooldown(); poll(); }
 }
 $("mode-email").addEventListener("click", () => switchMode("email"));
 $("mode-password").addEventListener("click", () => switchMode("password"));
+$("mode-cookie").addEventListener("click", () => switchMode("cookie"));
 $("cancel-login").addEventListener("click", () => switchMode(authMode));
 window.addEventListener("pagehide", () => {
   clearSecrets();
@@ -286,14 +374,21 @@ async function post(url, body) {
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
   if (authMode === "email" && !EMAIL_LOGIN_AVAILABLE) return;
-  if (LOGIN_MODE === "cookie" || changingMode || starting) return;
+  if (changingMode || starting) return;
   starting = true; setModeButtonsDisabled(true);
   const epoch = ++viewEpoch;
   if (timer) clearTimeout(timer);
   $("submit").disabled = true;
   const body = {token:TOKEN, generation};
   let url;
-  if (authMode === "email") {
+  if (authMode === "cookie") {
+    url = "/nikke/api/cookie"; body.cookie = $("cookie-input").value;
+    if (new TextEncoder().encode(body.cookie).length > 262144) {
+      clearSecrets(); body.cookie = ''; starting = false; setModeButtonsDisabled(false);
+      $("submit").disabled = false; setStatus('Cookie内容过大，请只导出当前站点（最多256KiB）。','err'); return;
+    }
+    clearSecrets();
+  } else if (authMode === "email") {
     url = "/nikke/api/email/verify"; body.code = $("email-code").value.trim();
   } else {
     url = "/nikke/api/login"; body.account = $("account").value.trim(); body.password = $("password").value;
@@ -307,7 +402,7 @@ $("form").addEventListener("submit", async (e) => {
     activeStatus = "logging_in"; $("cancel-login").hidden = false;
     $("account").readOnly = true; $("email-code").disabled = true;
   } catch (_) { $("submit").disabled = false; setStatus("网络连接失败，请检查连接后重试。", "err"); }
-  finally { clearSecrets(); body.password = body.code = ""; starting = false; setModeButtonsDisabled(false); if (epoch === viewEpoch) poll(); }
+  finally { clearSecrets(); body.password = body.code = body.cookie = ""; starting = false; setModeButtonsDisabled(false); if (epoch === viewEpoch) poll(); }
 });
 
 let capData = null, capScale = 1, capDragging = false, capStartX = 0, capStartLeft = 0;
@@ -497,6 +592,7 @@ async function poll() {
   updateCooldown();
   $("cancel-login").hidden = !["sending_code", "awaiting_code", "logging_in", "captcha"].includes(r.status);
   if (r.status === "success") {
+    clearSecrets();
     $("form").style.display = "none";
     $("captcha").classList.remove("show");
     statusBox.classList.remove("show");
@@ -554,11 +650,7 @@ async function poll() {
 
 showMode("password");
 setModeButtonsDisabled(false);
-if (LOGIN_MODE === "cookie") {
-  $("mode-email").disabled = $("mode-password").disabled = $("send-code").disabled = $("submit").disabled = true;
-  $("form").style.display = "none";
-  setStatus("当前仅允许 Cookie 导入。请私聊 Bot：{{COMMAND_PREFIX}}导入cookie {{REGION}} game_openid=...; game_token=...; ...。不要在群里发送 Cookie。", "info");
-}
+
 poll();
 </script>
 </body>

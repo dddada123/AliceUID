@@ -56,18 +56,32 @@ def select_season(rows, now):
         raise UnionDataError('官方赛季表尚无已开始的会战记录。')
     row = dict(started[-1])
     row['active'] = row['start_ts'] <= now <= row['end_ts']
+    # The official range includes review/settlement. Only the first two days
+    # allow attacks; this does not select the live vs historical API.
+    row['combat_end_ts'] = min(row['start_ts'] + 48 * 3600, row['end_ts'] + 1)
+    row['combat_active'] = row['start_ts'] <= now < row['combat_end_ts']
+    row['combat_phase'] = ('day1' if now < row['start_ts'] + 24 * 3600 else 'day2') if row['combat_active'] else (
+        'settlement' if now <= row['end_ts'] else 'offseason')
     # The website continues using live endpoints through settlement + one day.
     row['live_endpoint'] = now <= row['caculate_ts'] + 86400
     return row
 
 
 def season_context(season, *, local=False):
+    from ..nikke_time import beijing_text
     label = 'S' + str(season['id'] - 1000000) if season['id'] >= 1000000 else str(season['id'])
-    zone = timezone(timedelta(hours=8))
-    fmt = lambda ts: datetime.fromtimestamp(ts, zone).strftime('%Y-%m-%d %H:%M')
+    fmt = lambda ts: beijing_text(ts, seconds=False, label=False)
+    phase = season.get('combat_phase', 'day1' if season['active'] else 'offseason')
+    combat_end = season.get('combat_end_ts', min(season['start_ts'] + 48 * 3600, season['end_ts'] + 1))
+    combat_active = phase in ('day1', 'day2')
+    status = ('正在进行 · '+('Day1' if phase == 'day1' else 'Day2')) if combat_active else (
+        '出刀已结束，排名结算中 · 展示本期记录' if phase == 'settlement' else '当前不是会战期间，展示上一期数据')
     return dict(season_id=str(season['id']), season_label=label,
-                season_dates=f"{fmt(season['start_ts'])} ～ {fmt(season['end_ts'])} UTC+8",
-                raid_active=season['active'],
-                raid_status='正在进行' if season['active'] else '当前不是会战期间，展示上一期数据',
+                season_dates=f"出刀期：{fmt(season['start_ts'])} ～ {fmt(combat_end)}（北京时间）",
+                official_season_dates=f"官方赛季区间：{fmt(season['start_ts'])} ～ {fmt(season['end_ts'])}（北京时间，含结算期）",
+                raid_phase=phase, raid_active=combat_active,
+                raid_cache_seconds=(max(0, season['end_ts'] + 1 - combat_end) if phase == 'settlement'
+                                    else 5 * 86400 if phase == 'offseason' else None),
+                raid_status=status,
                 history_local=local,
                 source=('本联盟历史快照' if local else '社区当期记录' if season['active'] else '社区上一期记录') + ' · ' + label)

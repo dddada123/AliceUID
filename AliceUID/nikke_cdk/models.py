@@ -5,6 +5,7 @@ import re
 import unicodedata
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from ..nikke_time import beijing_text
 
 SHANGHAI = ZoneInfo('Asia/Shanghai')
 TOKYO = ZoneInfo('Asia/Tokyo')
@@ -46,7 +47,7 @@ def day_at(now):
 
 
 def time_text(now):
-    return datetime.fromtimestamp(now, SHANGHAI).strftime('%m/%d %H:%M')
+    return beijing_text(now, label=False)
 
 
 def identity(bind):

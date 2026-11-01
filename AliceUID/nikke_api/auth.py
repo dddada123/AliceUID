@@ -11,7 +11,7 @@ from __future__ import annotations
 import base64
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -33,7 +33,7 @@ class Credentials:
     """一份可用的 blablalink 登录凭证。"""
 
     openid: str
-    token: str
+    token: str = field(repr=False)
     channel_id: str = "131"
     game_id: str = GAME_ID_INTL
     expire_at: int = 0
@@ -102,7 +102,10 @@ def parse_cookie(cookie: str) -> dict[str, str]:
 
 
 def credentials_from_cookie(cookie: str, expire_at: int = 0) -> Optional[Credentials]:
-    data = parse_cookie(cookie)
+    from .cookie_import import parse_import_cookie
+    data, imported_expiry = parse_import_cookie(cookie)
+    known_expiries = [value for value in (expire_at, imported_expiry) if value > 0]
+    expire_at = min(known_expiries, default=0)
     openid = data.get("game_openid", "")
     token = data.get("game_token", "")
     if not openid or not token:

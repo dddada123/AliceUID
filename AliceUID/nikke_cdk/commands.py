@@ -8,7 +8,7 @@ from .models import PRODUCT, SHANGHAI, code_text, time_text, identity, clean, re
 from . import api
 
 
-def listing(report, prefix):
+def listing(report, prefix, *, include_summary=True):
     blocks = ['当前兑换码｜官方 + GameWith + 成员补充（已过滤历史及已知停用码）']
     for item in report['items']:
         labels = {'official': '官方', 'gamewith': 'GameWith', 'member': '成员补充'}
@@ -26,10 +26,11 @@ def listing(report, prefix):
     lines = []
     if not report['items']:
         lines.append('当前暂无可尝试兑换码')
-    if report['checked_at'] is not None:
+    if include_summary and report['checked_at'] is not None:
         lines.append('最近双源汇总：' + time_text(report['checked_at']) + '（北京时间）')
     lines.extend(report['warnings'])
-    lines.append('实际是否可领取以官方结果为准')
+    if include_summary:
+        lines.append('实际是否可领取以官方结果为准')
     lines.append('来源：https://www.blablalink.com/cdk ｜ https://gamewith.jp/nikke/article/show/371014')
     blocks.append('\n'.join(lines))
     return '\n\n'.join(blocks)
@@ -149,23 +150,31 @@ class Commands:
         self.forward, self.profile = forward, profile
         self.result_forward_enabled = result_forward_enabled
 
-    async def send_detail(self, bot, ev, text, kind, bind=None, *, config_key='AliceUID_CDKForward'):
+    async def send_detail(self, bot, ev, text, kind, bind=None, *, config_key='AliceUID_CDKForward',
+                          header_note=None, quiet=False):
         if self.forward is None:
+            if header_note:
+                return await self.send(bot, ev, detail_header(kind, bind)+'\n'+header_note+'\n\n'+text,
+                                       bind, at_sender=not quiet)
             return await self.send(bot, ev, text, bind)
         if not await self.allowed(ev):
             return False
         if bind is None and self.profile is not None:
             bind = await self.profile(ev)  # Local binding only, never credentials/API.
-        message = [detail_header(kind, bind), *pages(text)]
+        header = detail_header(kind, bind)
+        if header_note:
+            header += '\n'+header_note
+        message = [header, *pages(text)]
+        options = dict(at_sender=False) if quiet else {}
         result = await self.forward(_DeliveryBot(bot, self, ev, bind), ev, message,
-                                    config_key=config_key)
+                                    config_key=config_key, **options)
         return result is not False
 
-    async def send(self, bot, ev, text, bind=None):
+    async def send(self, bot, ev, text, bind=None, *, at_sender=True):
         for page in pages(text):
             if not await self.allowed(ev) or (bind is not None and not await self.current(ev, bind)):
                 return False
-            if await bot.send(page, at_sender=True) is False:
+            if await bot.send(page, at_sender=at_sender) is False:
                 return False
         return True
 
@@ -178,6 +187,7 @@ class Commands:
         argument = (argument or '').strip()
         if mode == 'redeem' and argument == '速查':
             mode, argument = 'quick', ''
+        combined = mode == 'redeem' and not argument
         if mode not in ('redeem', 'add') and argument:
             await self.send(bot, ev, '此命令无需附加参数')
             return
@@ -208,7 +218,7 @@ class Commands:
             if mode == 'quick':
                 await self.send(bot, ev, quick_listing(report, self.prefix()))
                 return
-            if mode == 'query' or mode == 'redeem':
+            if mode == 'query':
                 if not await self.send_detail(bot, ev, listing(report, self.prefix()), '兑换码查询详情'):
                     return
             if mode == 'query':
@@ -216,17 +226,28 @@ class Commands:
             if mode == 'third':
                 items = [r for r in items if 'gamewith' in r['sources']]
         if mode == 'redeem' and not items:
+            await self.send_detail(bot, ev, listing(report, self.prefix()), '兑换码查询详情')
             return
         client, bind = await self.load(ev)
         if client is None:
-            if bind is not None:
+            if combined:
+                notice = (f'绑定凭据不可用，本次未兑换；请{self.prefix()}重新登录' if bind is not None else
+                          f'本次仅展示兑换码，尚未绑定账号；请先{self.prefix()}登录后再尝试兑换。')
+                await self.send_detail(bot, ev, listing(report, self.prefix()), '兑换码查询详情', bind,
+                                       header_note=notice, quiet=True)
+            elif bind is not None:
                 await self.send(bot, ev, f'绑定凭据不可用，本次未兑换；请{self.prefix()}重新登录')
             elif mode != 'redeem' or argument:
                 await self.send(bot, ev, f'请先{self.prefix()}登录；无需绑定查看码可用{self.prefix()}查询兑换码')
             return
         try:
             if not self.enabled():
-                await self.send(bot, ev, 'CDK兑换尚未由Bot主开启；列表与只读查询仍可使用', bind)
+                notice = 'CDK兑换尚未由Bot主开启，本次未兑换；列表与只读查询仍可使用'
+                if combined:
+                    await self.send_detail(bot, ev, listing(report, self.prefix()), '兑换码查询详情', bind,
+                                           header_note=notice, quiet=True)
+                else:
+                    await self.send(bot, ev, notice, bind)
                 return
             if not await self.current(ev, bind):
                 return
@@ -246,7 +267,16 @@ class Commands:
                 return
             notice = (f'将核验 {items[0]["code"]}；本人本次或48小时内成功/官方明确已领取后加入共享缓存'
                       if mode == 'add' else f'将为当前绑定角色尝试处理{len(items)}个码，已领取或已知过期项自动跳过')
-            if not await self.send(bot, ev, notice, bind):
+            if combined:
+                notice = (f'正在为当前绑定角色尝试处理本次{len(items)}个兑换码。\n'
+                          '已领取或已知过期项自动跳过，完成后返回结果。')
+                if report['checked_at'] is not None:
+                    notice += '\n\n数据汇总时间：'+time_text(report['checked_at'])+'（北京时间）'
+                notice += '\n实际是否可领取以官方结果为准。'
+                if not await self.send_detail(bot, ev, listing(report, self.prefix(), include_summary=False),
+                                              '兑换码查询详情', bind, header_note=notice, quiet=True):
+                    return
+            elif not await self.send(bot, ev, notice, bind):
                 return
             # Keep the client alive in the retained worker; delivery failure must not cause a new submit.
             task = asyncio.create_task(self._worker(bot, ev, client, bind, items, contribute=mode == 'add'))

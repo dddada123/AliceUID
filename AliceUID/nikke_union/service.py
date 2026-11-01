@@ -40,6 +40,22 @@ class UnionService:
         except (ImportError,AttributeError,KeyError,TypeError,ValueError):
             return 180
 
+    def _data_reusable(self, snapshot, season):
+        """Data lifetime is separate from the short account/guild identity lease."""
+        if not snapshot:
+            return False
+        phase = season.get('combat_phase')
+        if phase in ('day1', 'day2') or phase is None:
+            return 0 <= self.clock() - snapshot.get('_cached_at', float('-inf')) < self.cache_ttl()
+        stamp = snapshot.get('fetched_at')
+        if type(stamp) not in (int, float) or not season['combat_end_ts'] <= stamp <= self.wall_clock():
+            return False  # A pre-cutoff snapshot cannot finalize the attack period.
+        if not snapshot.get('level_payload', {}).get('level_info'):
+            return False
+        if phase == 'settlement':
+            return self.wall_clock() <= season['end_ts']
+        return 0 <= self.wall_clock() - stamp < 5 * 86400
+
     @staticmethod
     def account(bind):
         return str(bind.game_id), str(bind.intl_open_id), int(bind.area_id)
@@ -118,10 +134,10 @@ class UnionService:
                 endpoint, level_endpoint = 'GetUnionRaidDataOfGuildSeason', 'GetUnionRaidLevelDataOfGuildSeason'
             local = False
             try:
-                if (not refresh and historical and previous and previous.get('finalized')
+                if (not refresh and previous and self._data_reusable(previous, season)
                         and previous.get('attacks') and previous.get('level_payload',{}).get('level_info')):
-                    # Calendar/own guild/current roster were checked above.
-                    # Only a successfully fetched, settled season is frozen.
+                    # Identity is checked independently. Reuse only a verified
+                    # post-combat snapshot within its settlement/five-day limit.
                     attacks,level=previous['attacks'],previous['level_payload']
                     local=True
                 else:
@@ -191,7 +207,7 @@ class UnionService:
         group=(str(bind.game_id),int(bind.area_id),guild_id,season['id'],season['active'],season['live_endpoint'])
         async with self._guild_locks.setdefault(group,asyncio.Lock()):
             cached=self._guild_cache.get(group)
-            if not refresh and cached and 0<=self.clock()-cached[0]<self.cache_ttl():
+            if not refresh and cached and self._data_reusable(cached[1], season):
                 if str(bind.intl_open_id) in (cached[1].get('_verified_members') or {}):
                     return cached[1]
             snapshot=await load_snapshot()
@@ -209,7 +225,7 @@ class UnionService:
         period = (season['id'],season['active'],season['live_endpoint'])
         async with self._locks.setdefault(account, asyncio.Lock()):
             cached = self._cache.get(key)
-            if not refresh and cached is not None and cached[1].get('_period') == period and 0 <= self.clock() - cached[0] < self.cache_ttl() and 0 <= self.clock() - cached[1]['_cached_at'] < self.cache_ttl():
+            if not refresh and cached is not None and cached[1].get('_period') == period and 0 <= self.clock() - cached[0] < self.cache_ttl() and self._data_reusable(cached[1], season):
                 data = cached[1]
                 shared = self._guild_cache.get(data.get('_group'))
                 if shared and str(bind.intl_open_id) in (shared[1].get('_verified_members') or {}):
@@ -232,6 +248,12 @@ class UnionService:
                     if exc.code in (401, 403, 300001):
                         self.invalidate(bind)
                     raise
+            # Re-evaluate presentation without extending the captured data's lifetime.
+            from .season import season_context
+            displayed = season_context(season, local=data['season'].get('history_local', False))
+            if data['season'].get('raid_phase') != displayed['raid_phase']:
+                data['_card_token'] = object()  # Reject an older in-flight phase card.
+            data['season'] = displayed
             return data
 
     async def query(self, client, bind, *, view='quick', day=None, refresh=False, static=None, character_map=(), target_rank=None):
@@ -258,7 +280,7 @@ class UnionService:
                        commander_name=getattr(bind,'nickname','') or '昵称未知',
                        commander_uid=getattr(bind,'uid','') or '未知',
                        commander_region=client.region.label,
-                       cache_seconds=self.cache_ttl())
+                       cache_seconds=data['season'].get('raid_cache_seconds') or self.cache_ttl())
         return context
 
     def context_current(self, context, bind):
@@ -273,7 +295,7 @@ class UnionService:
         from ..nikke_status.builder import build_bosses
         data=await self._snapshot(client,bind,refresh=refresh)
         context=build_bosses(data.get('level_payload'),bind=bind,region=client.region,
-                             fetched_at=data['fetched_at'],ttl=self.cache_ttl(),guild_name=data['guild_name'])
+                             fetched_at=data['fetched_at'],ttl=data['season'].get('raid_cache_seconds') or self.cache_ttl(),guild_name=data['guild_name'])
         context['notes'].extend(data.get('warnings',[]))
         context.update(data['season'])
         if not context['available']:

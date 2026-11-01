@@ -154,9 +154,14 @@ def _save_profile(bind, data, *, checked_at=None, roster_checked_at=None):
     from ..nikke_character.service import character_queries
     store = character_queries.store()
     if store is not None:
-        encoded = json.dumps(dict(profile={k:v for k,v in data.items() if not k.startswith('_')},
-                                  checked_at=checked_at or time.time(),
-                                  roster_checked_at=roster_checked_at or checked_at or time.time()), ensure_ascii=False, allow_nan=False).encode()
+        from ..nikke_time import time_metadata
+        body = dict(profile={k:v for k,v in data.items() if not k.startswith('_')},
+                    checked_at=checked_at or time.time(),
+                    roster_checked_at=roster_checked_at or checked_at or time.time())
+        # Derive from exactly the timestamps above, preserving their original assignment rules.
+        body['time_metadata'] = {field: time_metadata(body[field], bind.area_id)
+                                 for field in ('checked_at', 'roster_checked_at')}
+        encoded = json.dumps(body, ensure_ascii=False, allow_nan=False).encode()
         if len(encoded) > 16*1024*1024:
             raise ValueError('资料缓存超过安全大小。')
         atomic_write(store.path(_revision(bind), 'profile.json'), encoded)

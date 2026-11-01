@@ -39,7 +39,7 @@ def display_name(value, fallback):
     return ' '.join(str(value or '').split())[:100] or fallback
 
 
-async def send_with_forward(bot, ev, message, *, config_key, title=None):
+async def send_with_forward(bot, ev, message, *, config_key, title=None, at_sender=None):
     """Keep transport metadata out of nodes and all sends behind actor guards.
 
     xiowo's NapCat adapter catches OneBot errors outside Core's send coroutine.
@@ -52,7 +52,8 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None):
     event = ev if ev is not None else getattr(bot, 'ev', None)
     group = getattr(event, 'group_id', None)
     onebot = getattr(event, 'bot_id', '') == 'onebot'
-    at_sender = bool(group) if event is not None else True
+    if at_sender is None:
+        at_sender = bool(group) if event is not None else True
     mode = getattr(core_bot, 'enable_forward', '允许')
     eligible = mode in (None, '允许') and not (onebot and not group)
     ws_id = str(getattr(event, 'WS_BOT_ID', '') or '')

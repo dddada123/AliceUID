@@ -27,12 +27,13 @@ def set_before_send(callback):
     _before_send = callback
 
 
-async def _send(bot, ev, message, *, title=None):
+async def _send(bot, ev, message, *, title=None, caption=None):
     if _before_send is not None and not await _before_send(bot, ev):
         return
     if getattr(message, 'type', None) == 'image':
         from ..nikke_message import send_with_forward
-        await send_with_forward(bot, ev, message, config_key='AliceUID_UnionForward',
+        await send_with_forward(bot, ev, [message, caption] if caption else message,
+                                config_key='AliceUID_UnionForward', at_sender=False,
                                 title=title or 'AliceUID·当前公会-出刀统计')
     else:
         await bot.send(message, at_sender=True)
@@ -140,7 +141,15 @@ async def nikke_union_cmd(bot, ev):
                 if current is not None and union_queries.cache_key(current)==union_queries.cache_key(bind):
                     if getattr(result, 'type', None) == 'image' and not await current_card():
                         return
-                    await _send(bot,ev,result,title=forward_title)
-                    if getattr(result, 'type', None) == 'image' and 'context' in locals() and context.get('fetched_at'):
-                        await bot.send('本次所用数据时间：'+context['fetched_at']+'；复用图片时保留图内原快照时间。', at_sender=True)
+                    caption = None
+                    if getattr(result, 'type', None) == 'image':
+                        from ..nikke_message import display_name
+                        caption = (f'查询指挥官：{display_name(getattr(bind, "nickname", ""), "昵称未知")}'
+                                   f'｜{client.region.label}｜UID：{getattr(bind, "uid", "") or "未知"}')
+                        if context.get('view') == 'detail' and context.get('target_rank') is not None:
+                            target = next(iter(context.get('details', [])), {})
+                            caption += f'\n查询对象：伤害排名第{context["target_rank"]}名 · {display_name(target.get("name"), "未知成员")}'
+                        if context.get('fetched_at'):
+                            caption += '\n本次所用数据时间：'+context['fetched_at']+'；复用图片时保留图内原快照时间。'
+                    await _send(bot,ev,result,title=forward_title,caption=caption)
 

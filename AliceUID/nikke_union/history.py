@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from ..nikke_resource.cache import atomic_write
+from ..nikke_time import time_metadata
 
 
 class UnionHistory:
@@ -35,6 +36,7 @@ class UnionHistory:
         saved['members_reference'] = bool(snapshot.get('members_reference', False))
         saved['finalized'] = bool(snapshot.get('finalized', False))
         saved['season'] = snapshot.get('season', {})
+        saved['time_metadata'] = time_metadata(saved['fetched_at'], group[1])
         # Never erase a useful end-of-season record with an empty response.
         old = self.read(group, season)
         if old:
@@ -92,6 +94,7 @@ class UnionHistory:
             stats['final_hits'] += int(attack['is_final_hit'])
         body = dict(version=1, scope=[*group, str(season)], finalized=bool(snapshot.get('finalized')),
                     guild_name=snapshot.get('guild_name'), fetched_at=snapshot.get('fetched_at'),
+                    time_metadata=time_metadata(snapshot.get('fetched_at'), group[1]),
                     season=snapshot.get('season', {}), members_reference=bool(snapshot.get('members_reference')),
                     days=days, members=members)
         encoded = json.dumps(body, ensure_ascii=False, separators=(',', ':')).encode()

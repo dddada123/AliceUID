@@ -68,6 +68,18 @@ class PanelCache:
     def write(self,key,data):
         from ..nikke_resource.cache import atomic_write
         body=dict(data,schema=1,saved_at=time.time())
+        from ..nikke_time import time_metadata
+        profile = body.get('profile') or {}
+        basic = profile.get('basic') or {} if isinstance(profile, dict) else {}
+        area = body.get('_area_id', basic.get('area_id') if isinstance(basic, dict) else None)
+        body['time_metadata'] = {
+            field: time_metadata(body[field], area)
+            for field in ('saved_at', 'profile_checked_at', 'roster_checked_at') if field in body
+        }
+        body['time_metadata']['details'] = {
+            str(code): time_metadata(entry.get('checked_at'), area)
+            for code, entry in body.get('details', {}).items() if isinstance(entry, dict)
+        }
         encoded=json.dumps(body,ensure_ascii=False,allow_nan=False).encode()
         if len(encoded)>16*1024*1024:
             raise ValueError('panel snapshot exceeds size budget')

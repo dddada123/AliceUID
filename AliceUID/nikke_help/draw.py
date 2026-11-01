@@ -107,11 +107,11 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
         ])
     steps = [
         {'number': '01', 'command': f'{command_prefix()}登录', 'description': '登录/登陆均可；先看区服选项，再选角色所在区服'},
-        {'number': '02', 'command': '打开登录链接', 'description': '默认账号密码，也可切换邮箱验证码'},
+        {'number': '02', 'command': '打开登录链接', 'description': '账号密码或Cookie导入；支持cookies.txt，输入默认打码'},
         {'number': '03', 'command': f'{command_prefix()}信息', 'description': '回到聊天，获取个人名片或角色练度'},
     ]
     if login_mode == 'cookie':
-        steps[1] = {'number': '02', 'command': '私聊导入 Cookie', 'description': '当前仅Cookie模式；按区服命令返回的用法操作'}
+        steps[1] = {'number': '02', 'command': '网页导入 Cookie', 'description': '当前仅Cookie模式；粘贴内容或选择cookies.txt文件'}
     return {
         'role': 'Bot 主' if permission == 0 else '群管理员' if permission <= 3 else '普通用户',
         'regions': [f'{command_prefix()}登录日服', f'{command_prefix()}登录国际服', f'{command_prefix()}登录北美服', f'{command_prefix()}登录韩服', f'{command_prefix()}登录东南亚服'],

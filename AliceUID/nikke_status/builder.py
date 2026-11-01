@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 import math
+from ..nikke_time import beijing_text, time_metadata
 
 
 class StatusDataError(ValueError):
@@ -28,12 +29,13 @@ def integer(value, field):
 
 
 def timestamp(value):
-    return datetime.fromtimestamp(value,timezone(timedelta(hours=8))).strftime('%Y-%m-%d %H:%M:%S UTC+8')
+    return beijing_text(value)
 
 
 def identity(bind, region, fetched_at, ttl):
     return dict(commander_name=bind.nickname or '昵称未知', commander_uid=bind.uid or '未知',
                 commander_region=region.label, fetched_at=timestamp(fetched_at),cache_seconds=ttl,
+                _time_metadata=time_metadata(fetched_at, getattr(bind, 'area_id', None)),
                 source='blablalink · 繁体中文接口快照')
 
 

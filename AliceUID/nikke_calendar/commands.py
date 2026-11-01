@@ -34,12 +34,12 @@ class CalendarCommands:
             await bot.send('官网日历截图暂不可用，请稍后重试。', at_sender=True)
             return
         # The caption always includes source and actual capture time, including cache hits.
-        await bot.send(result.caption(), at_sender=True)
         image_factory = self.image_factory
         if image_factory is None:
             from gsuid_core.segment import MessageSegment
             image_factory = MessageSegment.image
-        await bot.send(image_factory(result.png), at_sender=True)
+        # Both are already ready: keep provenance/stale warning with its image.
+        await bot.send([result.caption(), image_factory(result.png)], at_sender=True)
 
 
 _sv = None

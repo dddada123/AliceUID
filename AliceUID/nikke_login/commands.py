@@ -21,6 +21,7 @@ from ..nikke_user.models import AliceBind
 from ..nikke_user.service import BindingPersistenceError, bind_summary, is_master, save_login, set_public
 from .session import sessions
 from .expiry import expiry_notice
+from .transport import external_base, require_https, LoginAddressError
 from .regions import REGION_ALIASES, REGION_HELP, selected_role
 
 sv_account = SV("妮姬账号", pm=6, priority=4)
@@ -32,6 +33,8 @@ def account_errors(func):
     async def guarded(bot, ev):
         try:
             return await func(bot, ev)
+        except LoginAddressError as exc:
+            await bot.send(str(exc), at_sender=True)
         except Exception as exc:
             logger.error(f"[AliceUID] 账号命令失败 command={func.__name__} error_type={type(exc).__name__}")
             await bot.send("账号操作失败，未确认完成，请稍后重试并请管理员检查日志。", at_sender=True)
@@ -39,16 +42,9 @@ def account_errors(func):
 
 
 def get_base_url() -> str:
-    login_url = str(AliceUIDConfig.get_config("AliceUID_LoginUrl").data or "").strip()
-    if login_url:
-        if not login_url.startswith(("http://", "https://")):
-            login_url = f"https://{login_url}"
-        return login_url.rstrip("/")
-    host = str(core_config.get_config("HOST") or "127.0.0.1")
-    port = str(core_config.get_config("PORT") or "8765")
-    if host in ("0.0.0.0", "::", "localhost"):
-        host = "127.0.0.1"
-    return f"http://{host}:{port}"
+    return external_base(AliceUIDConfig.get_config("AliceUID_LoginUrl").data,
+                         str(core_config.get_config("HOST") or "127.0.0.1"),
+                         str(core_config.get_config("PORT") or "8765"), secure=require_https())
 
 
 def _make_qr_png(url: str) -> bytes | None:
@@ -79,9 +75,6 @@ async def nikke_login_cmd(bot: Bot, ev: Event):
         )
         return
 
-    if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie":
-        await bot.send(f"当前仅允许 Cookie 导入，请私聊 Bot：\n{command_prefix()}导入cookie {REGIONS[area_id].label} game_openid=...; game_token=...; ...\n不要将 Cookie 发到群里。", at_sender=True)
-        return
     active = sessions.active(ev.user_id, ev.bot_id)
     if active is not None:
         url = f"{get_base_url()}/nikke/i/{active.token}"
@@ -91,12 +84,14 @@ async def nikke_login_cmd(bot: Bot, ev: Event):
             url, ev=ev,
         )
         return
+    base_url = get_base_url()
     ttl = int(AliceUIDConfig.get_config("AliceUID_LoginTTL").data or 600)
     session = sessions.create(ev.user_id, ev.bot_id, ev.group_id, area_id=area_id, ttl=ttl)
-    url = f"{get_base_url()}/nikke/i/{session.token}"
+    session.mode = "cookie" if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" else "password"
+    url = f"{base_url}/nikke/i/{session.token}"
     text = (
         f"NIKKE 账号绑定 · {REGIONS[area_id].label}\n"
-        f"请在 {ttl // 60} 分钟内打开下面的链接，输入 blablalink 账号密码：\n"
+        f"请在 {ttl // 60} 分钟内打开下面的链接，选择账号密码或导入Cookie：\n"
         f"{url}\n\n"
         "绑定仅使用所选区服，查不到角色会失败，不会自动换区。\n"
         "登录成功后会加密保存 Cookie；请勿在聊天中发送密码。\n"
@@ -123,11 +118,13 @@ async def nikke_relogin_cmd(bot: Bot, ev: Event):
         url = f"{get_base_url()}/nikke/i/{active.token}"
         await _send_login_link(bot, f"已有登录正在处理，请继续原链接：\n{url}", url, ev=ev)
         return
+    base_url = get_base_url()
     ttl = int(AliceUIDConfig.get_config("AliceUID_LoginTTL").data or 600)
     session = sessions.create(ev.user_id, ev.bot_id, ev.group_id, area_id=bind.area_id, ttl=ttl)
     session.replace_revision = hashlib.sha256(bind.cookie_enc.encode()).hexdigest()
-    url = f"{get_base_url()}/nikke/i/{session.token}"
-    method = "导入新Cookie" if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" else "登录原blablalink账号"
+    session.mode = "cookie" if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" else "password"
+    url = f"{base_url}/nikke/i/{session.token}"
+    method = "导入新Cookie" if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" else "登录原blablalink账号或导入其Cookie"
     text = (f"NIKKE 重新登录 · {REGIONS[bind.area_id].label}\n请在{ttl // 60}分钟内打开链接，{method}：\n{url}\n"
             "仅更新本人同账号同区服的Cookie；失败保留原绑定。链接仅供本人使用，请勿转发。\n"
             "更新后自动社区授权需重新开启，每日预算不会重置。\n" + expiry_notice(bind.cookie_expire))
@@ -139,10 +136,21 @@ async def _send_login_link(bot, text, url, *, ev=None):
     from ..nikke_message import send_with_forward
     qr_enabled = bool(AliceUIDConfig.get_config("AliceUID_LoginQRCode").data)
     qr_png = _make_qr_png(url) if qr_enabled else None
-    content = [MessageSegment.text(text)]
+    # URL is an independent node for QQ Select All/Copy; no duplicate embedded URL.
+    explanation = text.replace(url, "").strip()
+    content = [MessageSegment.text(explanation), MessageSegment.text(url)]
     if qr_png:
         content.append(MessageSegment.image(qr_png))
-    return await send_with_forward(bot, ev, content if qr_png else text,
+    content.append(MessageSegment.text(
+        '可选：使用Cookie登录\n'
+        '如使用账号密码登录，无需安装扩展。\n'
+        '1. 安装 Get cookies.txt Clean：\n'
+        'https://chromewebstore.google.com/detail/get-cookiestxt-clean/ahmnmhfbokciafffnknlekllgcnafnie\n'
+        '2. 安装后打开 https://www.blablalink.com/ 并登录自己的账号。\n'
+        '3. 点击浏览器中的扩展，复制当前站点Cookie，或导出cookies.txt。\n'
+        '4. 回到上方Bot登录链接，选择“导入Cookie”，粘贴或选择导出的文件。\n'
+        'Cookie请只在登录网页中录入，不要发到群里。'))
+    return await send_with_forward(bot, ev, content,
                                    config_key='AliceUID_LoginForward')
 
 def _login_guidance():
@@ -258,10 +266,14 @@ async def nikke_cookie_cmd(bot: Bot, ev: Event):
     if area_id is None:
         await bot.send(f"请显式选择区服，例如：{command_prefix()}导入cookie 日服 game_openid=...; game_token=...; ...\n" + REGION_HELP, at_sender=True)
         return
-    if "game_token=" not in cookie:
+    if not cookie:
         await bot.send(f"用法：{command_prefix()}导入cookie 日服 game_openid=...; game_token=...; ...", at_sender=True)
         return
-    cred = credentials_from_cookie(cookie, 0)
+    try:
+        cred = credentials_from_cookie(cookie, 0)
+    except ValueError as exc:
+        await bot.send(str(exc), at_sender=True)
+        return
     if cred is None:
         await bot.send("Cookie 里缺少 game_openid / game_token。", at_sender=True)
         return
@@ -285,7 +297,7 @@ async def nikke_cookie_cmd(bot: Bot, ev: Event):
             cookie=cred.cookie,
             nickname=role.get("role_name") or "",
             uid=str(role.get("role_id") or ""),
-            expire_at=0,
+            expire_at=cred.expire_at,
         )
         await bot.send(
             f"绑定成功：{role.get('role_name') or '未知'}（{region.label}）\n"
