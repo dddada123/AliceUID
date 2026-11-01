@@ -43,6 +43,13 @@ class DatabaseCommands:
         self.service = service
 
     async def handle(self, bot, ev):
+        permission = getattr(ev, 'user_pm', None)
+        if type(permission) is not int or permission != 0:
+            await bot.send('数据库手动更新仅限GsCore主人账号。请在GsCore「核心设置 → 主人账号（masters）」'
+                           '中配置发送者账号，使Core识别为主人后重试；其他用户请联系Bot主。'
+                           f'主人识别后，{command_prefix()}帮助才会显示管理指令。首次启动的角色列表自动更新不需要主人权限。',
+                           at_sender=True)
+            return
         text = (getattr(ev, 'text', '') or '').strip()
         if text in {'帮助', 'help'}:
             await bot.send(HELP, at_sender=True)
@@ -50,6 +57,9 @@ class DatabaseCommands:
         if text in {'状态', 'status'}:
             from .calendar_update import CalendarUpdates
             calendar_status = '\n日历计划：' + CalendarUpdates(self.service).status()
+            startup = self.service.catalog_state()
+            calendar_status += '\n首次角色表：' + ('已自动获取官方列表' if startup.get('status') == 'ready'
+                                                     else '尚未成功；后台等待执行或冷却重试，请查看启动更新日志')
             if self.service.running():
                 pending = len(self.service.state()['queue'])
                 await bot.send(f'数据库更新正在后台运行；当前持久队列待处理 {pending} 项（静态表检查阶段尚未生成新队列）；进度与最终摘要会写入日志。' + calendar_status, at_sender=True)
@@ -81,7 +91,12 @@ def setup(config_getter=None):
     if _sv is not None:
         return _sv
     from gsuid_core.sv import SV
-    _sv = SV('妮姬数据库维护', pm=0, priority=3)
+    # Let ordinary actors reach the explicit denial; execution still checks the
+    # Core-authenticated user_pm==0 above, never the plugin's separate QQ list.
+    _sv = SV('妮姬数据库维护', pm=6, priority=3)
+    # Core reloads the old persisted pm=0 on upgrades. Open only this routing
+    # gate for the denial above; keep enabled/area/lists and execution auth intact.
+    _sv.pm = 6
     commands = DatabaseCommands(service)
 
     @_sv.on_command('数据库更新')

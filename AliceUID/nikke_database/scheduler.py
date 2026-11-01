@@ -30,6 +30,10 @@ def setup(config_getter=None, scheduler=None):
     if scheduler is None:
         from gsuid_core.aps import scheduler
     from datetime import datetime, timezone
+    scheduler.add_job(service.refresh_startup_catalog, 'interval', seconds=60,
+                      next_run_time=datetime.now(timezone.utc),
+                      id='aliceuid-database-startup-catalog', name='AliceUID首次启动角色列表更新',
+                      replace_existing=True, max_instances=1, coalesce=True)
     from .calendar_update import CalendarUpdates
     runner = CalendarUpdates(service)
     scheduler.add_job(runner.tick, 'interval', seconds=60, next_run_time=datetime.now(timezone.utc),

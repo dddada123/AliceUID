@@ -19,6 +19,9 @@ from ..nikke_resource.base_icons import BASE_ICONS, STATIC_BADGES, FIXED_WEAPON_
 from ..nikke_resource.badges import FIXED_BADGE_URLS, local_badge
 
 log = logging.getLogger(__name__)
+CATALOG_FILE = 'nikke_list_zh-TW_v2.json'
+# Bump when a release requires a fresh startup check even with the same bundle.
+CATALOG_REVISION = '1.1.18-startup-catalog-v1'
 DEFAULTS = {
     'DatabaseWeeklyUpdate': True,
     'DatabaseCalendarUpdate': True,
@@ -238,6 +241,73 @@ class DatabaseService:
 
     def running(self):
         return self._owner is not None or self._lock.locked() or (self.task is not None and not self.task.done())
+
+    def catalog_state(self):
+        try:
+            state = json.loads(self.path.with_name('startup_catalog.json').read_text('utf-8'))
+            if isinstance(state, dict) and state.get('version') == 1:
+                return state
+        except (OSError, ValueError):
+            pass
+        return {'version': 1, 'status': 'pending'}
+
+    async def refresh_startup_catalog(self):
+        """Fetch the official list once per installed revision, independently of masters/calendar.
+
+        Run in the host scheduler, never during import. Share maintenance's lock,
+        pacing and public-only HTTP; only a validated fresh download marks success.
+        """
+        if self.running():
+            return {'status': 'busy'}
+        async with self._lock:
+            bundled = Path(self.resources.bundled) / CATALOG_FILE
+            signature = digest([CATALOG_REVISION, hashlib.sha256(bundled.read_bytes()).hexdigest()
+                                if bundled.is_file() else 'missing'])
+            state = self.catalog_state()
+            table = Path(self.resources.root) / 'static' / CATALOG_FILE
+            if state.get('signature') == signature and state.get('status') == 'ready' and table.is_file():
+                return state
+            now = self.clock()
+            retry = state.get('retry_after', 0)
+            if isinstance(retry, (int, float)) and now < retry:
+                return dict(state, status='cooldown')
+            # A blocked public maintenance batch also cools the startup fetch.
+            retry = self.state().get('retry_after', 0)
+            if isinstance(retry, (int, float)) and now < retry:
+                return {'status': 'cooldown', 'retry_after': retry}
+            result = dict(version=1, signature=signature, status='error', attempted_at=now,
+                          retry_after=now + self.number('DatabaseFailureCooldown', 3600))
+            public = None
+            try:
+                async with httpx.AsyncClient(timeout=25, follow_redirects=False, trust_env=False) as owned:
+                    public = PublicHTTP(self.http or owned,
+                                        interval=self.number('DatabaseRequestInterval', 1.5),
+                                        byte_limit=8 * 1024**2, sleep=self.sleep, monotonic=self.monotonic)
+                    public.last_request = self._last_request
+                    resources = resource_module.ResourceService(
+                        self.resources.root, self.resources.bundled, http=public, clock=self.clock)
+                    # force bypasses the normal 24h cache, not failures' cooldown.
+                    result['tables'] = await resources.update_tables(force=True, targets=[CATALOG_FILE])
+                    if str(result['tables'].get(CATALOG_FILE, '')).startswith('updated:'):
+                        result.update(status='ready', checked_at=self.clock(), retry_after=0,
+                                      sha256=hashlib.sha256(table.read_bytes()).hexdigest())
+                    else:
+                        result['error'] = '角色列表尚未从官方CDN核验成功，保留旧表，冷却后自动重试'
+            except Exception as exc:
+                result['error'] = '角色列表启动更新失败：' + type(exc).__name__
+            finally:
+                if public is not None:
+                    self._last_request = public.last_request
+                    if public.stopped:
+                        maintenance = self.state()
+                        maintenance['retry_after'] = result['retry_after']
+                        self.save(maintenance)
+            atomic_write(self.path.with_name('startup_catalog.json'),
+                         json.dumps(result, ensure_ascii=False, sort_keys=True).encode())
+            log.log(logging.INFO if result['status'] == 'ready' else logging.WARNING,
+                    'AliceUID startup catalog status=%s tables=%s retry_after=%s',
+                    result['status'], result.get('tables', {}), result['retry_after'])
+            return result
 
     async def run_continuous(self, *, reason='manual', progress=None):
         """Resume bounded batches without fetching unchanged tables on every batch."""

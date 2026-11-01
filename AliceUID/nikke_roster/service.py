@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 import time
-from .builder import build_roster_context, fingerprint
+from .builder import build_roster_context, fingerprint, number
 from .cache import RosterCache, identity
 from .draw import draw_roster, prepare_images
 from ..nikke_render.theme import get_card_theme_mode as get_card_theme
@@ -123,12 +123,19 @@ class RosterService:
                         uid = str(saved.get('role_id') or '')
         epoch = self.epochs.get(key, 0)
         static = self.resources.load_static()
-        if not static.characters:
-            # Static character table only, and only when absent. No version checks.
+        codes = {number(row.get('name_code')) for row in owned if isinstance(row, dict)} if isinstance(owned, list) else set()
+        missing = {code for code in codes if code > 0 and code not in static.characters}
+        if not static.characters or missing:
+            # A nonempty bundled snapshot can still miss newly released Nikke.
+            # Shared table cache/lock/cooldown bound concurrent checks.
             await self.resources.update_tables(targets=['nikke_list_zh-TW_v2.json'])
             static = self.resources.load_static()
         if not static.characters:
             raise ValueError('角色静态资料缺失，无法安全生成完整卡片。')
+        if any(code > 0 and code not in static.characters for code in codes):
+            from ..nikke_commands import command_prefix
+            raise ValueError('新角色资料暂未补齐，已自动检查公开角色表。请稍后重试，或联系Bot主执行'
+                             f'{command_prefix()}数据库更新；不会将缺失资料渲染为空白卡片。')
         context = build_roster_context(basic, owned, static, nickname=bind.nickname,
                                        uid=uid, area_label=client.region.label)
         from ..nikke_render.fonts import resolve_font

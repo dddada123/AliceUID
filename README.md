@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.17-ff69b4?style=flat-square" alt="Version: 1.1.17"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.18-ff69b4?style=flat-square" alt="Version: 1.1.18"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.17**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.18**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -25,6 +25,10 @@
 </p>
 
 ## 亮点功能
+
+### 首次启动自动更新角色列表
+
+安装或升级到1.1.18并完整重启GsCore后，插件会在后台从官方CDN获取最新 `nikke_list_zh-TW_v2.json`，已有内置旧表也会刷新；无需先配置主人账号或手动发命令。成功结果持久保存，后续重启不重复下载；网络失败保留旧表，默认冷却一小时后自动重试。此任务只更新角色列表，不启动整套图库下载；查询发现未知角色时也会尝试补查，避免输出空白卡片。
 
 ### 日期与数据时间
 
@@ -147,7 +151,7 @@
 1. 首次安装或升级前备份原插件及其运行数据。解压安装包，把整个外壳放入 `plugins/AliceUID/`。
 2. 保留以下嵌套结构，不要只拷内层包，也不要将开发工作区的版本目录 当成插件目录。
 3. 在运行 GsCore 的 Python 环境安装插件依赖。使用网页账号密码登录、官网日历截图或DILDORO个人突袭推荐时，还需安装与当前 Playwright 匹配的 Chromium，见[依赖安装](#依赖安装)。仅使用Cookie导入登录时，登录流程无需启动服务端浏览器。
-4. 完整重启 GsCore，在 WebUI 的 AliceUID 配置中检查登录地址、访问名单和主题，再发送 `nk帮助`。
+4. 完整重启 GsCore，在 WebUI 的 AliceUID 配置中检查登录地址、访问名单和主题，再发送 `nk帮助`。首次启动会自动更新角色列表；失败时查看日志中的 `AliceUID startup catalog`，后台会保留旧表并冷却重试。
 
 ```text
 plugins/
@@ -350,6 +354,8 @@ Bot管理员可用 `nk账号列表` / `nk绑定列表` 查看账号概览和连�
 | `BrowserType.launch: Executable doesn't exist` | 在GsCore实际Python环境中执行 `python -m playwright install chromium`；Docker需在运行容器内安装并检查浏览器路径/访问权限，也可改用Cookie导入登录，见[依赖安装](#依赖安装) |
 | Cookie失效 | 使用 `nk重新登录`；换号才需要解绑 |
 | 用户/群不能查询 | Core权限及插件群/用户四名单 |
+| 新角色不显示或卡片资料空白 | 先请Bot主发送 `nk数据库更新`；手动执行前须在GsCore核心设置中配置主人账号（`masters`）。1.1.18首次启动会自动刷新角色列表，失败则冷却重试；新资料未就绪时会明确提示 |
+| 帮助缺少管理指令、数据库更新提示无权限 | 确认发送者已被GsCore的 `masters` 识别为主人，再发送 `nk帮助`；插件Bot主QQ配置不能替代Core主人权限 |
 | 图鉴或立绘缺图 | `nk数据库更新 状态`、公开源冷却、角色/皮肤映射 |
 | 收菜1302127 | 自动静默尝试最多三次；仍失败时提示可能是网络原因，请稍后重试，Cookie失效则重新登录 |
 | 图片生成失败 | 字体与原生渲染依赖、外置渲染配置；`nk帮助 文字` 可获取文字指南 |

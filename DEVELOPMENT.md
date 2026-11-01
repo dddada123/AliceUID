@@ -1,6 +1,16 @@
 # AliceUID 开发文档
 
-适用版本：**1.1.17**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+适用版本：**1.1.18**。本文依据本目录实际源码编写，涵盖插件生命周期、模块与命令、客户端及HTTP接口、字段和资源映射、缓存与权限，以及测试发布流程。社区端点是当前适配代码使用的协议，不代表上游提供永久稳定的接口承诺。
+
+### 1.1.18 首次启动角色列表与权限反馈
+
+共享scheduler新增aliceuid-database-startup-catalog，interval=60秒、首次立即运行、max_instances=1/coalesce/replace_existing；导入不联网，也不使用安装期同步下载。DatabaseService.refresh_startup_catalog只通过公开匿名GET更新nikke_list_zh-TW_v2.json，force跳过正常24小时缓存但不绕过失败冷却，不运行图库补全。与手动/周检/日历共用维护锁、PublicHTTP限源/去凭据/字节预算/节奏。首次安装或本版本升级完成后须完整重启Core。
+
+成功状态持久保存在data/AliceUID/database/startup_catalog.json，签名含本发布修订号和内置角色表SHA256；必须实际取得校验通过的新表才能标ready。原子替换static缓存后保存成功；后续重启仅查本地成功标记，缓存被删除或发布修订改变时重新获取。网络/HTTP/表格式或截断异常保留旧表，默认至少3600秒后重试；403/429等阻断同时进入共享维护冷却。此初始化不依赖masters，也不受DatabaseCalendarUpdate/DatabaseWeeklyUpdate关闭影响；不宣称离线安装可以必然获得最新上游资料。
+
+RosterService.prepare发现本人name_code未被非空旧表收录时，调用现有ResourceService.update_tables补查（沿用24小时成功缓存、1小时失败冷却及静态锁），重载后再生成；若仍缺失则明确提示联系Bot主，而不是渲染空白映射。
+
+数据库命令入口SV路由权限为6，兼容Core加载已持久化的旧pm=0时在本入口运行期调整路由门槛；执行仍严格要求Core认证的ev.user_pm为整数0，不能由AliceUID_MasterQQ代替。保留原SV启用状态、范围、黑白名单及插件用户访问守卫；普通用户仅收到masters配置提示，不读取维护状态、不启动更新。其他管理命令权限不变。旧全目录冻结/交付报告不重写。
 
 ### 1.1.17 Cookie网页登录与传输
 
