@@ -146,7 +146,7 @@
 
 1. 首次安装或升级前备份原插件及其运行数据。解压安装包，把整个外壳放入 `plugins/AliceUID/`。
 2. 保留以下嵌套结构，不要只拷内层包，也不要将开发工作区的版本目录 当成插件目录。
-3. 在运行 GsCore 的 Python 环境安装插件依赖。使用网页登录、官网日历或DILDORO个人突袭推荐时，准备 Playwright Chromium。
+3. 在运行 GsCore 的 Python 环境安装插件依赖。使用网页账号密码登录、官网日历截图或DILDORO个人突袭推荐时，还需安装与当前 Playwright 匹配的 Chromium，见[依赖安装](#依赖安装)。仅使用Cookie导入登录时，登录流程无需启动服务端浏览器。
 4. 完整重启 GsCore，在 WebUI 的 AliceUID 配置中检查登录地址、访问名单和主题，再发送 `nk帮助`。
 
 ```text
@@ -163,14 +163,22 @@ plugins/
    └─ DEVELOPMENT.md
 ```
 
-依赖安装示例（使用 GsCore 实际使用的 Python）：
+### 依赖安装
+
+使用 GsCore 实际使用的 Python，依次执行：
 
 ```bash
 python -m pip install -r plugins/AliceUID/requirements.txt
 python -m playwright install chromium
 ```
 
-常规卡片使用Core的 `render_html_to_bytes` 原生渲染。DILDORO需要执行网站JavaScript、导入本人资料、操作推荐界面并截取真实结果；pytakumi不能替代浏览器自动化，因此保留Playwright。官网日历截图与网页登录同样保留浏览器。
+**安装 `requirements.txt` 中的Python依赖后，还需单独执行第二条命令安装浏览器。** 镜像预装的Chromium可能与插件当前安装的Playwright版本不匹配；升级Playwright后也应重新执行 `python -m playwright install chromium`。
+
+如果出现 `BrowserType.launch: Executable doesn't exist at /ms-playwright/chromium_headless_shell-1243/...` 等报错，说明当前Playwright所需的浏览器未安装到可访问的位置。Docker部署请在**运行GsCore的容器内**执行上述命令，使用同一个Python环境，并沿用服务的 `PLAYWRIGHT_BROWSERS_PATH`（如已设置），确保服务运行用户可以访问下载后的浏览器；在宿主机安装不能补齐容器内的浏览器。
+
+**希望绕过登录时的Chromium依赖，可直接使用Cookie登录：** 在Bot返回的登录页面选择“导入Cookie”，粘贴Cookie或导入cookies.txt；也可在WebUI将 `AliceUID_LoginMode` 设为 `cookie`，让新登录页面仅使用Cookie导入。操作步骤见[快速开始](#快速开始)。此方式不启动服务端Playwright浏览器；Cookie失效后仍需重新导入。
+
+常规卡片使用Core的 `render_html_to_bytes` 原生渲染。DILDORO需要执行网站JavaScript、导入本人资料、操作推荐界面并截取真实结果；pytakumi不能替代浏览器自动化，因此保留Playwright。**Cookie登录只绕过登录流程的浏览器启动，官网日历截图与DILDORO仍需可用的Chromium。**
 
 从其他 AliceUID 版本升级，继续使用原 `data/AliceUID` 和 `AliceBind`，无须因版本更新重新绑定。不要同时启用多份 AliceUID。
 
@@ -300,7 +308,7 @@ Bot管理员可用 `nk账号列表` / `nk绑定列表` 查看账号概览和连�
 | WebUI 配置 | 作用 |
 |---|---|
 | `AliceUID_LoginUrl` | 用户能访问的 Core 登录页面基地址，反向代理需转发 `/nikke/` 路由 |
-| `AliceUID_LoginMode` | `browser` 网页账号密码，或 `cookie` 仅私聊导入 |
+| `AliceUID_LoginMode` | `browser` 网页账号密码或Cookie导入；`cookie` 登录页仅使用Cookie导入，无需启动服务端浏览器 |
 | `AliceUID_LoginForward` | 登录/重新登录链接转发，默认开启，保留已有值 |
 | `AliceUID_HelpForward` | 帮助图片转发，默认开启 |
 | `AliceUID_RosterForward` | 完整阵容卡片转发，默认开启 |
@@ -339,6 +347,7 @@ Bot管理员可用 `nk账号列表` / `nk绑定列表` 查看账号概览和连�
 | 现象 | 先检查什么 |
 |---|---|
 | 登录页无法打开 | 登录基地址是否可达、`/nikke/` 是否正确转发、浏览器是否安装 |
+| `BrowserType.launch: Executable doesn't exist` | 在GsCore实际Python环境中执行 `python -m playwright install chromium`；Docker需在运行容器内安装并检查浏览器路径/访问权限，也可改用Cookie导入登录，见[依赖安装](#依赖安装) |
 | Cookie失效 | 使用 `nk重新登录`；换号才需要解绑 |
 | 用户/群不能查询 | Core权限及插件群/用户四名单 |
 | 图鉴或立绘缺图 | `nk数据库更新 状态`、公开源冷却、角色/皮肤映射 |
