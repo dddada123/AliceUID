@@ -137,6 +137,12 @@ async def save_login(
         if stored is None or any(getattr(stored, key, None) != value for key, value in expected.items()):
             raise BindingPersistenceError("绑定保存后校验失败")
         _start_login_prefetch(stored, group_id)
+        try:
+            from ..nikke_cdk.runtime import schedule_new_binding
+            schedule_new_binding(stored, group_id)
+        except Exception as exc:
+            from gsuid_core.logger import logger
+            logger.warning(f'[AliceUID] new binding CDK scheduling deferred error_type={type(exc).__name__}')
         return 0
 
 

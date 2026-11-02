@@ -307,16 +307,17 @@ class Commands:
         try:
             results = await self.redemptions.run(client, bind, items,
                 current=lambda: self.current(ev, bind), enabled=self.enabled, contribute=contribute)
-            if contribute and getattr(self, 'public_discoveries', None) is not None:
-                new_members = {code_key(r['code']) for r in results if r.get('pool_status') == 'added'}
-                self.public_discoveries.remember_member([item for item in items if code_key(item['code']) in new_members])
-            if contribute and self.automatic is not None and self.automatic.enabled():
+            if contribute and self.automatic is not None:
                 added = {code_key(r['code']) for r in results if r.get('pool_status') == 'added'}
                 if auto_candidates is not None:
                     added &= auto_candidates
                 fresh = [item for item in items if code_key(item['code']) in added]
                 if fresh:
-                    reason = await self.automatic.run(bot, ev, bind, fresh, results, seed_client=client)
+                    discovery = getattr(self, 'public_discoveries', None)
+                    if discovery is not None:
+                        reason = await discovery.contribute(bot, ev, bind, fresh, results, seed_client=client)
+                    else:
+                        reason = await self.automatic.run(bot, ev, bind, fresh, results, seed_client=client)
                     if reason:
                         results.append(dict(code='', status='info', result=reason))
             if contribute and not any(r.get('pool_status') in ('added', 'existing', 'blocked') for r in results):

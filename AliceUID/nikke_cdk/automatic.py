@@ -153,7 +153,7 @@ class Automatic:
             bot_self_id=str(source.bot_self_id), WS_BOT_ID=str(source.WS_BOT_ID),
             user_pm=0 if str(row.user_id) in set(map(str, self.masters())) else 6)
 
-    async def run(self, bot, source, initiator, items, seed, *, seed_client=None, background=False):
+    async def run(self, bot, source, initiator, items, seed, *, seed_client=None, background=False, only_user=None):
         # No replay when the system is re-enabled after an addition made while disabled.
         if not self.enabled() or not self.commands.enabled():
             return
@@ -163,6 +163,8 @@ class Automatic:
             self.store.observe(source)
             group = str(getattr(source, 'group_id', '') or '')
             rows = [r for r in await self.bindings() if str(r.bot_id) == str(source.bot_id)]
+            if only_user is not None:
+                rows = [row for row in rows if str(row.user_id) == str(only_user)]
             masters = set(map(str, self.masters()))
             def rank(row):
                 user = str(row.user_id)
@@ -175,7 +177,7 @@ class Automatic:
                 if user in owners or account in seen or not self.store.enabled(row.bot_id, user):
                     continue
                 memberships = self.members(source, row)
-                home = (group if group and group in memberships else
+                home = (group if group else '') if only_user is not None else (group if group and group in memberships else
                         str(getattr(row, 'group_id', '') or '') or next(iter(sorted(memberships)), ''))
                 ev = self.event(source, row, home or None)
                 if background and self.background_event is not None:
@@ -188,9 +190,16 @@ class Automatic:
                 plans.append((row, ev))
             def route_key(ev):
                 return (ev.bot_id, ev.bot_self_id, ev.group_id)
-            groups = {route_key(ev): ev for _, ev in plans if ev.group_id}
+            if not plans:
+                return None
+            groups = {route_key(ev): ev for _, ev in plans if ev.group_id or only_user is not None}
+            labels = {'official': '官方', 'gamewith': 'GameWith', 'member': '群友贡献'}
+            sources = sorted({labels[x] for item in items for x in item.get('sources', []) if x in labels})
+            codes = '\n'.join(dict.fromkeys(item['code'] for item in items))
+            notice = ('新绑定账号，正在核对当前有效兑换码。' if only_user is not None else
+                      f'在 {" / ".join(sources) or "共享库存"} 发现新增兑换码：\n{codes}\n正在执行自动兑换任务。')
             for ev in groups.values():
-                await self.safe_notify(ev, ev.group_id, '正在为绑定用户兑换新增兑换码。')
+                await self.safe_notify(ev, ev.group_id, notice)
             outcomes = defaultdict(list)
             abort = ''
             for index, (row, ev) in enumerate(plans):
@@ -271,11 +280,13 @@ class Automatic:
                         if close_client:
                             await client.close()
             for target, results in outcomes.items():
-                if not target[2]:
+                if not target[2] and only_user is None:
                     continue
                 bad = [(row, state) for row, state in results if state != 'ok']
                 text = ('本群参与本次自动兑换的绑定用户已全员成功兑换（含已领取）。' if not bad else
                         '新增兑换码自动兑换已结束，部分用户未能完成。')
+                if only_user is not None:
+                    text = '新绑定账号兑换码核对完成。' if not bad else '新绑定账号兑换码核对未全部完成。'
                 text += f'\n成功{len(results)-len(bad)}人｜未完成{len(bad)}人'
                 text += '\n已静默核对当前全部有效兑换码，结果已记录。'
                 if abort:

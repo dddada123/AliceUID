@@ -11,7 +11,7 @@ import time
 
 from ..nikke_calendar.service import _atomic_write
 from ..nikke_union.season import load_seasons, select_season
-from .source import (AUTHOR, AUTHOR_NAME, POST_URL, AUTHOR_URL, TTL, GuideUnavailable, find_post, example_image,
+from .source import (AUTHOR, AUTHOR_NAME, POST_URL, AUTHOR_URL, TTL, GuideUnavailable, GuidePending, find_post, example_image,
                      download_image, capture_post, validate_image, matches)
 
 _LOCK = asyncio.Lock()
@@ -58,10 +58,10 @@ class GuideService:
     def save_meta(self, meta):
         _atomic_write(self.root/'guide.json', json.dumps(meta, ensure_ascii=False).encode())
 
-    def cached(self, meta):
+    def cached(self, meta, season):
         try:
             post = meta['post']
-            if not matches(post, meta['season'], self.clock()):
+            if not matches(post, season, self.clock()):
                 return None
             team, screenshot = (self.root/'team.image').read_bytes(), (self.root/'post.jpg').read_bytes()
             if [hashlib.sha256(b).hexdigest() for b in (team, screenshot)] != meta['hashes']:
@@ -88,13 +88,22 @@ class GuideService:
                 for name in ('team.image', 'post.jpg'):
                     (self.root/name).unlink(missing_ok=True)
                 meta = self.read_meta()
-            cached = self.cached(meta)
+            cached = self.cached(meta, season)
+            if cached is None and meta.get('post'):
+                for name in ('team.image', 'post.jpg'):
+                    (self.root/name).unlink(missing_ok=True)
+                for key in ('post', 'season', 'hashes'):
+                    meta.pop(key, None)
+                meta['saved_at'] = 0
+                self.save_meta(meta)
             age = now - meta.get('saved_at', 0)
             if cached and 0 <= age and (not season['combat_active'] or age < TTL):
                 return replace(cached, historical=not season['combat_active'])
             if now < meta.get('retry_after', 0):
-                raise GuideUnavailable('本期攻略暂未就绪，查询冷却5分钟后可重试。')
-            meta.update(author=AUTHOR, season_id=sid, retry_after=now+300)
+                remaining = max(1, int(meta['retry_after']-now+0.999))
+                reason = '攻略作者可能还在编写或整理中' if meta.get('failure_kind') == 'pending' else '攻略查询暂不可用'
+                raise GuideUnavailable(f'{reason}，请约{remaining}秒后再查询。')
+            meta.update(author=AUTHOR, season_id=sid, retry_after=now+300, failure_kind='unavailable')
             self.save_meta(meta)
             try:
                 async def fetch():
@@ -123,7 +132,13 @@ class GuideService:
                 return Guide(post['title'], team, shot, public_post['user']['username'], str(post['post_uuid']), not season['combat_active'])
             except asyncio.CancelledError:
                 raise
+            except GuidePending:
+                meta['failure_kind'] = 'pending'
+                self.save_meta(meta)
+                raise
             except GuideUnavailable:
+                meta['failure_kind'] = 'unavailable'
+                self.save_meta(meta)
                 raise
             except Exception:
                 raise GuideUnavailable('攻略读取或完整截图暂不可用，请5分钟后重试。') from None

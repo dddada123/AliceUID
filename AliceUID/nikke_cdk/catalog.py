@@ -11,6 +11,7 @@ class Catalog:
     def __init__(self, store, fetch=fetch_public, clock=time.time):
         self.store, self.fetch, self.clock = store, fetch, clock
         self._flight = None
+        self.on_publish = None
 
     def needs(self, now, first=False, scheduled=False):
         checked = self.store.meta('catalog_checked_at')
@@ -70,7 +71,14 @@ class Catalog:
             finished = self.clock()
             self.store.publish(snapshots, finished, errors,
                 day_at(finished) if first and not errors else None, lease=token, cooldown=cooldown)
-            return self.report('refreshed')
+            report = self.report('refreshed')
+            if self.on_publish is not None:
+                try:
+                    self.on_publish()
+                except Exception:
+                    import logging
+                    logging.getLogger(__name__).warning('CDK post-publish scheduling deferred')
+            return report
         finally:
             self.store.release('catalog', token)
 

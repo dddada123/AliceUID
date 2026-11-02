@@ -78,7 +78,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}兑换码ABCDEFG', 'description': '将ABCDEFG换成单个兑换码；只操作本人，成功附可用的第三方报酬说明'},
             {'command': f'{command_prefix()}兑换官方兑换码 / {command_prefix()}第三方兑换码', 'description': '仅兑换对应来源的当前码；第三方历史区不参与'},
             {'command': f'{command_prefix()}增加兑换码ABCDEFG', 'description': '本人核验入库后触发新增码自动兑换；疑似一次性或次数耗尽码停止并移出库存'},
-            {'command': f'{command_prefix()}自动兑换码 / {command_prefix()}关闭自动兑换码', 'description': '默认开启；成员/官方/GW新码自动处理，静默核对全部当前有效码并记录'},
+            {'command': f'{command_prefix()}自动兑换码 / {command_prefix()}关闭自动兑换码', 'description': '新码跨来源去重；库存更新后处理，新绑定仅核对本人'},
         ]}
     ]
     if permission == 0:
@@ -88,7 +88,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
                 {'command': f'{command_prefix()}数据库更新 状态 / 帮助', 'description': '查看日历排期、小时补查及24小时结果、图库队列'},
                 {'command': f'{command_prefix()}更新资源', 'description': '兼容旧命令，同样进入增量数据库任务'},
                 {'command': '后台：每日签到时间', 'description': '北京时间HH:MM，默认08:33；保存后更新调度，手动签到仍可立即执行'},
-                {'command': f'{command_prefix()}刷新兑换码', 'description': '维护官方/GW库存；新码交给后台自动兑换。00/08/16点更新，缓存4小时'},
+                {'command': f'{command_prefix()}刷新兑换码', 'description': '00/08/16点更新；真正新码触发任务，通知列码；无分钟轮询'},
                 {'command': f'{command_prefix()}启用自动兑换码 / {command_prefix()}停用自动兑换码', 'description': '系统总开关；停用不修改个人开关，重新启用不补跑历史新增码'},
                 {'command': f'{command_prefix()}全员自动兑换码 / {command_prefix()}关闭全员自动兑换码', 'description': '批量设置全部绑定用户个人开关；成员可自行修改，系统停用时开启操作会提示'},
                 {'command': f'{command_prefix()}账号列表', 'description': '查看绑定摘要，不展示账号凭据'},

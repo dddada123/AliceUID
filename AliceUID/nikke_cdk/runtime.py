@@ -97,6 +97,17 @@ def setup(policy, scheduler=None):
     async def notify(source, group, text):
         from gsuid_core.gss import gss
         from types import SimpleNamespace
+        if not group:
+            if not await permitted(source):
+                return
+            transport = gss.active_bot.get(source.WS_BOT_ID)
+            from .commands import pages
+            for page in pages(text):
+                if not await permitted(source):
+                    break
+                await transport.target_send(page, 'direct', str(source.user_id), source.bot_id,
+                                            source.bot_self_id, at_sender=False, wait_recall=True)
+            return
         route = _commands.automatic.store.route(source, group)
         if route is None:
             # Upgrade compatibility: reuse an already observed exact connection.
@@ -142,6 +153,9 @@ def setup(policy, scheduler=None):
     _commands.automatic.background_event = background_event
     from .discovery import PublicDiscoveries
     _commands.public_discoveries = PublicDiscoveries(_commands.automatic, contexts)
+    _commands.public_discoveries.migrate_baseline()
+    from .binding_jobs import BindingJobs
+    _commands.binding_jobs = BindingJobs(_commands.automatic, contexts)
 
     async def automatic_tick():
         try:
@@ -150,12 +164,39 @@ def setup(policy, scheduler=None):
             from gsuid_core.logger import logger
             logger.warning(f'[AliceUID] automatic CDK scan incomplete error_type={type(exc).__name__}')
 
+    # Coalesce publication/login/connection events; no timer scans.
+    wake = False
+    worker = None
+    def kick():
+        nonlocal wake, worker
+        wake = True
+        if worker is not None and not worker.done():
+            return
+        async def drain():
+            nonlocal wake
+            while wake:
+                wake = False
+                await automatic_tick()
+                try:
+                    await _commands.binding_jobs.drain()
+                except Exception as exc:
+                    from gsuid_core.logger import logger
+                    logger.warning(f'[AliceUID] new binding CDK task deferred error_type={type(exc).__name__}')
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return  # Durable work will resume at startup or the next live event.
+        worker = loop.create_task(drain())
+        _commands.tasks.add(worker)
+        worker.add_done_callback(_commands.tasks.discard)
+    _commands.resume_pending = kick
+    catalog.on_publish = kick
     _commands.public_tick = automatic_tick
 
     async def refresh():
         try:
             await catalog.ensure(force=True)
-            await automatic_tick()
+            kick()
         except Exception as exc:
             from gsuid_core.logger import logger
             logger.warning(f'[AliceUID] CDK catalog refresh failed error_type={type(exc).__name__}')
@@ -163,14 +204,14 @@ def setup(policy, scheduler=None):
     async def startup():
         if catalog.needs(catalog.clock(), scheduled=True):
             await refresh()
-        else:
-            await automatic_tick()
+        kick()
 
     scheduler.add_job(refresh, 'cron', hour='0,8,16', minute=0, timezone='Asia/Shanghai',
         id='aliceuid-cdk-catalog', name='AliceUID兑换码双源汇总', replace_existing=True,
         max_instances=1, coalesce=True)
-    scheduler.add_job(automatic_tick, 'interval', seconds=60, id='aliceuid-cdk-automatic',
-                      name='AliceUID公开新码自动兑换', replace_existing=True, max_instances=1, coalesce=True)
+    # Remove the previous version's persisted minute job on an in-place upgrade.
+    if hasattr(scheduler, 'get_job') and scheduler.get_job('aliceuid-cdk-automatic') is not None:
+        scheduler.remove_job('aliceuid-cdk-automatic')
     try:
         _startup = asyncio.get_running_loop().create_task(startup())
     except RuntimeError:
@@ -183,3 +224,12 @@ def setup(policy, scheduler=None):
 def observe_group(ev):
     if _commands is not None and _commands.automatic is not None:
         _commands.automatic.store.observe(ev)
+        if getattr(_commands, 'resume_pending', None) is not None:
+            _commands.resume_pending()
+
+
+def schedule_new_binding(bind, group_id):
+    """Called only after durable fresh binding verification; relogin does not enter here."""
+    if _commands is not None and getattr(_commands, 'binding_jobs', None) is not None:
+        _commands.binding_jobs.enqueue(bind, group_id)
+        _commands.resume_pending()

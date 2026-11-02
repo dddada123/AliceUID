@@ -24,6 +24,10 @@ class GuideUnavailable(Exception):
     pass
 
 
+class GuidePending(GuideUnavailable):
+    pass
+
+
 def image_url(value):
     parsed = urlsplit(value)
     if (parsed.scheme != 'https' or parsed.hostname != 'sg-cdn.blablalink.com'
@@ -92,8 +96,6 @@ def matches(post, season, now):
         title_date = min(dates, key=lambda d: abs(d.timestamp()-published)).timestamp()
         if abs(title_date-published) > 45*86400 or title_date > now+86400:
             return False
-        if season.get('guide_offseason'):
-            return True
         # Allow delayed Hard guides and timezone differences within this raid window.
         return (season['start_ts']-86400 <= published <= min(now, season['end_ts']+86400)
                 and (not date[2] or season['start_ts']-86400 <= title_date <= season['end_ts']+86400)
@@ -137,8 +139,7 @@ async def find_post(season, now):
             return post
         except GuideUnavailable:
             continue
-    message = '尚未找到作者最近一期的完整会战攻略。' if season.get('guide_offseason') else '作者尚未发布本期完整会战攻略，请稍后再试。'
-    raise GuideUnavailable(message)
+    raise GuidePending('暂未找到本期会战攻略，攻略作者可能还在编写或整理中，请稍后再查询。')
 
 
 def validate_image(data, *, screenshot=False):
