@@ -65,7 +65,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}日历 帮助', 'description': '查看截图范围与缓存说明；暂不支持历史月份'},
         ]},
         {'title': '联盟查询', 'tag': '联盟与会战', 'description': '联盟出刀、缺刀、尾刀及会战血量。', 'items': [
-            {'command': f'{command_prefix()}工会战阵容', 'description': '作者攻略三条转发：原标题、阵容图、正文长截图；开战换期，休赛长期保留'},
+            {'command': f'{command_prefix()}会战阵容 / {command_prefix()}会战攻略', 'description': '当前或最近一期攻略，含作者；阵容图与长截图；休赛可首次拉取'},
             {'command': f'{command_prefix()}出刀 / {command_prefix()}查刀', 'description': '出刀、输出与击杀前三；当期共享180秒，休赛期复用已结算记录并检测新赛季'},
             {'command': f'{command_prefix()}出刀速查 Day2 / {command_prefix()}出刀 Day1', 'description': '选择会战阶段；Day1只统计BOSS击杀进度'},
             {'command': f'{command_prefix()}出刀详情 [排名]', 'description': '不带数字查本人；如出刀详情10，查本工会伤害第10名；缺刀/尾刀保留'},

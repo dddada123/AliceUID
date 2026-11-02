@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.21-ff69b4?style=flat-square" alt="Version: 1.1.21"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.22-ff69b4?style=flat-square" alt="Version: 1.1.22"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.21**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.22**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -26,14 +26,9 @@
 
 ## 亮点功能
 
-### 工会战阵容攻略
+### 会战攻略
 
-新增 `nk工会战阵容`（别名 `nk公会战阵容`），无需绑定，匿名读取固定作者的公开帖子。默认合并转发严格依次三条：原标题、`組隊示例`下第一张阵容原图、帖子正文完整长截图（含标题及作者，不含评论）。长截图按 `AliceUID_ForwardJpegQuality` 编码为JPG，默认95；阵容原图沿用现有转发图片设置。
-
-每次命令先读取官方会战赛季表：战斗期完整攻略缓存3天，休赛/结算期同赛季长期保留；新赛季编号出现即清除旧图与旧标题，再查本期帖子。跨月使用赛季开始月，同月多期结合标题日期和发布时间隔离。新帖未发布或缺组队图不回退旧期，失败至少冷却5分钟。没有后台主动发群任务，检测发生在命令查询时；日程读取失败不会猜测当前赛季。
-
-公开作者：https://www.blablalink.com/user?openid=MjkwODAtNjM1NTUzNDAyOTcyMTg0NDQzOA== 。读取接口 GetUserPostList 匿名POST仅查询，分页有界；帖子截图使用全新匿名浏览器 `.post-letter-paper` 正文，确认标题和组队图、等待全部图片加载后截图。超长/超大或部分加载失败不发送残缺攻略。缓存为 `data/AliceUID/cache/raid_guide`，不读取账号Cookie。发送前再次校验群与用户权限，复用Core转发和回执/普通发送回退。
-
+`nk会战阵容` / `nk会战攻略`：获取指定作者当前或最近一期会战攻略，合并转发标题与作者来源、阵容图、正文长截图。休赛期无缓存时自动拉取，已有攻略长期保留，新一期开战自动换期。
 
 ### 首次启动自动更新角色列表
 

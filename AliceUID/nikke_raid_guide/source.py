@@ -12,6 +12,7 @@ import httpx
 from PIL import Image
 
 AUTHOR = '29080-6355534029721844438'
+AUTHOR_NAME = '在舒恩裡面卍解【Syuen】'
 AUTHOR_URL = 'https://www.blablalink.com/user?openid=MjkwODAtNjM1NTUzNDAyOTcyMTg0NDQzOA=='
 POST_URL = 'https://www.blablalink.com/post/detail?post_uuid='
 LIST_URL = 'https://api.blablalink.com/api/ugc/direct/standalonesite/Dynamics/GetUserPostList'
@@ -71,16 +72,37 @@ def matches(post, season, now):
         title = post['title']
         if not re.search(r'(?:联|聯)盟(?:战|戰|突袭|突襲)|[公工](?:会|會)(?:战|戰)', title):
             return False
-        start = datetime.fromtimestamp(season['start_ts'], timezone(timedelta(hours=8)))
-        date = re.search(r'(?<!\d)(\d{1,2})\s*月(?:\s*(\d{1,2})\s*日)?', title)
-        if not date or int(date[1]) != start.month or (date[2] and int(date[2]) != start.day):
-            return False
         published = int(post['created_on'])
-        # Prevent the same month in another year, and same-month previous raids.
-        return (season['start_ts'] - 86400 <= published <= min(now, season['end_ts'] + 86400)
-                and re.fullmatch(r'\d{1,30}', str(post['post_uuid'])) is not None)
-    except (KeyError, TypeError, ValueError, OverflowError):
+        if not 0 < published <= now or not re.fullmatch(r'\d{1,30}', str(post['post_uuid'])):
+            return False
+        tz = timezone(timedelta(hours=8))
+        pubdate = datetime.fromtimestamp(published, tz)
+        date = re.search(r'(?<!\d)(\d{1,2})\s*月(?:\s*(\d{1,2})\s*日)?', title)
+        if not date:
+            return False
+        # Resolve the title's year against publication time, not the current month.
+        dates = []
+        for year in (pubdate.year-1, pubdate.year, pubdate.year+1):
+            try:
+                dates.append(datetime(year, int(date[1]), int(date[2] or 1), tzinfo=tz))
+            except ValueError:
+                pass
+        if not dates:
+            return False
+        title_date = min(dates, key=lambda d: abs(d.timestamp()-published)).timestamp()
+        if abs(title_date-published) > 45*86400 or title_date > now+86400:
+            return False
+        if season.get('guide_offseason'):
+            return True
+        # Allow delayed Hard guides and timezone differences within this raid window.
+        return (season['start_ts']-86400 <= published <= min(now, season['end_ts']+86400)
+                and (not date[2] or season['start_ts']-86400 <= title_date <= season['end_ts']+86400)
+                and (date[2] or int(date[1]) in {
+                    datetime.fromtimestamp(season['start_ts'],tz).month,
+                    datetime.fromtimestamp(season['end_ts'],tz).month}))
+    except (KeyError, AttributeError, TypeError, ValueError, OverflowError):
         return False
+
 
 
 async def find_post(season, now):
@@ -104,16 +126,19 @@ async def find_post(season, now):
             if not isinstance(rows, list) or not isinstance(info, dict):
                 raise GuideUnavailable('作者主页结构已变化。')
             candidates.extend(p for p in rows if matches(p, season, now))
-            if candidates:
-                post = max(candidates, key=lambda p: int(p['created_on']))
-                example_image(post.get('content', ''))
-                return post
             cursor = info.get('next_page_cursor')
             if not rows or info.get('is_finish') or not cursor or cursor in seen:
                 break
             seen.add(cursor)
             await asyncio.sleep(0.25)
-    raise GuideUnavailable('作者尚未发布本期工会战阵容攻略，请稍后再试。')
+    for post in sorted(candidates, key=lambda p: int(p['created_on']), reverse=True):
+        try:
+            example_image(post.get('content', ''))
+            return post
+        except GuideUnavailable:
+            continue
+    message = '尚未找到作者最近一期的完整会战攻略。' if season.get('guide_offseason') else '作者尚未发布本期完整会战攻略，请稍后再试。'
+    raise GuideUnavailable(message)
 
 
 def validate_image(data, *, screenshot=False):

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import json
 import math
@@ -11,7 +11,7 @@ import time
 
 from ..nikke_calendar.service import _atomic_write
 from ..nikke_union.season import load_seasons, select_season
-from .source import (AUTHOR, TTL, GuideUnavailable, find_post, example_image,
+from .source import (AUTHOR, AUTHOR_NAME, POST_URL, AUTHOR_URL, TTL, GuideUnavailable, find_post, example_image,
                      download_image, capture_post, validate_image, matches)
 
 _LOCK = asyncio.Lock()
@@ -22,6 +22,15 @@ class Guide:
     title: str
     team: bytes
     screenshot: bytes
+    author_name: str = AUTHOR_NAME
+    post_id: str = ''
+    historical: bool = False
+
+    def caption(self):
+        name = ' '.join(str(self.author_name or AUTHOR_NAME).split())[:100]
+        url = POST_URL + self.post_id if self.post_id else AUTHOR_URL
+        status = '\n休赛期 · 最近一期攻略' if self.historical else ''
+        return f'{self.title}\n攻略作者：{name}\n原帖：{url}{status}'
 
 
 class GuideService:
@@ -59,7 +68,7 @@ class GuideService:
                 return None
             validate_image(team)
             validate_image(screenshot, screenshot=True)
-            return Guide(post['title'], team, screenshot)
+            return Guide(post['title'], team, screenshot, post.get('user', {}).get('username') or AUTHOR_NAME, str(post['post_uuid']))
         except (OSError, KeyError, ValueError, TypeError, GuideUnavailable):
             return None
 
@@ -70,6 +79,7 @@ class GuideService:
                 season = select_season(await self.seasons(), now)
             except Exception:
                 raise GuideUnavailable('官方会战日程暂不可用，无法确认本期攻略，请稍后重试。') from None
+            season['guide_offseason'] = not season['combat_active']
             sid = str(season['id'])
             meta = self.read_meta()
             if meta.get('season_id') != sid:
@@ -81,7 +91,7 @@ class GuideService:
             cached = self.cached(meta)
             age = now - meta.get('saved_at', 0)
             if cached and 0 <= age and (not season['combat_active'] or age < TTL):
-                return cached
+                return replace(cached, historical=not season['combat_active'])
             if now < meta.get('retry_after', 0):
                 raise GuideUnavailable('本期攻略暂未就绪，查询冷却5分钟后可重试。')
             meta.update(author=AUTHOR, season_id=sid, retry_after=now+300)
@@ -106,11 +116,11 @@ class GuideService:
                 _atomic_write(self.root/'post.jpg', shot)
                 # Only keep public identity/title/timestamp, never a user profile or account data.
                 public_post = {k:post[k] for k in ('title','post_uuid','created_on','intl_openid')}
-                public_post['user'] = {'intl_openid': AUTHOR}
+                public_post['user'] = {'intl_openid': AUTHOR, 'username': post.get('user', {}).get('username') or AUTHOR_NAME}
                 self.save_meta(dict(author=AUTHOR, season_id=sid, season=season, post=public_post,
                     saved_at=self.clock(), retry_after=0,
                     hashes=[hashlib.sha256(b).hexdigest() for b in (team, shot)]))
-                return Guide(post['title'], team, shot)
+                return Guide(post['title'], team, shot, public_post['user']['username'], str(post['post_uuid']), not season['combat_active'])
             except asyncio.CancelledError:
                 raise
             except GuideUnavailable:

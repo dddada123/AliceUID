@@ -13,8 +13,8 @@ from ..nikke_render.fonts import factory_default, font_options
 
 CONFIG_DEFAULT: Dict[str, GSC] = {
     'AliceUID_RaidGuideForward': GsBoolConfig(
-        '工会战阵容用转发消息',
-        '默认开启，依次发送帖子原标题、組隊示例下的第一张阵容原图、帖子完整长截图。长截图JPG质量沿用转发设置，默认95。', True,
+        '会战阵容用转发消息',
+        '默认开启，依次发送帖子原标题及作者来源、組隊示例下的第一张阵容原图、帖子完整长截图。长截图JPG质量沿用转发设置，默认95。', True,
     ),
     'AliceUID_AutoCDKEnabled': GsBoolConfig(
         '自动兑换码系统总开关',

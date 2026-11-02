@@ -7,9 +7,9 @@ from .source import GuideUnavailable
 
 
 def help_text():
-    return (f'{command_prefix()}工会战阵容：获取固定作者本期联盟突袭攻略，无需绑定。\n'
-        '默认合并转发三条：帖子原标题、組隊示例下的第一张阵容图、帖子正文完整长截图。\n'
-        '长截图沿用转发JPG质量设置，默认95。战斗期缓存3天；休赛期长期保留最近一期。\n'
+    return (f'{command_prefix()}会战阵容 / {command_prefix()}会战攻略：获取固定作者当前或最近一期攻略，无需绑定。\n'
+        '默认合并转发三条：帖子原标题及作者来源、組隊示例下的第一张阵容图、帖子正文完整长截图。\n'
+        '长截图沿用转发JPG质量设置，默认95。战斗期缓存3天；休赛期无缓存时自动拉取最近一期，之后长期保留。\n'
         '每次查询核对官方赛季，新一期开始清除旧攻略；新帖未发布提示稍后再试，失败冷却5分钟。')
 
 
@@ -37,7 +37,7 @@ class GuideCommands:
             return
         except Exception:
             if await self.allowed(ev):
-                await bot.send('工会战攻略暂不可用，请稍后再试。', at_sender=True)
+                await bot.send('会战攻略暂不可用，请稍后再试。', at_sender=True)
             return
         if not await self.allowed(ev):
             return
@@ -49,7 +49,7 @@ class GuideCommands:
         if sender is None:
             from ..nikke_message import send_with_forward
             sender = send_with_forward
-        await sender(bot, ev, [result.title, image(result.team), image(result.screenshot)],
+        await sender(bot, ev, [result.caption(), image(result.team), image(result.screenshot)],
                      config_key='AliceUID_RaidGuideForward', at_sender=False)
 
 
@@ -63,9 +63,9 @@ def setup(policy=None):
     from gsuid_core.sv import SV
     from ..nikke_permissions.runtime import get_policy
     commands = GuideCommands(policy if policy is not None else get_policy())
-    _sv = SV('妮姬工会战阵容攻略', pm=6, priority=3)
+    _sv = SV('妮姬会战阵容攻略', pm=6, priority=3)
 
-    @_sv.on_command(('工会战阵容', '公会战阵容'))
+    @_sv.on_command(('会战阵容', '会战攻略'))
     async def raid_guide_command(bot, ev):
         await commands.handle(bot, ev)
     return _sv
