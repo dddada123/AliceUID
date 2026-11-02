@@ -94,7 +94,7 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None, at_send
                 return await bot.send(message, at_sender=at_sender)
         node = MessageSegment.node(content)
         kind = {'AliceUID_HelpForward': 'help', 'AliceUID_RosterForward': 'roster',
-                'AliceUID_UnionForward': 'union', 'AliceUID_LoginForward': 'login',
+                'AliceUID_UnionForward': 'union', 'AliceUID_RaidGuideForward': 'raid_guide', 'AliceUID_LoginForward': 'login',
                 'AliceUID_CDKForward': 'cdk', 'AliceUID_CDKResultForward': 'cdk_result',
                 'AliceUID_AccountListForward': 'accounts'}.get(config_key, 'other')
         logger.info(f'[AliceUID] 转发发送 kind={kind} nodes={len(content)} '
