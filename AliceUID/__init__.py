@@ -24,6 +24,8 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
         MAIN_PATH / "group_policy.json", config=AliceUIDConfig,
     ))
 
+    from .nikke_logs.store import setup as setup_logs
+    setup_logs()
     from .nikke_browser.runtime import setup as setup_browser
     setup_browser(lambda key: AliceUIDConfig.get_config(key).data)
 
@@ -82,6 +84,8 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
     _union_commands.set_before_send(_query_before_send)
     from .nikke_cdk.runtime import setup as setup_cdk
     setup_cdk(policy)
+
+    from .nikke_logs import commands as _log_commands  # noqa: F401
 
     # 必须在全部 SV 和 setup 后扫描真实 Core Trigger，保留原生名单与 finally。
     guard_plugin_triggers(SL.plugins["AliceUID"], policy)

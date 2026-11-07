@@ -457,18 +457,19 @@ async def login(
     from ..nikke_browser.runtime import manager, playwright
 
     deadline = time.monotonic() + timeout
-    async with playwright(error_type=LoginError) as p:
+    async with playwright(error_type=LoginError, operation="账号登录") as p:
         browser = await manager.launch(p, channel=channel, headless=headless, proxy=proxy)
 
-        ctx = await browser.new_context(
-            viewport={"width": 1440, "height": 900},
-            locale="zh-TW",
-            user_agent=DEFAULT_UA,
-            timezone_id="Asia/Taipei",
-        )
-        page = await ctx.new_page()
+        ctx = None
         email_feedback = None
         try:
+            ctx = await browser.new_context(
+                viewport={"width": 1440, "height": 900},
+                locale="zh-TW",
+                user_agent=DEFAULT_UA,
+                timezone_id="Asia/Taipei",
+            )
+            page = await ctx.new_page()
             await page.goto(
                 "https://www.blablalink.com/",
                 wait_until="domcontentloaded",
@@ -543,6 +544,7 @@ async def login(
             if email_feedback:
                 email_feedback.close()
             try:
-                await ctx.close()
+                if ctx is not None:
+                    await ctx.close()
             finally:
                 await browser.close()

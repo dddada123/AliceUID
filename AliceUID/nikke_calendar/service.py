@@ -126,7 +126,7 @@ async def capture_page(page) -> bytes:
 async def capture_calendar(*, channel: str = 'auto') -> bytes:
     """Use a fresh anonymous, nonpersistent browser; never reuse login storage."""
     from ..nikke_browser.runtime import manager, playwright as browser_playwright
-    async with browser_playwright(error_type=CalendarUnavailable) as playwright:
+    async with browser_playwright(error_type=CalendarUnavailable, operation="官网日历") as playwright:
         browser = await manager.launch(playwright, channel=channel, headless=True)
         context = None
         try:
@@ -137,9 +137,11 @@ async def capture_calendar(*, channel: str = 'auto') -> bytes:
             page = await context.new_page()
             return await capture_page(page)
         finally:
-            if context is not None:
-                await context.close()
-            await browser.close()
+            try:
+                if context is not None:
+                    await context.close()
+            finally:
+                await browser.close()
 
 
 class CalendarService:

@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.24-ff69b4?style=flat-square" alt="Version: 1.1.24"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.25-ff69b4?style=flat-square" alt="Version: 1.1.25"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.24**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.25**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [常见问题（QA）](#常见问题qa) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -108,6 +108,7 @@ python -m pip install -r plugins/AliceUID/requirements.txt
 
 | 命令 | 用途 |
 |---|---|
+| `nk日志导出[数字]` | 仅Bot主：导出最近指定分钟的插件日志MD，如 `nk日志导出5`、`nk日志导出10` |
 | `nk帮助` / `nk帮助 文字` | 查看帮助，文字版可复制 |
 | `nk登录日服` | 五区登录；日服可替换为国际服/北美服/韩服/东南亚服 |
 | `nk重新登录` | 更新原账号同区服 Cookie，失败保留原绑定 |
@@ -179,6 +180,16 @@ Bot主在WebUI调整配置，普通用户只显示有权使用的指令。修改
 养成、资源与兑换操作使用发命令者本人的绑定账号；会战详情可按本联盟伤害排名查看成员阵容。查询、自动任务与通知均受Core权限及插件名单控制。
 
 请备份 `data/AliceUID`，不要公开Cookie、Token、密码和验证码。实现与历史细节见 [开发文档](DEVELOPMENT.md)、[版本记录](CHANGELOG.md)。
+
+## 日志导出与反馈
+
+Bot主发送 `nk日志导出5`、`nk日志导出10` 或 `nk日志导出[数字]`，导出最近指定分钟的插件日志Markdown文件，数字范围1～1440。指令前缀随Core设置，日志直接发到当前会话，无需绑定账号。
+
+日志包含插件版本、构建标识、GsCore／Playwright／Python版本、平台、请求时间范围和实际记录数量。帮助图与文字帮助也显示当前插件版本。日志仅保留插件事件，不收集原始群聊；凭据、标识和链接自动脱敏，发送到GitHub前仍请人工检查。
+
+采集器只保留当前进程最近24小时、最多10000条或约2MB日志。重启或容量淘汰可能导致范围内记录不完整，文件会注明；没有记录不代表没有错误。请先复现，再导出覆盖出错时间的范围，附命令、复现步骤、部署方式和预期结果，提交 [GitHub Issue](https://github.com/dddada123/AliceUID/issues)。也可将导出的MD日志连同复现步骤、预期结果交给DeepSeek等AI辅助分析；AI分析仅供排查参考。普通用户请联系Bot主导出，提交前检查自动脱敏是否遗漏私人信息。
+
+`stage`标记浏览器启动、页面访问、初始化、同步、推荐计算或截图阶段。`MISSING_BINARY`需检查浏览器安装；`TIMEOUT`、`ERR_*`应按对应页面阶段检查容器网络和网站状态，页面失败不会触发重新下载浏览器。文件发送失败按下方Excel文件路径案例排查接入端上传链路。
 
 ## 常见问题（QA）
 

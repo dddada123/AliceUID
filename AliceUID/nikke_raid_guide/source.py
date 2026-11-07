@@ -208,7 +208,7 @@ async def capture_page(page, post, quality=95):
 
 async def capture_post(post, *, channel='auto', quality=95):
     from ..nikke_browser.runtime import manager, playwright as browser_playwright
-    async with browser_playwright(error_type=GuideUnavailable) as playwright:
+    async with browser_playwright(error_type=GuideUnavailable, operation="会战攻略") as playwright:
         browser = await manager.launch(playwright, channel=channel, headless=True)
         context = None
         try:
@@ -216,6 +216,8 @@ async def capture_post(post, *, channel='auto', quality=95):
                 device_scale_factor=1, locale='zh-TW', timezone_id='Asia/Shanghai')
             return await capture_page(await context.new_page(), post, quality)
         finally:
-            if context is not None:
-                await context.close()
-            await browser.close()
+            try:
+                if context is not None:
+                    await context.close()
+            finally:
+                await browser.close()

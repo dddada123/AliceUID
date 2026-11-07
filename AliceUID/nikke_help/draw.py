@@ -1,5 +1,6 @@
 """Role-aware help content and standalone HTML rendering, without network IO."""
 from __future__ import annotations
+from ..version import VERSION, BUILD
 from ..nikke_commands import command_prefix
 
 import base64
@@ -85,6 +86,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
         sections.extend([
             {'title': '数据库与全局管理', 'tag': '仅 Bot 主', 'description': '公开数据库、账号与用户权限，以及全局外观维护。', 'items': [
                 {'command': f'{command_prefix()}数据库更新', 'description': '先角色资料后图库；招募日历静默更新，保留周检'},
+                {'command': f'{command_prefix()}日志导出[分钟数]', 'description': 'Bot主导出最近1～1440分钟的脱敏插件日志MD，包含版本信息；例如日志导出10'},
                 {'command': f'{command_prefix()}数据库更新 状态 / 帮助', 'description': '查看日历排期、小时补查及24小时结果、图库队列'},
                 {'command': f'{command_prefix()}更新资源', 'description': '兼容旧命令，同样进入增量数据库任务'},
                 {'command': '后台：每日签到时间', 'description': '北京时间HH:MM，默认08:33；保存后更新调度，手动签到仍可立即执行'},
@@ -125,12 +127,13 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
         'cookie_hint': f'请使用已有游戏邮箱；凭据失效用{command_prefix()}重新登录/重新登陆，无需先解绑。不要在群里发送密码、验证码或Cookie。',
         'limit_hint': '社区请求默认随机5～15秒，换号随机等待10～120秒，Bot主可在后台自定义；08:00划分周期，每周期最多30次请求；成功不重复，短期故障有限重试，连续三天失败自动关闭。UID登记不提供匿名练度授权。',
         'database_hint': '公共库每周五02:33（北京时间）增量检查，仅Bot主维护；皮肤显示按本人接口，静态清单不代表拥有。',
+        'version': VERSION, 'build': BUILD,
         'footer': f'选错区服或换号：先 {command_prefix()}解绑，再选区服重新登录。港澳台登录流程暂未支持。',
     }
 
 
 def help_text(context: dict) -> str:
-    lines = [f"AliceUID 指令指南 · {context['role']}", '快速开始：' + ' → '.join(step['command'] for step in context['steps']),
+    lines = [f"AliceUID {VERSION}（构建{BUILD}）指令指南 · {context['role']}", '快速开始：' + ' → '.join(step['command'] for step in context['steps']),
              '区服命令：' + ' / '.join(context['regions']),
              f'登录/登陆均可，例如{command_prefix()}登陆日服；{command_prefix()}重新登录/{command_prefix()}重新登陆同样可用。']
     for section in context['sections']:

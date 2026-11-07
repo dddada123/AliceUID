@@ -16,6 +16,7 @@ SERVERS = {81: ('JP', '日本'), 82: ('NA', '北美'), 83: ('KR', '韩国'),
            84: ('GLOBAL', '全球'), 85: ('SEA', '东南亚'), 91: ('TW-HK', '台湾·香港')}
 _CAPTURE = asyncio.Semaphore(1)
 _TOTAL_TIMEOUT = 600
+from ..nikke_browser.runtime import diagnostic, page_reason
 
 class SoloUnavailable(Exception):
     pass
@@ -65,11 +66,30 @@ PROFILES = """() => Object.values(JSON.parse(localStorage.getItem('nikke.profile
       notices:p.notices||[]}))"""
 
 async def capture_page(page, account):
+    from playwright.async_api import Error, TimeoutError as BrowserTimeout
+    stage = ['页面访问']
+    def progress(value):
+        stage[0] = value
+        diagnostic('DILDORO', value)
+    try:
+        return await _capture_page(page, account, progress)
+    except BrowserTimeout:
+        diagnostic('DILDORO', stage[0], 'TIMEOUT')
+        raise SoloUnavailable(f'DILDORO{stage[0]}超时，请检查容器访问dildoro.com的网络或稍后重试。') from None
+    except Error as exc:
+        reason = page_reason(str(exc))
+        diagnostic('DILDORO', stage[0], reason)
+        raise SoloUnavailable(f'DILDORO{stage[0]}失败（{reason}），请检查容器网络或网站状态后重试。') from None
+
+
+async def _capture_page(page, account, progress):
+    progress('页面访问')
     response = await page.goto(SITE + 'account?lang=zh-CN', wait_until='domcontentloaded', timeout=45000)
     if response is None or response.status != 200 or not page.url.startswith(SITE):
         raise SoloUnavailable('DILDORO账号页面暂不可用，请稍后直接访问网站。')
+    progress('页面初始化')
     # Wait for boot and event wiring, not merely server-rendered buttons.
-    await page.wait_for_function("() => typeof state !== 'undefined' && typeof HEALTH !== 'undefined' && typeof $('#url-go')?.onclick === 'function'", timeout=45000)
+    await page.wait_for_function("() => document.readyState !== 'loading' && !!document.querySelector('#url-in') && !!document.querySelector('#url-go') && !document.querySelector('#url-go').disabled", timeout=45000)
     coach = page.locator('.coach-skip')
     if await coach.is_visible():
         await coach.click()
@@ -79,6 +99,7 @@ async def capture_page(page, account):
     await page.locator('#sync-fold').evaluate('(e)=>{e.open=true}')
     if not await page.locator('#url-in').is_visible():
         raise SoloUnavailable('DILDORO网址同步暂不可用，请直接访问网站导入本人数据。')
+    progress('本人公开数据同步')
     await page.locator('#url-in').fill(account.url)
     await page.locator('#url-go').click()
     await page.wait_for_function("() => !document.querySelector('#url-go')?.disabled", timeout=180000)
@@ -86,6 +107,7 @@ async def capture_page(page, account):
     matches = [p for p in profiles if p.get('openid') == account.share_openid and p.get('area') == account.area and p.get('count', 0) > 0]
     if len(matches) != 1:
         raise SoloUnavailable('账号同步未完成或目标区服未导入。请确认blablalink个人档案和妮姬列表公开，或直接访问DILDORO导入本人数据。')
+    progress('排行推荐加载')
     # Navigate using the site's own tab, retaining this request's private storage.
     await page.locator('[data-tab="deck"]').click()
     await page.locator('#profile-pick').select_option(matches[0]['id'])
@@ -126,8 +148,8 @@ async def capture_page(page, account):
         raise SoloUnavailable('DILDORO服务器选项已变化，未自动改选其他服。')
     await found[0].click()
     # Read only site state to verify the server chosen by UI, before expensive work.
-    selected = await page.evaluate('() => labSrv')
-    if selected != server:
+    selected = await card.locator('.lab-srv').inner_text()
+    if not any(label in selected and label + ' ✓' in selected for label in labels[server]):
         raise SoloUnavailable('DILDORO服务器选择未确认，本次停止计算。')
     go = card.locator('[data-role="go"]')
     if not await go.is_enabled():
@@ -141,20 +163,28 @@ async def capture_page(page, account):
         else:
             await route.fulfill(response=upstream)
     await page.route('**/api/sr-rank/sets?*', guard_sets)
+    progress('推荐计算')
     await go.click()
-    await page.wait_for_function("""() => !labRunning &&
-        (!document.querySelector('#lab-sheet')?.open || !!document.querySelector('#lab-sheet .lab-out .warn'))""", timeout=300000)
+    await page.wait_for_function("""() => !document.querySelector('#lab-sheet')?.open ||
+        !!document.querySelector('#lab-sheet .lab-out .warn')""", timeout=300000)
     if await page.locator('#lab-sheet').get_attribute('open') is not None:
         raise SoloUnavailable('DILDORO未能完成推荐，可能没有完整适用队伍或计算服务繁忙，请直接访问网站查看。')
     sets = page.locator('#fast-grid > .fg-set')
-    if await sets.count() != 2:
-        raise SoloUnavailable('DILDORO推荐区域结构已变化，本次未发送截图。')
-    result = sets.nth(1)
+    if await sets.count() == 2:
+        result = sets.nth(1)
+    else:
+        # New frontend stores rank recommendations in a named slot rather than a second set.
+        active = page.locator('#slot-sw .slot-chip.on .slot-pill')
+        code = {'GLOBAL': 'GLB', 'TW-HK': 'TWHK'}.get(server, server)
+        if await active.count() != 1 or not re.search(r'(?<![A-Z])' + re.escape(code) + r'(?![A-Z])', await active.inner_text()):
+            raise SoloUnavailable('DILDORO排行推荐槽位或服务器未确认，本次未发送截图。')
+        result = page.locator('#fast-wrap')
     if await result.locator('.fg-row').count() != 5 or await result.locator('.fg-slot.has').count() != 25:
         raise SoloUnavailable('推荐不足5队，未输出完整伤害预估，请直接访问网站查看。')
     totals = await result.locator('.fg-row-total').all_text_contents()
     if len(totals) != 5 or any(not re.search(r'\d', t) for t in totals) or await result.locator('.fg-row-total.err').count():
         raise SoloUnavailable('部分队伍伤害尚未计算完成，本次未发送。')
+    progress('结果截图')
     image = await capture_result(page, result)
     return SoloImage(image, label, time.time(), str(season.get('raid','')),
                      ('排行阵容来自网站同弱点最近可用赛季；模拟条件采用网站当前默认设置。',
@@ -215,24 +245,24 @@ async def capture_result(page, result):
 
 async def capture(account, *, channel='auto'):
     from ..nikke_browser.runtime import manager, playwright as browser_playwright
-    async with browser_playwright(error_type=SoloUnavailable) as probe:
-        ready = await manager.launch(probe, channel=channel, headless=True)
-        await ready.close()
-    from playwright.async_api import TimeoutError as BrowserTimeout
-    try:
-        async with _CAPTURE:
-            async def run():
-                async with browser_playwright(error_type=SoloUnavailable) as p:
-                    browser = await manager.launch(p, channel=channel, headless=True)
+    async with _CAPTURE:
+        async with browser_playwright(error_type=SoloUnavailable, operation="个人突袭") as p:
+            diagnostic('DILDORO', '浏览器启动')
+            try:
+                browser = await asyncio.wait_for(manager.launch(p, channel=channel, headless=True), 120)
+            except asyncio.TimeoutError:
+                raise SoloUnavailable('浏览器组件仍在准备，请稍后重试个人突袭推荐。') from None
+            try:
+                async def run():
+                    context = await browser.new_context(viewport={'width':1600,'height':1200},device_scale_factor=1.5,
+                                                        locale='zh-CN',timezone_id='Asia/Shanghai',service_workers='block')
                     try:
-                        context = await browser.new_context(viewport={'width':1600,'height':1200},device_scale_factor=1.5,
-                                                            locale='zh-CN',timezone_id='Asia/Shanghai',service_workers='block')
-                        try:
-                            return await capture_page(await context.new_page(), account)
-                        finally:
-                            await context.close()
+                        return await capture_page(await context.new_page(), account)
                     finally:
-                        await browser.close()
-            return await asyncio.wait_for(run(), timeout=_TOTAL_TIMEOUT)
-    except (asyncio.TimeoutError, BrowserTimeout):
-        raise SoloUnavailable('DILDORO导入或计算超时，请稍后重试或直接访问网站。') from None
+                        await context.close()
+                try:
+                    return await asyncio.wait_for(run(), timeout=_TOTAL_TIMEOUT)
+                except asyncio.TimeoutError:
+                    raise SoloUnavailable('DILDORO导入或计算超时，请稍后重试或直接访问网站。') from None
+            finally:
+                await browser.close()

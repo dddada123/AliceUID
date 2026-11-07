@@ -8,7 +8,7 @@ import signal
 import subprocess
 import sys
 import time
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from importlib.metadata import version
 from typing import TYPE_CHECKING, AsyncIterator, Awaitable, Callable, TypedDict
@@ -33,22 +33,52 @@ class LaunchOptions(TypedDict, total=False):
     proxy: dict[str, str]
 
 
+def diagnostic(operation: str, stage: str, reason: str = "") -> None:
+    message = f"[AliceUID] {operation} stage={stage} reason={reason or 'START'}"
+    if os.environ.get("ALICEUID_STANDALONE") == "1":
+        (log.warning if reason else log.info)(message)
+    else:
+        from gsuid_core.logger import logger
+        (logger.warning if reason else logger.info)(message)
+
+
+def page_reason(message: str) -> str:
+    for code in ("ERR_NAME_NOT_RESOLVED", "ERR_PROXY_CONNECTION_FAILED", "ERR_TUNNEL_CONNECTION_FAILED",
+                 "ERR_CERT_AUTHORITY_INVALID", "ERR_CERT_DATE_INVALID", "ERR_CONNECTION_RESET",
+                 "ERR_CONNECTION_TIMED_OUT", "ERR_CONNECTION_CLOSED", "ERR_NETWORK_CHANGED"):
+        if code in message:
+            return code
+    if "Target page, context or browser has been closed" in message:
+        return "BROWSER_CLOSED"
+    return "PAGE_ERROR"
+
+
 @asynccontextmanager
-async def playwright(*, error_type: type[Exception] = BrowserUnavailable) -> AsyncIterator[Playwright]:
+async def playwright(*, error_type: type[Exception] = BrowserUnavailable,
+                     operation: str = "网页") -> AsyncIterator[Playwright]:
     try:
         from playwright.async_api import async_playwright
     except ModuleNotFoundError as exc:
         if exc.name not in {"playwright", "playwright.async_api"}:
             raise
         raise error_type("Core运行环境缺少Playwright，请管理员安装插件依赖后重启Core。") from None
-    from playwright.async_api import Error
-    try:
-        async with async_playwright() as driver:
+    from playwright.async_api import Error, TimeoutError as BrowserTimeout
+    async with AsyncExitStack() as stack:
+        try:
+            driver = await stack.enter_async_context(async_playwright())
+        except Error as exc:
+            raise error_type(failure_message(str(exc))) from None
+        try:
             yield driver
-    except BrowserUnavailable as exc:
-        raise error_type(str(exc)) from None
-    except Error as exc:
-        raise error_type(failure_message(str(exc))) from None
+        except BrowserUnavailable as exc:
+            raise error_type(str(exc)) from None
+        except BrowserTimeout:
+            diagnostic(operation, "页面处理", "TIMEOUT")
+            raise error_type(f"{operation}页面访问或处理超时，请检查容器网络或网站状态。") from None
+        except Error as exc:
+            reason = page_reason(str(exc))
+            diagnostic(operation, "页面处理", reason)
+            raise error_type(f"{operation}页面访问或处理失败（{reason}），请检查容器网络或网站状态。") from None
 
 
 def missing_binary(message: str) -> bool:
@@ -192,6 +222,7 @@ class BrowserManager:
             try:
                 return await driver.chromium.launch(**kwargs)
             except Error as exc:
+                diagnostic("Playwright", "浏览器启动", "MISSING_BINARY" if missing_binary(str(exc)) else "LAUNCH_ERROR")
                 if candidate == "msedge" and "Chromium distribution 'msedge' is not found" in str(exc):
                     if channel == "msedge":
                         last_message = "所选Edge浏览器未安装，请管理员安装Edge或将浏览器通道改为auto。"

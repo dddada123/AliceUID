@@ -1,3 +1,11 @@
+# 1.1.25 当前实现
+
+DILDORO公开前端2026-11-07已打包为ES模块。适配移除state/HEALTH/labSrv/labRunning全局检查，改用控件就绪、服务器勾选、弹层完成与排行槽位标识；保留旧版第二组布局和新单槽布局两种受校验路径。公开源码快照在handoff/dildoro_public_check，仅GET核验，不使用用户账号。
+
+四处浏览器入口统一调用nikke_browser管理器。驱动启动与yield后的网页异常分开捕获；DILDORO按页面访问、初始化、本人公开数据同步、排行加载、计算和截图记录安全阶段码，不输出原始异常URL或凭据。一次查询仅启动一次浏览器。
+
+nikke_logs采集GsCore标准logging中的AliceUID事件（只保留event字符串，不保留Event对象），内存上限10000条/2MB/24小时。Bot主权限与Core服务权限双重控制日志导出，发送前重新检查Bot主身份；不依赖本人绑定。Core有界历史仅作为补充，覆盖限制写进MD。日志和帮助使用version.py中的VERSION/BUILD，导出提供Issue模板和环境版本。
+
 # 1.1.24 当前实现
 
 `nikke_browser/runtime.py`复用宿主Python包，通过当前 `sys.executable -m playwright install chromium` 补齐浏览器。Core通用启动/关闭钩子注册一次后台准备，不读取AI配置、不导入AI模块、不执行pip升级。浏览器路径、下载源和下载代理继承进程环境。
