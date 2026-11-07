@@ -10,6 +10,7 @@ from ..nikke_user.service import load_client, binding_lock
 from ..nikke_user.auth_state import unavailable_message, RELOGIN, is_login_error, expired, known_invalid, mark_invalid
 from ..nikke_api.client import NikkeApiError, NikkeLoginRequired
 from ..nikke_status.service import binding_key
+from ..nikke_logs.store import record_failure
 from .service import NOTICE, SoloUnavailable, owned_account, capture
 from .draw import draw_solo, get_solo_theme_mode
 from ..nikke_render.theme import get_card_theme
@@ -113,11 +114,14 @@ async def solo_command(bot,ev):
     except SoloUnavailable as exc:
         reply = str(exc)
     except NikkeApiError as exc:
+        record_failure('个人突袭', '本人资料读取', exc)
         if bind is not None and is_login_error(exc):mark_invalid(bind,exc.code)
         reply = RELOGIN if is_login_error(exc) else '本人账号资料查询失败，请稍后重试。'
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as exc:
+        record_failure('个人突袭', '总等待', exc)
         reply = '个人突袭推荐等待超时，请稍后重试或直接访问dildoro.com。'
     except Exception as exc:
+        record_failure('个人突袭', '命令执行', exc)
         logger.warning(f'[AliceUID] solo experimental error_type={type(exc).__name__}')
         reply = '实验性个人突袭推荐暂不可用，可能是网站更新或服务繁忙，请稍后重试或直接访问dildoro.com。'
     finally:

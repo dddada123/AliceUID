@@ -16,6 +16,7 @@ SERVERS = {81: ('JP', '日本'), 82: ('NA', '北美'), 83: ('KR', '韩国'),
            84: ('GLOBAL', '全球'), 85: ('SEA', '东南亚'), 91: ('TW-HK', '台湾·香港')}
 _CAPTURE = asyncio.Semaphore(1)
 _TOTAL_TIMEOUT = 600
+_PAGE_TIMEOUT_MS = 90_000
 from ..nikke_browser.runtime import diagnostic, page_reason
 
 class SoloUnavailable(Exception):
@@ -50,7 +51,7 @@ async def owned_account(client, bind):
         raise SoloUnavailable('未取得可核验的本人分享标识，请稍后重试。')
     # Authenticated self endpoint owns this share ID; it need not equal the login ID.
     encoded = base64.b64encode(full.encode()).decode('ascii')
-    return SoloAccount('https://www.blablalink.com/shiftyspad/nikke-list?' + urlencode({'openid': encoded}), match[2], actual[2])
+    return SoloAccount('https://www.blablalink.com/user?' + urlencode({'openid': encoded}), match[2], actual[2])
 
 def validate_png(data):
     if not isinstance(data, bytes) or not 0 < len(data) <= 16 * 1024 * 1024:
@@ -73,32 +74,51 @@ async def capture_page(page, account):
         diagnostic('DILDORO', value)
     try:
         return await _capture_page(page, account, progress)
-    except BrowserTimeout:
+    except SoloUnavailable as exc:
+        diagnostic('DILDORO', stage[0], 'VALIDATION_FAILED')
+        from ..nikke_logs.store import record_failure
+        record_failure('DILDORO', stage[0], exc)
+        raise
+    except BrowserTimeout as exc:
+        from ..nikke_logs.store import record_failure
+        record_failure('DILDORO', stage[0], exc)
         diagnostic('DILDORO', stage[0], 'TIMEOUT')
         raise SoloUnavailable(f'DILDORO{stage[0]}超时，请检查容器访问dildoro.com的网络或稍后重试。') from None
     except Error as exc:
+        from ..nikke_logs.store import record_failure
+        record_failure('DILDORO', stage[0], exc)
         reason = page_reason(str(exc))
         diagnostic('DILDORO', stage[0], reason)
         raise SoloUnavailable(f'DILDORO{stage[0]}失败（{reason}），请检查容器网络或网站状态后重试。') from None
 
+    except Exception as exc:
+        from ..nikke_logs.store import record_failure
+        record_failure('DILDORO', stage[0], exc)
+        raise
+
 
 async def _capture_page(page, account, progress):
     progress('页面访问')
-    response = await page.goto(SITE + 'account?lang=zh-CN', wait_until='domcontentloaded', timeout=45000)
+    response = await page.goto(SITE + 'account?lang=zh-CN', wait_until='domcontentloaded', timeout=_PAGE_TIMEOUT_MS)
     if response is None or response.status != 200 or not page.url.startswith(SITE):
         raise SoloUnavailable('DILDORO账号页面暂不可用，请稍后直接访问网站。')
+    # Notices can open after the initial visibility check. Let Playwright dismiss
+    # them before any action instead of timing out on an intercepted pointer.
+    page.set_default_timeout(_PAGE_TIMEOUT_MS)
+    async def close_history():
+        await page.locator('#history-x').click()
+    async def skip_coach():
+        await page.locator('.coach-skip').click()
+    await page.add_locator_handler(page.locator('#history-sheet[open]'), close_history)
+    await page.add_locator_handler(page.locator('.coach-skip'), skip_coach)
     progress('页面初始化')
     # Wait for boot and event wiring, not merely server-rendered buttons.
-    await page.wait_for_function("() => document.readyState !== 'loading' && !!document.querySelector('#url-in') && !!document.querySelector('#url-go') && !document.querySelector('#url-go').disabled", timeout=45000)
-    coach = page.locator('.coach-skip')
-    if await coach.is_visible():
-        await coach.click()
-    history_close = page.locator('#history-sheet[open] #history-x')
-    if await history_close.is_visible():
-        await history_close.click()
+    await page.locator('#sync-fold').wait_for(state='visible', timeout=_PAGE_TIMEOUT_MS)
     await page.locator('#sync-fold').evaluate('(e)=>{e.open=true}')
-    if not await page.locator('#url-in').is_visible():
-        raise SoloUnavailable('DILDORO网址同步暂不可用，请直接访问网站导入本人数据。')
+    # React mounts these controls before runtime/health initialization finishes.
+    # Do not unhide them ourselves or mistake the initial hidden state for failure.
+    await page.locator('#url-in').wait_for(state='visible', timeout=_PAGE_TIMEOUT_MS)
+    await page.wait_for_function("() => !!document.querySelector('#url-go') && !document.querySelector('#url-go').disabled", timeout=_PAGE_TIMEOUT_MS)
     progress('本人公开数据同步')
     await page.locator('#url-in').fill(account.url)
     await page.locator('#url-go').click()
@@ -107,25 +127,36 @@ async def _capture_page(page, account, progress):
     matches = [p for p in profiles if p.get('openid') == account.share_openid and p.get('area') == account.area and p.get('count', 0) > 0]
     if len(matches) != 1:
         raise SoloUnavailable('账号同步未完成或目标区服未导入。请确认blablalink个人档案和妮姬列表公开，或直接访问DILDORO导入本人数据。')
-    progress('排行推荐加载')
-    # Navigate using the site's own tab, retaining this request's private storage.
-    await page.locator('[data-tab="deck"]').click()
-    await page.locator('#profile-pick').select_option(matches[0]['id'])
-    await page.wait_for_function('(id)=>document.querySelector("#profile-pick")?.value===id', arg=matches[0]['id'])
+    progress('本人计算账号选择')
+    # Grid mode intentionally hides the account selector. Select on the normal
+    # deck first, then enter grid through the site's toggle to retain active state.
+    response = await page.goto(SITE + 'deck?lang=zh-CN', wait_until='domcontentloaded', timeout=_PAGE_TIMEOUT_MS)
+    if response is None or response.status != 200 or not page.url.startswith(SITE):
+        raise SoloUnavailable('DILDORO编队配置页面暂不可用。')
+    await page.locator('#profile-pick').wait_for(state='visible', timeout=_PAGE_TIMEOUT_MS)
+    await page.locator('#profile-pick').select_option(matches[0]['id'], timeout=_PAGE_TIMEOUT_MS)
+    await page.wait_for_function('(id)=>document.querySelector("#profile-pick")?.value===id', arg=matches[0]['id'], timeout=_PAGE_TIMEOUT_MS)
     mode = page.locator('#mode-solo')
     if await mode.get_attribute('aria-pressed') != 'true':
         await mode.click()
-    await page.wait_for_function("() => document.querySelector('#mode-solo')?.getAttribute('aria-pressed')==='true'")
+    await page.wait_for_function("() => document.querySelector('#mode-solo')?.getAttribute('aria-pressed')==='true'", timeout=_PAGE_TIMEOUT_MS)
     weakness = await page.locator('#code').input_value()
     label = await page.locator('#code option:checked').inner_text()
     if not weakness:
         raise SoloUnavailable('DILDORO未提供单人突袭BOSS弱点，请直接访问网站核对当期设置。')
+    progress('配置模式切换')
     if not await page.locator('#fast-wrap').is_visible():
         await page.locator('#fast-toggle').click()
-    await page.locator('#fast-wrap').wait_for(state='visible')
+    await page.locator('#fast-wrap').wait_for(state='visible', timeout=_PAGE_TIMEOUT_MS)
+    # Verification reads the hidden selector; it never forces a hidden control.
+    await page.wait_for_function('(id)=>document.querySelector("#profile-pick")?.value===id', arg=matches[0]['id'], timeout=_PAGE_TIMEOUT_MS)
+    profiles = await page.evaluate(PROFILES)
+    if not any(p.get('id') == matches[0]['id'] and p.get('openid') == account.share_openid and p.get('area') == account.area and p.get('count', 0) > 0 for p in profiles):
+        raise SoloUnavailable('进入配置模式后本人账号校验失败，本次停止计算。')
+    progress('排行推荐加载')
     # Fresh account: a single empty set; recommendation adds the second set.
     server, _ = SERVERS[account.area]
-    async with page.expect_response(lambda r: '/api/sr-rank/list' in r.url, timeout=30000) as ranks:
+    async with page.expect_response(lambda r: '/api/sr-rank/list' in r.url, timeout=_PAGE_TIMEOUT_MS) as ranks:
         await page.locator('#fast-rank').click()
     listing = await (await ranks.value).json()
     seasons = listing.get('seasons', [])
@@ -133,7 +164,7 @@ async def _capture_page(page, account, progress):
     if not season or server not in season.get('servers', []):
         raise SoloUnavailable('DILDORO暂无该弱点及本人服务器的排行推荐，请稍后再试。')
     card = page.locator('#lab-sheet .lab-card[data-kind="draft-rank"]')
-    await card.wait_for(state='visible')
+    await card.wait_for(state='visible', timeout=_PAGE_TIMEOUT_MS)
     # Runtime labSrvPicker translates these labels. Read exact buttons and disallow fallback.
     labels = {'JP': ('日本','Japan','일본'), 'NA': ('北美','North America','북미'),
               'KR': ('韩国','韓國','Korea','한국'), 'GLOBAL': ('全球','Global','글로벌'),
@@ -155,18 +186,30 @@ async def _capture_page(page, account, progress):
     if not await go.is_enabled():
         raise SoloUnavailable('当前账号不满足推荐条件，请直接访问DILDORO查看详情。')
     # Verify fetched ranking sets as well: the website otherwise silently falls back.
+    rank_errors = []
     async def guard_sets(route):
-        upstream = await route.fetch()
-        payload = await upstream.json()
-        if server not in payload.get('servers', []):
-            await route.fulfill(status=409, content_type='application/json', body='{"error":"AliceUID: selected server unavailable"}')
-        else:
-            await route.fulfill(response=upstream)
+        try:
+            upstream = await route.fetch(timeout=_PAGE_TIMEOUT_MS)
+            payload = await upstream.json()
+            if server not in payload.get('servers', []):
+                await route.fulfill(status=409, content_type='application/json', body='{"error":"AliceUID: selected server unavailable"}')
+            else:
+                await route.fulfill(response=upstream)
+        except Exception as exc:
+            from playwright.async_api import TimeoutError as BrowserTimeout
+            from ..nikke_logs.store import record_failure
+            reason = 'TIMEOUT' if isinstance(exc, BrowserTimeout) else page_reason(str(exc))
+            rank_errors.append(reason)
+            record_failure('DILDORO', '排行数据请求', exc)
+            # Finish the intercepted request so the website can stop its loading UI.
+            await route.fulfill(status=502, content_type='application/json', body='{"error":"AliceUID: ranking fetch failed"}')
     await page.route('**/api/sr-rank/sets?*', guard_sets)
     progress('推荐计算')
     await go.click()
     await page.wait_for_function("""() => !document.querySelector('#lab-sheet')?.open ||
         !!document.querySelector('#lab-sheet .lab-out .warn')""", timeout=300000)
+    if rank_errors:
+        raise SoloUnavailable(f'DILDORO排行数据请求失败（{rank_errors[0]}），请稍后重试。')
     if await page.locator('#lab-sheet').get_attribute('open') is not None:
         raise SoloUnavailable('DILDORO未能完成推荐，可能没有完整适用队伍或计算服务繁忙，请直接访问网站查看。')
     sets = page.locator('#fast-grid > .fg-set')
@@ -239,7 +282,7 @@ async def capture_result(page, result):
     }""")
     if not geometry['ok'] or abs(geometry['width']-960)>2 or not 200<=geometry['height']<=4000:
         raise SoloUnavailable('推荐区域内容超出截图边界，已停止发送，请稍后重试。')
-    image = await result.screenshot(type='png', animations='disabled',timeout=30000)
+    image = await result.screenshot(type='png', animations='disabled',timeout=_PAGE_TIMEOUT_MS)
     validate_png(image)
     return image
 
