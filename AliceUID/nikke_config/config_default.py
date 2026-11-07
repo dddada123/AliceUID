@@ -53,9 +53,14 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         "实验性功能，默认开启，首次登录/重新登录共用，二维码独立。NapCat未确认发送时自动回退一次普通消息，并暂停本连接转发60秒。开启后若看不到消息，请关闭此功能回退普通模式。保留已有配置值。",
         True,
     ),
+    "AliceUID_BrowserAutoInstall": GsBoolConfig(
+        "自动准备浏览器组件",
+        "默认开启。复用Core的Playwright，仅在缺少配套Chromium时补装浏览器，与AI开关无关；不更新Python包。",
+        True,
+    ),
     "AliceUID_BrowserChannel": GsStrConfig(
         "浏览器通道",
-        "auto=优先内置 Chromium，失败回退 Edge；Docker 里一般用 chromium",
+        "auto=优先配套Chromium，缺失时自动补装，失败回退已安装的Edge；chromium只使用配套Chromium；msedge只使用Edge",
         "auto",
         options=["auto", "chromium", "msedge"],
     ),

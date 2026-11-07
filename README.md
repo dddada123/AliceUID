@@ -9,16 +9,16 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.23-ff69b4?style=flat-square" alt="Version: 1.1.23"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.24-ff69b4?style=flat-square" alt="Version: 1.1.24"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.23**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.24**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
-[亮点功能](#亮点功能) · [功能说明](#功能说明) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
+[亮点功能](#亮点功能) · [功能说明](#功能说明) · [常见问题（QA）](#常见问题qa) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
 <p align="center">
   <img src="https://count.getloli.com/@AliceUID?theme=nixietube-1&amp;padding=7&amp;offset=0&amp;align=top&amp;scale=1&amp;pixelated=1&amp;darkmode=auto" alt="AliceUID 访问计数">
@@ -82,14 +82,13 @@ AliceUID依赖GsCore，不能独立运行；需要Python ≥3.10。
 
 ```bash
 python -m pip install -r plugins/AliceUID/requirements.txt
-python -m playwright install chromium
 ```
 
 3. 在WebUI配置用户可访问的登录地址、名单和主题，完整重启Core，再发送 `nk帮助`。首次启动会自动更新角色列表。
 
 保留 `plugins/AliceUID/AliceUID/` 的嵌套结构，不要只复制内层包。升级保留 `data/AliceUID`、绑定和配置，尤其是保存领取回执的 `cdk.sqlite3`；不要同时启用多份插件。
 
-网页登录、会战攻略长截图、官网日历和DILDORO需要Playwright浏览器。升级Playwright后需重装匹配的Chromium；Docker环境须在运行容器内安装，缺少系统依赖时可用 `python -m playwright install --with-deps chromium`。Cookie导入登录本身无需启动服务端浏览器。
+网页登录、会战攻略、官网日历和DILDORO需要浏览器。插件复用Core的Playwright，默认自动补齐缺少的配套Chromium，与AI开关无关，不更新Core的Python包。首次准备可能需要下载；异常处理见下方QA。Cookie导入登录本身无需启动服务端浏览器。
 
 从旧NikkeUID迁移时，仅复用公开素材，用户需在AliceUID重新登录。
 
@@ -150,6 +149,7 @@ Bot主在WebUI调整配置，普通用户只显示有权使用的指令。修改
 | 设置 | 必要说明 |
 |---|---|
 | 登录地址 | `AliceUID_LoginUrl` 填写用户可访问的地址；反代需转发 `/nikke/` 路由 |
+| 浏览器组件 | `AliceUID_BrowserAutoInstall` 默认开启；`BrowserChannel` 可选auto、chromium或msedge |
 | 登录方式 | `AliceUID_LoginMode` 可选网页账号密码或Cookie导入，也可设置仅Cookie导入 |
 | HTTPS | 使用HTTPS反代时，确认Core正确识别外部协议后再开启插件HTTPS要求 |
 | 卡片外观 | 全局主题、语言、字体可调；角色面板和个人突袭推荐有独立主题设置 |
@@ -180,16 +180,145 @@ Bot主在WebUI调整配置，普通用户只显示有权使用的指令。修改
 
 请备份 `data/AliceUID`，不要公开Cookie、Token、密码和验证码。实现与历史细节见 [开发文档](DEVELOPMENT.md)、[版本记录](CHANGELOG.md)。
 
-## 排查入口
+## 常见问题（QA）
 
-| 问题 | 处理 |
-|---|---|
-| 浏览器不存在或版本不匹配 | 在GsCore运行环境重装Chromium，Docker须在容器内执行 |
-| 绑定或登录失效 | `nk重新登录`，并确认区服一致 |
-| 查询缺少新角色 | `nk刷新面板`；Bot主可查看数据库更新状态 |
-| 自动兑换没有执行 | 检查兑换写开关、系统开关、个人开关与权限 |
-| 看不到管理指令 | 核对Core的masters和当前身份，使用 `nk帮助 文字` |
-| 转发未送达或重复 | 调整转发开关与等待时间，见[转发设置](#转发设置) |
+适用于AliceUID 1.1.24。命令中的 `nk` 请替换为当前前缀；路径、容器名和Python环境以实际部署为准。
+
+### 1. Excel已经生成，为什么QQ收不到文件？
+
+先查看AstrBot、NapCat等QQ接入端的文件上传日志。若AstrBot运行在宿主机、NapCat运行在Docker，而文件以 `file://` 本地路径传递，NapCat可能因路径不可见报 `ENOENT`。文字或图片正常，也不代表文件上传链路正常。
+
+将AstrBot实际保存文件的临时目录只读挂载到NapCat收到的URI所对应的路径，应用配置重建NapCat后重试。已有用户通过此方式解决。若报 `EACCES`，检查容器运行用户的读取权限；若文件已被清理，则先排查临时文件保留时间。`retcode 1200`需结合具体日志判断，不能单凭错误码确定原因。
+
+<details>
+<summary>Linux / Docker Compose挂载示例</summary>
+
+假设接入端传递 `file:///srv/astrbot-plugin-tmp/example.xlsx`，文件也确实位于宿主机该目录，可将下面的挂载合并到现有NapCat服务配置。这里的目录和服务名均为示例，必须替换为实际值。
+
+```yaml
+services:
+  napcat:
+    volumes:
+      - type: bind
+        source: /srv/astrbot-plugin-tmp
+        target: /srv/astrbot-plugin-tmp
+        read_only: true
+```
+
+应用配置后重建该服务，例如：
+
+```bash
+docker compose up -d --force-recreate napcat
+```
+
+确认NapCat容器内能按收到的路径读取文件，再重新导出。只改挂载名称、未应用新配置，或挂到了另一个容器，都不能解决路径问题。Windows宿主机、远程Docker或双容器部署需按实际路径映射调整，不能机械照抄此示例。
+
+</details>
+
+### 2. 导出提示缺少XlsxWriter，或装了依赖仍然报错？
+
+在**GsCore实际使用的Python环境**执行 `python -m pip install -r plugins/AliceUID/requirements.txt`，完成后重启Core。若Core运行在Docker中，应在对应容器环境安装；装在宿主机或另一个Python环境中不会替它补齐依赖。
+
+如果xlsx已经成功生成，应继续检查文件上传链路，而不是反复安装导出组件。
+
+### 3. Playwright报“浏览器不存在”，或者一直在准备组件？
+
+`Executable doesn't exist at ...chromium_headless_shell-...` 表示Playwright找不到配套浏览器文件。1.1.24默认复用Core已安装的Playwright，并在组件缺失时自动下载对应Chromium；**无需开启AI**，也不会升级或降级Core的Playwright包。
+
+首次运行或Core更新后，请保持登录页面打开。若提示组件仍在准备，稍后在原页面重试；下载完成不等于账号已绑定。原链接过期后重新获取链接。下载失败会冷却5分钟，反复提交账号不会加快下载。
+
+先检查「自动准备浏览器组件」是否开启，以及是否设置了 `GSUID_PLAYWRIGHT_AUTOINSTALL=0`。显式选择 `msedge` 时需自行安装Edge，也可将通道改为 `auto` 或 `chromium`。若提示缺少Playwright Python包，先在Core实际使用的Python环境安装插件requirements，再完整重启Core。
+
+<details>
+<summary>手动修复、Docker路径与下载问题</summary>
+
+在**运行Core的同一个Python环境**执行：
+
+```bash
+python -m playwright --version
+python -m playwright install chromium
+```
+
+Docker默认部署示例（容器名和解释器路径按实际部署替换）：
+
+```bash
+docker exec gsuid_core /venv/bin/python -m playwright --version
+docker exec gsuid_core /venv/bin/python -m playwright install chromium
+```
+
+安装时沿用Core的 `PLAYWRIGHT_BROWSERS_PATH`。报错查找 `/ms-playwright` 时，不能把浏览器装到宿主机或另一个用户的默认缓存后就认为已修复。目录不可写、只读挂载或磁盘不足，需先修正对应问题。
+
+如果报缺少Linux共享库，可由管理员在对应容器里执行系统依赖安装。默认Docker解释器示例：
+
+```bash
+docker exec -u 0 gsuid_core /venv/bin/python -m playwright install --with-deps chromium
+```
+
+自动补装不会执行apt或提权安装系统包。下载超时、证书或代理报错时，检查容器本身的网络和Playwright下载源；「浏览器代理」仅用于登录访问，不会自动配置安装器下载代理。不要通过反复升级Playwright或随意指定旧版浏览器文件来解决。
+
+容器重启通常保留已下载组件，**删除并重建容器可能丢失**。可把匹配浏览器的安装加入镜像构建，或持久化实际浏览器目录并保持环境变量和权限一致；只持久化 `/venv` 不包含浏览器文件。
+
+浏览器恢复后，重新尝试原来的登录或截图。Cookie导入登录可不启动浏览器，但日历、攻略截图和DILDORO仍需要浏览器。账号、验证码或网站访问失败不会触发重新下载。
+
+</details>
+
+### 4. 登录链接自己能打开，群友却打不开？
+
+在WebUI将「登录页反代 / 外网地址」填写为用户实际能访问的地址，检查域名、端口和 `/nikke/` 路由。不要把 `localhost`、容器名或仅服务器可达的内部地址直接发给外部用户。
+
+使用HTTPS反代时，还需确认证书、代理协议传递和Core受信代理配置一致；插件「登录页面要求HTTPS」开关不会自动生成证书或配置反向代理。
+
+### 5. 重建容器后，绑定、配置或兑换记录怎么不见了？
+
+先核对是否启动了另一套实例，或把数据挂载到了错误目录，再检查备份。Core实际使用的数据目录应持久化；升级保留原绑定数据库、配置及 `data/AliceUID`，尤其是 `cdk.sqlite3` 中的领取与派发记录。
+
+不要通过删除数据库来修复这类问题。应让当前实例重新使用原数据目录，或从确认过的备份恢复。
+
+### 6. 机器人在线，为什么插件指令没反应或看不到管理功能？
+
+先查看启动日志是否成功加载AliceUID，并确认只启用一份插件；安装包应保留 `plugins/AliceUID/AliceUID/` 的嵌套结构。修改Core插件前缀后须完整重启，再用生效的前缀发送帮助指令。
+
+若普通功能可用但管理项缺失，检查Core的 `masters`、服务范围和黑白名单。群内允许查询不等于拥有Bot主管理权限，可用 `nk帮助 文字` 核对当前身份可用的指令。
+
+### 7. 角色卡或Excel内容旧，新角色没有显示？
+
+普通查询和Excel导出会读取本地缓存。先用 `nk刷新信息` 更新名片、`nk刷新面板` 更新全部角色练度与皮肤，或用 `nk刷新爱丽丝面板` 更新指定角色，再查询或导出。
+
+如果仍提示角色资料缺失，Bot主可检查 `nk数据库更新 状态`。导出成功不代表它已经重新同步了全部账号数据。
+
+### 8. 自动兑换没有执行，需要检查哪些设置？
+
+确认Bot主已开启「允许本人CDK兑换」、自动兑换系统总开关，且该用户的个人自动兑换开启、绑定有效、权限允许。个人可用 `nk自动兑换码` / `nk关闭自动兑换码` 调整，系统总开关由Bot主管理。
+
+1.1.23在官方/GameWith库存更新后或成员成功贡献新码时触发自动兑换，新绑定成功后仅立即核对该用户，不再每分钟扫描。Bot主可用 `nk刷新兑换码` 更新公开库存；没有真正新码时不会重新发起全员任务。
+
+### 9. 群友贡献过的兑换码又出现在GameWith，为什么不再通知？
+
+这是正常的跨来源去重。同一码只因来源变化不会再次触发全员自动兑换，后来的来源可补充报酬等信息；只有真正新增码才派发并通知。
+
+新绑定用户仍会单独核对已有有效码。某用户上一轮失败，可使用 `nk兑换码` 手动核对，不需要等待另一来源再次收录。
+
+### 10. 新一期会战已经开始，为什么还没拿到攻略？
+
+`nk会战攻略` / `nk会战阵容` 在查询时检查官方赛季并寻找本期完整帖子。若作者尚未发布或仍在补充组队示例，会提示可能还在编写；按提示等待冷却结束后再次查询。
+
+官方赛季表尚未更新、网络错误或截图失败也会影响查询，应按具体提示处理。跨月或同月多期会校验赛季归属，不能拿上期攻略代替本期。
+
+### 11. 提示登录失效，重新登录却一直失败？
+
+使用 `nk重新登录` 更新原账号、原区服的凭据；需要换账号或换区服时先 `nk解绑`，再重新绑定。Cookie导入后仍会核验账号与区服，请确认导出的是自己的有效登录凭据。
+
+网络超时、403、429等错误应分别检查网络或访问限制，不应全部当作Cookie失效反复登录。不要把Cookie、密码或验证码发到群里排查。
+
+### 12. 转发显示已发送，但没收到，或者隔一会儿重复出现？
+
+先查看QQ接入端的实际错误及消息ID回执。Core已提交消息不一定等于QQ最终上传成功；上传较慢时，原转发可能在普通回退后才送达，造成迟到重复。
+
+可临时关闭对应功能的转发开关比较，或调整「转发回执等待秒数」（默认30秒，可设5～300秒）。若是文件消息报路径错误，应按第一条检查路径和权限，延长等待时间不能修复文件不可见。
+
+---
+
+仍未解决时，请提供插件、Core和QQ接入端版本，说明各组件在宿主机还是容器内，并附触发命令、发生时间和脱敏报错。文件路径中的用户名、账号及文件名也请脱敏，不要提交Cookie、Token或完整私人练度文件。
 
 ## 效果预览
 

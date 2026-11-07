@@ -214,20 +214,16 @@ async def capture_result(page, result):
     return image
 
 async def capture(account, *, channel='auto'):
-    from playwright.async_api import async_playwright, TimeoutError as BrowserTimeout
+    from ..nikke_browser.runtime import manager, playwright as browser_playwright
+    async with browser_playwright(error_type=SoloUnavailable) as probe:
+        ready = await manager.launch(probe, channel=channel, headless=True)
+        await ready.close()
+    from playwright.async_api import TimeoutError as BrowserTimeout
     try:
         async with _CAPTURE:
             async def run():
-                async with async_playwright() as p:
-                    browser = None
-                    choices = [None, 'msedge'] if channel == 'auto' else [None if channel=='chromium' else 'msedge']
-                    for choice in choices:
-                        try:
-                            browser = await p.chromium.launch(headless=True, channel=choice)
-                            break
-                        except Exception:
-                            if choice == choices[-1]:
-                                raise SoloUnavailable('截图浏览器不可用，请管理员检查Playwright浏览器安装。') from None
+                async with browser_playwright(error_type=SoloUnavailable) as p:
+                    browser = await manager.launch(p, channel=channel, headless=True)
                     try:
                         context = await browser.new_context(viewport={'width':1600,'height':1200},device_scale_factor=1.5,
                                                             locale='zh-CN',timezone_id='Asia/Shanghai',service_workers='block')

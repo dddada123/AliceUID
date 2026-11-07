@@ -106,6 +106,12 @@ class GuideService:
             meta.update(author=AUTHOR, season_id=sid, retry_after=now+300, failure_kind='unavailable')
             self.save_meta(meta)
             try:
+                if self.capture is None:
+                    from ..nikke_browser.runtime import manager, BrowserUnavailable
+                    try:
+                        await manager.prepare(channel=self.channel, headless=True)
+                    except BrowserUnavailable as exc:
+                        raise GuideUnavailable(str(exc)) from None
                 async def fetch():
                     post = await self.finder(season, now)
                     if not matches(post, season, now):

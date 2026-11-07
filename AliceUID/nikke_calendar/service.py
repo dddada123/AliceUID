@@ -125,18 +125,9 @@ async def capture_page(page) -> bytes:
 
 async def capture_calendar(*, channel: str = 'auto') -> bytes:
     """Use a fresh anonymous, nonpersistent browser; never reuse login storage."""
-    from playwright.async_api import async_playwright
-
-    async with async_playwright() as playwright:
-        browser = None
-        choices = (None, 'msedge') if channel == 'auto' else ((None,) if channel == 'chromium' else ('msedge',))
-        for candidate in choices:
-            try:
-                browser = await playwright.chromium.launch(headless=True, channel=candidate)
-                break
-            except Exception:
-                if candidate == choices[-1]:
-                    raise CalendarUnavailable('截图浏览器不可用。') from None
+    from ..nikke_browser.runtime import manager, playwright as browser_playwright
+    async with browser_playwright(error_type=CalendarUnavailable) as playwright:
+        browser = await manager.launch(playwright, channel=channel, headless=True)
         context = None
         try:
             context = await browser.new_context(
@@ -206,6 +197,12 @@ class CalendarService:
             _atomic_write(self.meta_path, json.dumps(meta, ensure_ascii=False).encode())
             try:
                 capture = self.capture
+                if capture is None:
+                    from ..nikke_browser.runtime import manager, BrowserUnavailable
+                    try:
+                        await manager.prepare(channel=self.channel, headless=True)
+                    except BrowserUnavailable as exc:
+                        raise CalendarUnavailable(str(exc)) from None
                 data = await asyncio.wait_for(
                     capture() if capture else capture_calendar(channel=self.channel), timeout=150,
                 )

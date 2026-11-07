@@ -24,6 +24,9 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
         MAIN_PATH / "group_policy.json", config=AliceUIDConfig,
     ))
 
+    from .nikke_browser.runtime import setup as setup_browser
+    setup_browser(lambda key: AliceUIDConfig.get_config(key).data)
+
     # 先导入数据库模型，确保建表
     from .nikke_user import models as _models  # noqa: E402,F401
     from .nikke_user.admin import setup_admin  # noqa: E402

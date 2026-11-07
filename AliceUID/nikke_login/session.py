@@ -22,6 +22,7 @@ class LoginSession:
     operation_started_at: float = 0
     captcha_id: str = ""
     created_at: float = field(default_factory=time.time)
+    browser_preparing: bool = False
     status: str = "created"  # created | sending_code | awaiting_code | logging_in | captcha | success | failed
     error: str = ""
     nickname: str = ""
@@ -47,6 +48,7 @@ class LoginSession:
     heartbeat_at: float = field(default_factory=time.time)
 
     def cancel(self):
+        self.browser_preparing = False
         self.generation += 1
         self.email_code = ""
         self.code_event.set()

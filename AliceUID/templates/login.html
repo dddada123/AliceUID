@@ -643,7 +643,7 @@ async function poll() {
     $("submit").disabled = true;
     $("captcha").classList.remove("show");
     capData = null;
-    setStatus("正在登录 blablalink…请保持页面打开。", "info");
+    setStatus(r.browser_preparing ? "正在准备浏览器组件，首次运行可能需要一些时间。请保持页面打开。" : "正在登录 blablalink…请保持页面打开。", "info");
   }
   timer = setTimeout(poll, 2000);
 }

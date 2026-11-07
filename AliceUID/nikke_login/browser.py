@@ -454,26 +454,11 @@ async def login(
             raise LoginError(EMAIL_LOGIN_NOTICE)
     if area_id not in REGIONS:
         raise LoginError("请明确选择受支持的区服；港澳台服暂未支持")
-    from playwright.async_api import async_playwright
+    from ..nikke_browser.runtime import manager, playwright
 
     deadline = time.monotonic() + timeout
-    async with async_playwright() as p:
-        launch_kwargs = {"headless": headless}
-        if proxy:
-            launch_kwargs["proxy"] = {"server": proxy}
-        browser = None
-        errors = []
-        for ch in ([channel] if channel != "auto" else [None, "msedge"]):
-            try:
-                kw = dict(launch_kwargs)
-                if ch:
-                    kw["channel"] = ch
-                browser = await p.chromium.launch(**kw)
-                break
-            except Exception as exc:  # noqa: BLE001
-                errors.append(f"{ch or 'chromium'}: {exc}")
-        if browser is None:
-            raise LoginError("浏览器启动失败：" + " | ".join(errors))
+    async with playwright(error_type=LoginError) as p:
+        browser = await manager.launch(p, channel=channel, headless=headless, proxy=proxy)
 
         ctx = await browser.new_context(
             viewport={"width": 1440, "height": 900},

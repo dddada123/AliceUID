@@ -207,17 +207,9 @@ async def capture_page(page, post, quality=95):
 
 
 async def capture_post(post, *, channel='auto', quality=95):
-    from playwright.async_api import async_playwright
-    async with async_playwright() as playwright:
-        choices = (None, 'msedge') if channel == 'auto' else ((None,) if channel == 'chromium' else ('msedge',))
-        browser = None
-        for choice in choices:
-            try:
-                browser = await playwright.chromium.launch(headless=True, channel=choice)
-                break
-            except Exception:
-                if choice == choices[-1]:
-                    raise GuideUnavailable('攻略截图浏览器不可用。') from None
+    from ..nikke_browser.runtime import manager, playwright as browser_playwright
+    async with browser_playwright(error_type=GuideUnavailable) as playwright:
+        browser = await manager.launch(playwright, channel=channel, headless=True)
         context = None
         try:
             context = await browser.new_context(viewport={'width':1440,'height':1000},

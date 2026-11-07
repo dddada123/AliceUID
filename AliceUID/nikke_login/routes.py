@@ -391,6 +391,7 @@ async def _run_login(token: str, account: str, password: str, *, mode="password"
         session.status = "logging_in"
         return code
 
+    from ..nikke_browser.runtime import manager as browser_manager, BrowserUnavailable
     monitor = asyncio.create_task(watchdog())
     try:
         kwargs = dict(
@@ -402,6 +403,13 @@ async def _run_login(token: str, account: str, password: str, *, mode="password"
         )
         if mode == "email":
             kwargs["on_code"] = on_code
+        session.browser_preparing = True
+        await browser_manager.prepare(channel=kwargs["channel"], headless=kwargs["headless"])
+        session.browser_preparing = False
+        if not current():
+            return
+        # Browser preparation has its own limit and does not consume login time.
+        session.operation_started_at = time.time()
         operation = login(account, password, **kwargs)
         account = password = ""
         result = await asyncio.wait_for(operation, timeout=330 if mode == "email" else 180)
@@ -440,11 +448,11 @@ async def _run_login(token: str, account: str, password: str, *, mode="password"
             session.status = "failed"
             session.error = f"绑定保存未确认，请回聊天发送 {command_prefix()}我的账号 检查后重试。"
             logger.warning(f"[AliceUID] 绑定保存未确认 user={session.user_id}")
-    except (LoginError, asyncio.TimeoutError) as exc:
+    except (LoginError, BrowserUnavailable, asyncio.TimeoutError) as exc:
         if current():
             session.status = "failed"
             # Only our own constant UI errors are allowed; never expose SDK payloads.
-            session.error = str(exc)[:200] if isinstance(exc, LoginError) else "登录超时，请重新操作"
+            session.error = str(exc)[:200] if isinstance(exc, (LoginError, BrowserUnavailable)) else "登录超时，请重新操作"
             logger.warning(f"[AliceUID] 登录失败 user={session.user_id}")
     except Exception:
         if current():
@@ -453,6 +461,7 @@ async def _run_login(token: str, account: str, password: str, *, mode="password"
             logger.warning(f"[AliceUID] 登录异常 user={session.user_id}（详情已省略以保护凭证）")
     finally:
         account = password = ""
+        session.browser_preparing = False
         monitor.cancel()
         await asyncio.gather(monitor, return_exceptions=True)
         if current():
@@ -480,6 +489,7 @@ async def nikke_api_status(payload: TokenPayload):
         "retry_after": max(0, math.ceil(session.resend_at - time.time())),
         "code_expires_in": max(0, math.ceil(session.code_deadline - time.time())),
         "status": session.status,
+        "browser_preparing": session.browser_preparing,
         "error": session.error,
         "nickname": session.nickname,
         "uid": session.uid,
