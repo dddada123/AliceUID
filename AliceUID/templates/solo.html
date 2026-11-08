@@ -15,7 +15,7 @@ h1{font-size:32px;margin:10px 0;color:{{theme.ink}}}.source{font-size:15px;color
 </style></head><body><main class="solo-page"><header class="hero"><div class="eyebrow">NIKKE / SOLO RAID<span class="experimental">实验性功能</span></div>
 <h1>个人突袭推荐</h1>{% include 'commander.html' %}
 <div class="source">数据与推荐来自dildoro.com 妮姬伤害计算器·DILDORO</div>
-<div class="meta">网站当前弱点：{{weakness}}{% if rank_season %} · 推荐参考赛季：{{rank_season}}{% endif %}<br>查询时间：{{captured_at}}（北京时间）</div></header>
+<div class="meta">查询弱点：{{weakness}} · {{query_mode}}{% if rank_season %}<br>阵容参考：第{{rank_season}}赛季{% if boss %} · {{boss}}{% endif %}{% endif %}<br>网站默认弱点：{{default_weakness}}{% if site_current_raid %} · 网站赛季标识：{{site_current_raid}}{% endif %}{% if source_time %}<br>网站数据抓取时间：{{source_time}}{% endif %}<br>本次计算时间：{{captured_at}}（北京时间）</div></header>
 <section class="shot-panel"><div class="shot"><img src="{{image_uri}}" alt="DILDORO排行玩家编队推荐与模拟伤害"></div></section>
 <section class="notes"><p class="disclaimer">伤害预估仅为模拟计算值参考，详细数据敬请访问dildoro.com获取。</p>{% for note in notes %}<p>{{note}}</p>{% endfor %}<p>实验性功能，网站更新可能影响导入、推荐或截图。</p></section>
 <footer class="credit">Powered By GsCore &amp; Created By AliceUID &amp; dildoro</footer></main></body></html>

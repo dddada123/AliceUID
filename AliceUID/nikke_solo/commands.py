@@ -1,5 +1,6 @@
 """Experimental command: actor-only binding, bounded work, guarded delivery."""
 import asyncio
+import time
 from gsuid_core.sv import SV
 from gsuid_core.logger import logger
 from gsuid_core.segment import MessageSegment
@@ -16,6 +17,9 @@ from .draw import draw_solo, get_solo_theme_mode
 from ..nikke_render.theme import get_card_theme
 from ..nikke_api.client import REGIONS, HMT_REGION
 from .cache import get_cache, identity, style_key
+from .selection import parse_selection
+from .site import get_monitor, revision
+from .service import SERVERS
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -33,25 +37,25 @@ async def current(ev, bind):
     latest = await AliceBind.get_bind(ev.user_id,ev.bot_id)
     return latest is not None and binding_key(latest)==binding_key(bind) and await allowed(ev)
 
-@sv_solo.on_command('个人突袭推荐')
+@sv_solo.on_command(('个人突袭推荐', '单人突袭推荐'))
 async def solo_command(bot,ev):
     if not await allowed(ev):
         return
-    option = (ev.text or '').strip()
-    refresh = option.startswith('刷新')
-    if refresh:
-        option = option[2:].strip()
-    themes = {'': None, '亮色': 'light', '暗色': 'dark', '随机': 'random'}
-    if option not in themes:
-        await bot.send(f'用法：{command_prefix()}个人突袭推荐[刷新] [亮色/暗色/随机]（实验性，仅本人账号；默认暗色，缓存5天，练度变化请刷新）。',at_sender=True)
+    try:
+        selection = parse_selection(ev.text)
+    except ValueError:
+        await bot.send(f'用法：{command_prefix()}个人突袭推荐[火/水/风/电/铁][刷新] [亮色/暗色/随机]；支持燃烧/水冷/风压/电击/铁甲及单人突袭推荐。不填属性使用网站默认，练度变化请刷新。',at_sender=True)
         return
-    theme = get_card_theme(themes[option] or get_solo_theme_mode())
+    refresh = selection.refresh
+    refresh_command = f'{command_prefix()}个人突袭推荐{selection.suffix}刷新'
+    theme = get_card_theme(selection.theme or get_solo_theme_mode())
     actor = (str(ev.user_id),str(ev.bot_id))
     if actor in _active:
         await bot.send('你的个人突袭推荐正在排队或计算，请等待本次结果。',at_sender=True)
         return
     _active.add(actor)
-    client = bind = reply = None
+    client = bind = reply = fallback = None
+    cache_warning = ''
     try:
         bind = await AliceBind.get_bind(*actor)
         if bind is None:
@@ -60,12 +64,20 @@ async def solo_command(bot,ev):
             reply = unavailable_message(bind)
         else:
             cache = get_cache()
-            key = identity(bind,actor)
+            key = identity(bind,actor,selection.mode)
             try:
                 cache.cleanup()
             except (OSError, ValueError) as exc:
                 logger.warning(f'[AliceUID] solo cache cleanup error_type={type(exc).__name__}')
             image = None if refresh else cache.read(key)
+            if image is not None:
+                try:
+                    latest = await asyncio.wait_for(get_monitor().inspect(selection.mode, SERVERS[int(bind.area_id)][0]), 300)
+                    if not image.site or revision(latest) != revision(image.site) or (latest.get('active') is not False and time.time()-image.captured_at >= 21600):
+                        fallback, image = image, None
+                except Exception as exc:
+                    record_failure('个人突袭', '网站更新检查', exc)
+                    cache_warning = '本次网站更新检查失败，以下为此前生成的缓存结果；赛季与阵容可能已有变化。\n'
             region = REGIONS.get(int(bind.area_id)) or (HMT_REGION if int(bind.area_id)==91 else None)
             if image is not None and region is not None:
                 style = style_key(image,bind,theme)
@@ -80,20 +92,27 @@ async def solo_command(bot,ev):
                             logger.warning(f'[AliceUID] solo cache write error_type={type(exc).__name__}')
                 stamp = datetime.fromtimestamp(image.captured_at,ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M')
                 reply = [MessageSegment.image(png),
-                         f'已使用本地缓存（{stamp} 北京时间生成，有效期5天，读取不顺延）。\n'
-                         f'如练度发生了变化，请发送{command_prefix()}个人突袭推荐刷新重新计算数据。']
+                         cache_warning + f'已使用本地缓存（{stamp} 北京时间生成，最长保存5天，读取不顺延）。\n'
+                         f'如练度发生了变化，请发送{refresh_command}重新计算数据。']
             else:
                 await bot.send(NOTICE,at_sender=True)
+                previous_key = key
                 client,bind = await load_client(*actor)
                 if client is None:
                     reply = unavailable_message(bind)
                 elif await current(ev,bind):
                     # A binding replacement during local loading must use its own cache identity.
-                    key = identity(bind,actor)
+                    key = identity(bind,actor,selection.mode)
+                    if key != previous_key:
+                        fallback = None
                     async def prepare():
                         account = await owned_account(client,bind)
                         if not await current(ev,bind) or not authenticated(bind):return None
-                        image = await capture(account)
+                        image = await capture(account, mode=selection.mode)
+                        try:
+                            await get_monitor().record(image, SERVERS[int(bind.area_id)][0])
+                        except (OSError, ValueError) as exc:
+                            record_failure('个人突袭', '网站快照保存', exc)
                         if not await current(ev,bind) or not authenticated(bind):return None
                         png = await draw_solo(image,bind,client.region,theme=theme)
                         if not await current(ev,bind) or not authenticated(bind):return None
@@ -106,7 +125,7 @@ async def solo_command(bot,ev):
                                 logger.warning(f'[AliceUID] solo cache write error_type={type(exc).__name__}')
                                 return [MessageSegment.image(png),'计算成功，但本地缓存保存失败，请管理员检查存储。']
                         return [MessageSegment.image(png),
-                                f'已计算并在本地缓存5天。如练度发生了变化，请发送{command_prefix()}个人突袭推荐刷新重新计算数据。']
+                                f'已计算并保存；后续查询自动检查网站更新。如练度发生了变化，请发送{refresh_command}重新计算数据。']
                     reply = await asyncio.wait_for(prepare(),timeout=720)
     except NikkeLoginRequired:
         if bind is not None:mark_invalid(bind,401)
@@ -130,6 +149,11 @@ async def solo_command(bot,ev):
                 await client.close()
         finally:
             _active.discard(actor)
+    if fallback is not None and reply is not None and not isinstance(reply,list) and bind is not None and authenticated(bind) and await current(ev,bind):
+        # Only automatic updates may fall back; explicit refresh never reads old data.
+        png = await draw_solo(fallback,bind,REGIONS.get(int(bind.area_id)) or HMT_REGION,theme=theme)
+        stamp = datetime.fromtimestamp(fallback.captured_at,ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M')
+        reply = [MessageSegment.image(png),f'本次自动更新未完成：{reply}\n以下为此前生成的结果（{stamp} 北京时间），赛季与阵容可能已有变化。可用{refresh_command}重试。']
     if reply is not None and await allowed(ev):
         if bind is None:
             await bot.send(reply,at_sender=True)

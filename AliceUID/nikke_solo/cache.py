@@ -12,12 +12,16 @@ from ..nikke_resource.cache import atomic_write
 from .service import SoloImage, SoloUnavailable, validate_png
 
 TTL = 5 * 86400
-SCHEMA = 'solo-crop3-v1'
+SCHEMA = 'solo-selection-v2'
 
-def identity(bind, actor=None):
+def identity(bind, actor=None, mode='default'):
     actor = actor or (str(bind.user_id),str(bind.bot_id))
     values = [*map(str,actor),str(bind.game_id),str(bind.intl_open_id),int(bind.area_id),
               hashlib.sha256(bind.cookie_enc.encode()).hexdigest()]
+    if mode != 'default':
+        from .selection import ELEMENTS
+        if mode not in ELEMENTS:raise ValueError('unknown selection')
+        values.append(mode)
     return hashlib.sha256(json.dumps(values,separators=(',',':')).encode()).hexdigest()
 
 def source_hash(image):return hashlib.sha256(image.png).hexdigest()
@@ -30,7 +34,7 @@ def style_key(image,bind,theme):
         from ..nikke_config.config import AliceUIDConfig
         dpi = AliceUIDConfig.get_config('AliceUID_RenderDpi').data
     except (ImportError,AttributeError,KeyError,RuntimeError):dpi=144
-    values=[SCHEMA,source_hash(image),image.captured_at,theme,get_glass_strength(),resolve_font().fingerprint,
+    values=[SCHEMA,source_hash(image),image.captured_at,image.site,list(image.notes),theme,get_glass_strength(),resolve_font().fingerprint,
             get_card_language(),dpi,str(bind.nickname or ''),str(bind.uid or '')]
     from ..nikke_render.cache import style_version
     values.append(style_version(dpi=dpi, theme=theme))
@@ -57,6 +61,7 @@ class SoloCache(PanelCache):
             if m.get('schema')!=SCHEMA or not math.isfinite(age) or not 0<=age<TTL:return None
             if not isinstance(m.get('source_sha'),str) or not re.fullmatch('[0-9a-f]{64}',m['source_sha']):return None
             if not isinstance(m.get('weakness'),str) or not isinstance(m.get('rank_season'),str):return None
+            if not isinstance(m.get('site'),dict):return None
             if not isinstance(m.get('notes'),list) or not all(isinstance(n,str) for n in m['notes']):return None
             if not isinstance(m.get('renders'),dict) or len(m['renders'])>8:return None
             if not all(isinstance(k,str) and isinstance(v,str) and re.fullmatch('[0-9a-f]{64}',k) and re.fullmatch('[0-9a-f]{64}',v) for k,v in m['renders'].items()):return None
@@ -73,7 +78,7 @@ class SoloCache(PanelCache):
             if hashlib.sha256(raw).hexdigest()!=m['source_sha']:return None
             validate_png(raw)
             if not isinstance(m['notes'],list) or not all(isinstance(n,str) for n in m['notes']):return None
-            return SoloImage(raw,str(m['weakness']),m['captured_at'],str(m['rank_season']),tuple(m['notes']))
+            return SoloImage(raw,str(m['weakness']),m['captured_at'],str(m['rank_season']),tuple(m['notes']),m['site'])
         except (OSError,ValueError,KeyError,TypeError,SoloUnavailable):return None
 
     def card(self,key,image,style):
@@ -98,7 +103,7 @@ class SoloCache(PanelCache):
         renders.pop(style,None);renders[style]=hashlib.sha256(card).hexdigest()
         renders=dict(list(renders.items())[-8:])
         metadata=dict(schema=SCHEMA,source_sha=sha,captured_at=image.captured_at,weakness=image.weakness,
-                      rank_season=image.rank_season,notes=list(image.notes),renders=renders)
+                      rank_season=image.rank_season,notes=list(image.notes),site=image.site,renders=renders)
         # Publish only after both PNGs exist. Refresh errors leave the old pointer intact.
         atomic_write(self.path(key,'snapshot.json'),json.dumps(metadata,ensure_ascii=False,allow_nan=False).encode())
         keep={'source-'+sha+'.png',*('render-'+k+'.png' for k in renders)}
@@ -139,4 +144,12 @@ def get_cache():
     return _default
 
 def invalidate_binding(bind):
-    get_cache().purge(identity(bind))
+    from .selection import ELEMENTS
+    error = None
+    for mode in ('default', *ELEMENTS):
+        try:
+            get_cache().purge(identity(bind, mode=mode))
+        except OSError as exc:
+            error = exc
+    if error is not None:
+        raise error

@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from ..nikke_render.theme import apply_theme, get_card_theme
 from .service import validate_png
+from .selection import label
 
 ENV = Environment(loader=FileSystemLoader(str(Path(__file__).resolve().parent.parent/'templates')),
                   autoescape=select_autoescape(['html']))
@@ -38,8 +39,20 @@ def rounded_png(data, radius=22):
 def solo_html(image, bind, region, theme=None):
     with Image.open(io.BytesIO(image.png)) as im:
         height = round(im.height * 960 / im.width)
+    source_time = image.site.get('fetched_at','')
+    if source_time:
+        try:
+            source_stamp = datetime.fromisoformat(source_time.replace('Z','+00:00'))
+            if source_stamp.tzinfo is None:
+                raise ValueError('unspecified timezone')
+            source_time = source_stamp.astimezone(ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S') + '（北京时间）'
+        except (ValueError, TypeError):
+            source_time = '网站未提供可确认的时间'
     ctx = apply_theme(dict(commander_name=bind.nickname or '昵称未知',commander_uid=bind.uid or '未知',
         commander_region=region.label,weakness=image.weakness,rank_season=image.rank_season,
+        query_mode='网站默认' if image.site.get('mode', 'default') == 'default' else '手动指定',
+        default_weakness=label(image.site.get('default_code')),boss=image.site.get('boss',''),
+        site_current_raid=image.site.get('current_raid'),source_time=source_time,
         captured_at=datetime.fromtimestamp(image.captured_at, ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S'),
         notes=image.notes,image_height=height,
         image_uri='data:image/png;base64,'+base64.b64encode(rounded_png(image.png)).decode()),

@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.27-ff69b4?style=flat-square" alt="Version: 1.1.27"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.28-ff69b4?style=flat-square" alt="Version: 1.1.28"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.27**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.28**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [常见问题（QA）](#常见问题qa) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -67,7 +67,13 @@
 
 ### 个人突袭推荐
 
-`nk个人突袭推荐` 将本人养成资料导入 [DILDORO](https://dildoro.com/)，返回推荐队伍与模拟伤害。网站预设简体中文，经账号页同步本人个人档案，在普通编队页确认计算账号后进入配置模式，按绑定区服执行排行玩家编队推荐。需公开Blablalink个人档案和妮姬列表；结果缓存5天，养成变化后使用 `nk个人突袭推荐刷新`。该功能为实验性，模拟结果仅供参考。
+`nk个人突袭推荐` 将本人养成资料导入 [DILDORO](https://dildoro.com/)，采用网站默认弱点生成本人区服的推荐队伍与模拟伤害。需要公开Blablalink个人档案和妮姬列表。
+
+可指定 `火／水／风／电／铁`，也支持完整名称 `燃烧／水冷／风压／电击／铁甲`；`nk单人突袭推荐` 是同义指令。例如 `nk个人突袭推荐火`、`nk单人突袭推荐铁甲`。不填属性仍使用网站默认。
+
+默认和五种属性分别保存结果，最长保留5天。后续查询自动检查网站配置及对应排行数据，发现变化后更新；活动期间检查间隔最多1小时，网站标记未进行时最多6小时，均由查询触发。本人养成变化后使用 `nk个人突袭推荐火刷新` 或 `nk个人突袭推荐刷新` 重新计算对应结果，兼容刷新前置写法；末尾可加 `亮色／暗色／随机`。
+
+卡片区分网站默认属性、实际查询属性和阵容参考赛季，并显示网站数据时间与计算时间。尚无本期排行时可能参考历史同属性赛季；BOSS机制可能不同，不能当作本期实战阵容。赛季进行中会提示数据仍可能补充，不按固定第几天判断稳定。自动更新失败时会明确标注旧缓存；主动刷新失败则直接提示。该功能为实验性，模拟结果仅供参考。
 
 ### 可选AI查询
 
