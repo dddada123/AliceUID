@@ -7,6 +7,7 @@ from __future__ import annotations
 import math
 import hashlib
 import json
+from ..nikke_api.parser import static_weapon_type
 
 FORMULA_VERSION = 'blablalink-slider-20261109-v1'
 KEYS = {'attack': ('attack', 'atk', 'Atk'), 'defense': ('defence', 'def', 'Defence'), 'hp': ('hp', 'hp', 'Hp')}
@@ -104,8 +105,10 @@ def calculate(owned, detail, outpost, bundle, *, level=None):
                 raise AttributeUnavailable(kind + '等级无效')
             if kind == 'favorite':
                 exclusive = number(row.get('name_code'), '收藏品适用角色', integral=True)
-                shot = role.get('shot_id', {}).get('element', {})
-                if (exclusive and exclusive != int(detail['name_code'])) or row.get('weapon_type') != shot.get('weapon_type'):
+                weapon = bundle.get('weapon_type') or static_weapon_type(role)
+                if not weapon:
+                    raise AttributeUnavailable('角色武器资料缺失，无法核对收藏品')
+                if (exclusive and exclusive != int(detail['name_code'])) or row.get('weapon_type') != weapon:
                     raise AttributeUnavailable('收藏品适用角色或武器不匹配')
             extra.append((row, index))
         values = {}
@@ -130,6 +133,6 @@ def calculate(owned, detail, outpost, bundle, *, level=None):
                 value += number(array[index], '魔方收藏品属性', integral=True)
             values[key] = value
         result.update(values, status='complete')
-    except (AttributeUnavailable, KeyError, TypeError, ValueError, OverflowError) as exc:
+    except (AttributeUnavailable, KeyError, TypeError, ValueError, OverflowError, AttributeError) as exc:
         result['reason'] = str(exc) if isinstance(exc, AttributeUnavailable) else '属性依赖格式无效'
     return result

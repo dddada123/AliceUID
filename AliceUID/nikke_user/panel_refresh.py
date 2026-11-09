@@ -235,7 +235,9 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
             codes = character_queries.roster_codes(snapshot.get('roster', []))
             details = snapshot.get('details', {})
             saved = cached_profile(bind)
+            from ..nikke_export.snapshot import ready as export_ready
             if (snapshot.get('complete') and saved is not None and
+                    (attribute_prepare is None or export_ready(snapshot)) and
                     set(details) == {str(code) for code in codes} and
                     all(isinstance(row, dict) and isinstance(row.get('detail'), dict)
                         and isinstance(row.get('effects'), list) for row in details.values())):
@@ -312,6 +314,8 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
                 from ..nikke_resource.service import get_resources
                 resources = get_resources()
                 snapshot['attributes'] = get_metadata(resources).compute(snapshot, resources.load_static())
+                from ..nikke_export.snapshot import mark_current
+                mark_current(snapshot)
             character_queries.publish_snapshot(bind, snapshot)
             get_roster_service().invalidate_binding(bind, actor, bot, clear_image=False)
             profile._cache.pop(profile._cache_key(bind), None)

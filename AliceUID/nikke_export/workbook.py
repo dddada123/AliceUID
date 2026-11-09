@@ -6,6 +6,7 @@ import math
 import unicodedata
 
 from .model import ExportData, ExportError
+from ..version import VERSION
 
 MAX_FILE_BYTES = 12 * 1024 * 1024
 DATA_FIRST = 6  # zero-based; row 6 is the Excel table header
@@ -23,7 +24,7 @@ def build_workbook(data: ExportData) -> bytes:
     book = xlsxwriter.Workbook(stream, {'in_memory': True, 'strings_to_formulas': False,
                                       'strings_to_urls': False, 'strings_to_numbers': False})
     book.set_properties({'title': 'NIKKE练度表', 'subject': 'NIKKE练度数据', 'author': 'AliceUID',
-                         'comments': '由 AliceUID 1.1.29 导出；不含登录凭据。', 'created': data.exported_at.replace(tzinfo=None)})
+                         'comments': f'由 AliceUID {VERSION} 导出；不含登录凭据。', 'created': data.exported_at.replace(tzinfo=None)})
     book.set_calc_mode('auto')
     overview = book.add_worksheet('练度总览')
     detail = book.add_worksheet('数据明细')

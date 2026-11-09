@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.29-ff69b4?style=flat-square" alt="Version: 1.1.29"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.30-ff69b4?style=flat-square" alt="Version: 1.1.30"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.29**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.30**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [常见问题（QA）](#常见问题qa) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -43,7 +43,7 @@
 
 ### 练度全量导出
 
-默认按当前实际等级导出，首次使用或需要最新资料时先执行 `nk刷新面板`；`nk刷新爱丽丝面板` 也会更新该角色属性及相关回收室数据。角色卡片不必显示攻防生命，文件仍包含这些数据。
+默认按当前实际等级导出。升级后首次本人导出会识别旧缓存，并自动完整刷新一次；刷新失败时停止导出，后续可用 `nk刷新面板` 重试。需要最新资料时也可主动刷新；`nk刷新爱丽丝面板` 也会更新该角色属性及相关回收室数据。角色卡片不必显示攻防生命，文件仍包含这些数据。
 
 | 命令 | 内容 |
 | --- | --- |

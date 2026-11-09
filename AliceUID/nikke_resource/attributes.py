@@ -5,13 +5,15 @@ import json
 import time
 import httpx
 from .cache import atomic_write, public_stream, read_metadata
-from .collections import CollectionMetadata
+from .collections import CollectionMetadata, identifier, validate_row
 from ..nikke_api.resource import obfuscate_path
+from ..nikke_api.parser import static_weapon_type
 from ..nikke_character.attributes import calculate, fingerprint
 
 ROLE_KEYS = ('name_code', 'resource_id', 'original_rare', 'class', 'corporation', 'shot_id',
              'stat_enhance_detail', 'character_level_hp_list', 'character_level_attack_list',
              'character_level_defence_list')
+WARM_TIMEOUT = 45
 
 class AttributeMetadata:
     def __init__(self, resources):
@@ -41,7 +43,13 @@ class AttributeMetadata:
             path = self.root / name
             meta = read_metadata(path.with_suffix('.meta.json'))
             now = time.time()
-            if now < meta.get('retry_after', 0) or (old and 0 <= now - meta.get('checked_at', 0) < 86400):
+            validated_at = meta.get('checked_at') or meta.get('bundled_loaded_at', 0)
+            if now < meta.get('retry_after', 0) or (old and 0 <= now - validated_at < 86400):
+                return old
+            if old and not path.exists() and not validated_at:
+                # The complete installer already has reviewed growth tables.
+                # First refresh must not redownload all 206 before publishing.
+                atomic_write(path.with_suffix('.meta.json'), json.dumps({'bundled_loaded_at':now}).encode())
                 return old
             try:
                 async with self._slots:
@@ -83,21 +91,22 @@ class AttributeMetadata:
     def bundle(self, code, detail, static):
         rid = static.character(code).get('resource_id')
         role = self.read(f'roles/{rid}.json') if type(rid) is int and rid > 0 else None
-        result = dict(role=role, research=self.read('research.json') or [], bond=self.read('bond.json') or [],
+        result = dict(role=role, weapon_type=static_weapon_type(static.character(code)) or static_weapon_type(role),
+                      research=self.read('research.json') or [], bond=self.read('bond.json') or [],
                       equipment=self.resources.load_equipment_items())
         for kind, folder, field in (('cube', 'cubes', 'harmony_cube_tid'), ('favorite', 'collections', 'favorite_item_tid')):
-            tid = detail.get(field)
-            if type(tid) is int and tid > 0:
+            tid = identifier(detail.get(field))
+            if tid is not None and tid > 0:
                 try:
                     path = self.resources.root / 'static' / folder / f'{tid}.json'
                     if path.stat().st_size <= 1024 * 1024:
-                        result[kind] = json.loads(path.read_text('utf-8'))
-                except (OSError, ValueError):
+                        result[kind] = validate_row(json.loads(path.read_text('utf-8')), folder, tid)
+                except (OSError, ValueError, TypeError):
                     pass
         result['version'] = fingerprint(result)
         return result
 
-    async def prepare(self, snapshot, static):
+    async def _warm(self, snapshot, static):
         await asyncio.gather(self.get('research.json', '/character/RecycleResearchStatTable.json'),
                              self.get('bond.json', '/character/AttractiveLevelTable.json'))
         async def one(code, entry):
@@ -106,10 +115,19 @@ class AttributeMetadata:
             if type(rid) is int and rid > 0:
                 await self.get(f'roles/{rid}.json', f'/roledata/{rid}-v2-zh-tw.json')
             for kind, field in (('cubes', 'harmony_cube_tid'), ('collections', 'favorite_item_tid')):
-                tid = detail.get(field)
-                if type(tid) is int and tid > 0:
+                tid = identifier(detail.get(field))
+                if tid is not None and tid > 0:
                     await self.collections.get(kind, tid)
         await asyncio.gather(*(one(code, entry) for code, entry in snapshot.get('details', {}).items()))
+
+    async def prepare(self, snapshot, static):
+        # Public metadata is optional enrichment. CDN slowness must not discard
+        # successfully fetched private roster/details or prevent card refresh.
+        try:
+            async with asyncio.timeout(WARM_TIMEOUT):
+                await self._warm(snapshot, static)
+        except TimeoutError:
+            pass
         return self.compute(snapshot, static)
 
     def compute(self, snapshot, static, *, level=None):

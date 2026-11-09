@@ -10,7 +10,7 @@ from gsuid_core.sv import SV, SL
 
 from ..nikke_commands import command_prefix
 from ..nikke_character.cache import panel_identity
-from ..nikke_character.service import character_queries
+from ..nikke_character.service import character_queries, CharacterDataError
 from ..nikke_permissions.runtime import get_policy
 from ..nikke_roster.commands import allowed
 from ..nikke_user.models import AliceBind
@@ -93,8 +93,7 @@ async def _thread_render(snapshot, bind, options=None):
         raise
 
 
-@sv_export.on_fullmatch('练度全量导出', block=True)
-async def export_cmd(bot, ev, options=None):
+async def _export(bot, ev, options=None):
     options = options or ExportOptions()
     at_sender = bool(getattr(ev, 'group_id', None))
     if not await access(ev):
@@ -136,6 +135,28 @@ async def export_cmd(bot, ev, options=None):
                         raise ExportError('绑定或权限已变化，已停止导出。')
                     store = character_queries.store()
                     snapshot = deepcopy(store.read(panel_identity(bind))) if store is not None else {}
+                from .snapshot import ready as export_ready
+                if not export_ready(snapshot):
+                    from ..nikke_user.service import load_client
+                    from ..nikke_user.auth_state import unavailable_message
+                    client, authenticated_bind = await load_client(ev.user_id, ev.bot_id)
+                    if client is None:
+                        raise ExportError(unavailable_message(authenticated_bind))
+                    if panel_identity(authenticated_bind) != panel_identity(bind) or not await current_owner():
+                        raise ExportError('绑定或权限已变化，已停止更新旧缓存。')
+                    await bot.send('首次使用新版练度导出，正在自动刷新全部角色面板并升级缓存，请稍候。', at_sender=at_sender)
+                    from ..nikke_user.panel_refresh import refresh_panel
+                    from ..nikke_resource.attributes import prepare_snapshot
+                    async with asyncio.timeout(300):
+                        await refresh_panel(client, bind, actor=ev.user_id, bot=ev.bot_id, wait=True,
+                                            only_missing=True, policy=get_policy(), event=ev,
+                                            attribute_prepare=prepare_snapshot)
+                async with binding_lock(ev.user_id, ev.bot_id):
+                    if not await current_owner():
+                        raise ExportError('绑定或权限已变化，已停止导出。')
+                    snapshot = deepcopy(store.read(panel_identity(bind))) if store is not None else {}
+                    if not export_ready(snapshot):
+                        raise ExportError('新版面板缓存准备未完成，请稍后执行刷新面板再重试导出。')
                     epoch = character_queries._epochs.get(character_queries._account(bind), 0)
                 target_bind = bind
             if options == ExportOptions():
@@ -166,6 +187,8 @@ async def export_cmd(bot, ev, options=None):
     except ExportError as exc:
         message = str(exc).replace('请先刷新面板', f'请先执行 {command_prefix()}刷新面板')
         await bot.send(message, at_sender=at_sender)
+    except CharacterDataError as exc:
+        await bot.send('面板缓存准备未完成：' + str(exc), at_sender=at_sender)
     except asyncio.CancelledError:
         raise
     except NikkeApiError as exc:
@@ -174,7 +197,7 @@ async def export_cmd(bot, ev, options=None):
             1301002: '目标用户未开放资料访问，请检查 Blablalink 公开设置。',
             403: '社区拒绝访问，请稍后检查账号或公开设置。',
             429: '社区请求较频繁，请稍后重试。',
-        }.get(exc.code, f'公开练度读取失败（{exc.code}），未生成不完整文件。')
+        }.get(exc.code, f'练度读取失败（{exc.code}），未生成不完整文件。')
         await bot.send(message, at_sender=at_sender)
     except Exception as exc:
         logger.error(f'[AliceUID] 练度全量导出失败 error_type={type(exc).__name__}')
@@ -189,15 +212,29 @@ async def export_cmd(bot, ev, options=None):
             _active.discard(owner)
 
 
-@sv_export.on_regex(r'^(?!练度全量导出$)' + PATTERN[1:], block=True)
-async def export_extended(bot, ev):
-    groups = getattr(ev, 'regex_dict', None)
-    text = ((groups.get('level') or '') + '练度全量导出' + (groups.get('tail') or '')) if groups else str(getattr(ev, 'text', ''))
+@sv_export.on_fullmatch('练度全量导出', block=True)
+async def export_cmd(bot, ev):
+    await _export(bot, ev)
+
+
+async def _export_text(bot, ev, text):
     try:
         options = parse(text)
     except ExportError as exc:
         if await access(ev):
             await bot.send(str(exc), at_sender=bool(getattr(ev, 'group_id', None)))
         return
-    await export_cmd(bot, ev, options)
+    await _export(bot, ev, options)
 
+
+@sv_export.on_command(('练度全量导出', '全量导出'), block=True)
+async def export_plain(bot, ev):
+    # A longer command wins over generic 练度 even with persisted SV priority=3.
+    await _export_text(bot, ev, '练度全量导出' + str(getattr(ev, 'text', '') or ''))
+
+
+@sv_export.on_regex(r'^(?=[0-9])' + PATTERN[1:], block=True)
+async def export_extended(bot, ev):
+    groups = getattr(ev, 'regex_dict', None)
+    text = ((groups.get('level') or '') + '练度全量导出' + (groups.get('tail') or '')) if groups else str(getattr(ev, 'text', ''))
+    await _export_text(bot, ev, text)
