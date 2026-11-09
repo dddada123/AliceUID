@@ -148,7 +148,7 @@ class CharacterQueryService:
             self._details[revision+(int(code),)] = (self.clock(), saved['detail'], saved['effects'])
 
     async def query(self, client, bind, name: str, static: StaticData, *, refresh: bool = False, ttl: int = 600,
-                    equipment_items=None, skill_icons=None, current_check=None, publish_lock=None, ownership_notice=None) -> dict:
+                    equipment_items=None, skill_icons=None, current_check=None, publish_lock=None, ownership_notice=None, attribute_prepare=None) -> dict:
         from .aliases import current_aliases
         code = resolve_character(name, static, aliases=current_aliases())
         account, revision = self._account(bind), self._revision(bind)
@@ -316,6 +316,9 @@ class CharacterQueryService:
                     self._details[key] = (self.clock(), detail, effects)
                 else:
                     _, detail, effects = detail_entry
+                attribute_snapshot = None
+                if refresh and attribute_prepare is not None:
+                    attribute_snapshot = await attribute_prepare(network_client, roster, detail)
                 if publish_lock is not None:
                     await network_stack.enter_async_context(publish_lock)
                 if current_check is not None and not await current_check():
@@ -341,6 +344,15 @@ class CharacterQueryService:
                     updated['complete'] = bool(not fast_target and saved.get('complete') and set(saved_details) == {str(c) for c in self.roster_codes(roster)})
                     if isinstance(updated.get('profile'), dict):
                         updated['profile'] = dict(updated['profile'], chars=roster)
+                    if attribute_snapshot is not None:
+                        profile = dict(updated.get('profile') or {})
+                        profile['outpost'] = attribute_snapshot['profile']['outpost']
+                        updated['profile'] = profile
+                        updated['outpost_checked_at'] = attribute_snapshot['outpost_checked_at']
+                        from ..nikke_resource.attributes import get_metadata
+                        from ..nikke_resource.service import get_resources
+                        resources = get_resources()
+                        updated['attributes'] = get_metadata(resources).compute(updated, resources.load_static())
                     store.write(identity, dict(updated, _area_id=int(bind.area_id)))
                     if refresh:
                         self._epochs[account] = self._epochs.get(account, 0) + 1

@@ -22,8 +22,8 @@ def build_workbook(data: ExportData) -> bytes:
     stream = BytesIO()
     book = xlsxwriter.Workbook(stream, {'in_memory': True, 'strings_to_formulas': False,
                                       'strings_to_urls': False, 'strings_to_numbers': False})
-    book.set_properties({'title': 'NIKKE练度表', 'subject': '本人本地练度缓存', 'author': 'AliceUID',
-                         'comments': '由 AliceUID 1.0.18 导出；不含登录凭据。', 'created': data.exported_at.replace(tzinfo=None)})
+    book.set_properties({'title': 'NIKKE练度表', 'subject': 'NIKKE练度数据', 'author': 'AliceUID',
+                         'comments': '由 AliceUID 1.1.29 导出；不含登录凭据。', 'created': data.exported_at.replace(tzinfo=None)})
     book.set_calc_mode('auto')
     overview = book.add_worksheet('练度总览')
     detail = book.add_worksheet('数据明细')
@@ -83,7 +83,8 @@ def build_workbook(data: ExportData) -> bytes:
         sheet.merge_range(r1,c1,r2,c2,'',cell_format)
         sheet.write_string(r1,c1,value,cell_format)
     identity = f'{data.commander["name"]}    {data.commander["region"]}    UID {data.commander["uid"]}    指挥官 Lv.{data.commander["level"] or "未知"}'
-    timing = f'缓存最近更新 {data.cache_time:%Y-%m-%d %H:%M}    导出 {data.exported_at:%Y-%m-%d %H:%M}    北京时间'
+    mode = f'模拟Lv.{data.metadata["target_level"]}（其余配置保持当前）' if data.metadata.get('target_level') is not None else '当前实际等级'
+    timing = mode + ' · ' + f'缓存最近更新 {data.cache_time:%Y-%m-%d %H:%M}    导出 {data.exported_at:%Y-%m-%d %H:%M}    北京时间'
     for sheet in (overview, detail):
         sheet.hide_gridlines(2)
         sheet.set_default_row(24)

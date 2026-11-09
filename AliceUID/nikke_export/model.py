@@ -1,7 +1,7 @@
 """Export the same normalized equipment values as character panels, without IO."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import math
@@ -37,6 +37,7 @@ class ExportData:
     exported_at: datetime
     cache_time: datetime
     filename: str
+    metadata: dict = field(default_factory=dict)
 
 
 def display(value):
@@ -101,7 +102,7 @@ def _aggregates(gear):
     return groups
 
 
-def prepare(snapshot, bind, static, *, region, now=None, equipment=None):
+def prepare(snapshot, bind, static, *, region, now=None, equipment=None, attributes=None, target_level=None):
     if not isinstance(snapshot, dict) or snapshot.get('complete') is not True:
         raise ExportError('没有完整的本地练度缓存，请先刷新面板。')
     roster, details, profile = snapshot.get('roster'), snapshot.get('details'), snapshot.get('profile')
@@ -137,6 +138,9 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None):
         ('code', '妮姬编号', 'integer'), ('name', '妮姬名称', 'text'), ('burst', '爆裂阶段', 'text'),
         ('role', '角色定位', 'text'), ('company', '企业', 'text'), ('rarity', '稀有度', 'text'),
         ('element', '属性代码', 'text'), ('weapon', '武器类型', 'text'),
+        ('actual_level', '实际等级', 'integer'), ('target_level', '计算等级', 'integer'),
+        ('attribute_status', '属性计算状态', 'text'), ('attribute_reason', '属性缺失原因', 'text'),
+        ('detail_checked_at', '角色资料核对时间', 'text'),
         ('level', '角色等级', 'integer'), ('combat', '战力', 'integer'), ('arena_combat', '竞技场战力', 'integer'),
         ('grade', '突破', 'integer'), ('core', '核心', 'integer'), ('bond', '好感等级', 'integer'),
         ('skill1', '技能一等级', 'integer'), ('skill2', '技能二等级', 'integer'), ('burst_skill', '爆裂技能等级', 'integer'),
@@ -166,6 +170,9 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None):
             raise ExportError('本地角色详情不匹配，请先刷新面板。')
         context = build_character_context(owned, entry['detail'], entry['effects'], static)
         aggregate = aggregate_options(context['gear'])
+        attr = (attributes or {}).get(str(code), {})
+        actual_level = context['level']
+        computed_level = target_level if target_level is not None else actual_level
         row = dict(code=code, name=clean_text(context['name']), burst=burst_label(context['burst']),
                    role=_LABELS.get(context['char_class'], context['char_class'] or UNKNOWN),
                    company=_LABELS.get(context['corporation'], context['corporation'] or UNKNOWN),
@@ -175,7 +182,14 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None):
                    skill1=context['skills'][0]['level'], skill2=context['skills'][1]['level'], burst_skill=context['skills'][2]['level'],
                    cube=str(context['cube']['tid']) if context['cube']['tid'] is not None else UNKNOWN, cube_lv=context['cube']['lv'],
                    favorite=str(context['favorite']['tid']) if context['favorite']['tid'] is not None else UNKNOWN,
-                   favorite_lv=context['favorite']['lv'], attack='未提供', defense='未提供', hp='未提供',
+                   favorite_lv=context['favorite']['lv'],
+                   attack=attr.get('attack') if attr.get('attack') is not None else '未提供',
+                   defense=attr.get('defense') if attr.get('defense') is not None else '未提供',
+                   hp=attr.get('hp') if attr.get('hp') is not None else '未提供',
+                   actual_level=actual_level, target_level=computed_level,
+                   attribute_status='完整' if attr.get('status') == 'complete' else '不可计算',
+                   attribute_reason=attr.get('reason') or ('属性依赖尚未准备，请刷新面板' if not attr else ''),
+                   detail_checked_at=datetime.fromtimestamp(entry['checked_at'], TZ).isoformat() if type(entry.get('checked_at')) in (int,float) and math.isfinite(entry['checked_at']) and 0 < entry['checked_at'] < 253402185600 else UNKNOWN,
                    tier_total=int(aggregate['level']) if aggregate['level'] != UNKNOWN else UNKNOWN,
                    unknown_lines=aggregate['unknown_lines'], max_lines=0, rare_lines=0)
         for item in context['gear']:
@@ -215,7 +229,9 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None):
         lines = [f'等级 {display(row["level"])}    突破 {display(row["grade"])}    核心 {display(row["core"])}',
                  f'技能 {display(row["skill1"])}/{display(row["skill2"])}/{display(row["burst_skill"])}    好感 {display(row["bond"])}',
                  equipment_text['cube'], equipment_text['favorite'],
-                 '最终攻 / 防 / 生命：缓存未提供',
+                 f'{"模拟" if target_level is not None else "当前"}Lv.{display(computed_level)} 攻 / 防 / 生命：'
+                 + ' / '.join(display(row[k]) for k in ('attack', 'defense', 'hp')),
+                 ('属性状态：' + row['attribute_reason']) if row['attribute_reason'] else '',
                  f'词条阶数合计 {row["tier_total"]}'+('（含未知）' if row['unknown_lines'] else ''),
                  f'15阶 {row["max_lines"]}条    12～14阶 {row["rare_lines"]}条',
                  '', '四件装备 · 同类词条汇总']
@@ -242,5 +258,8 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None):
     for key in ('_title', '_meta', '_power', '_summary', '_head', '_torso', '_arm', '_leg', '_match', '_rank', '_position'):
         columns.append(Column(key, key, hidden=True))
     name = '·'.join(file_part(commander[k]) for k in ('name', 'region', 'uid'))
-    filename = f'[AliceUID]{name}·NIKKE练度表_{now:%Y%m%d%H%M}.xlsx'
-    return ExportData(commander, rows, columns, now, cache_time, filename)
+    level_tag = f'·模拟Lv{target_level}' if target_level is not None else ''
+    filename = f'[AliceUID]{name}·NIKKE练度表{level_tag}_{now:%Y%m%d%H%M}.xlsx'
+    return ExportData(commander, rows, columns, now, cache_time, filename,
+                      dict(source=snapshot.get('source', 'owner_cache'), target_level=target_level,
+                           attributes=attributes or {}, outpost_checked_at=snapshot.get('outpost_checked_at', snapshot.get('profile_checked_at'))))

@@ -175,6 +175,7 @@ class _RefreshReads:
         self.first = True
         self.region = client.region
         self.roster_checked_at = 0
+        self.outpost_checked_at = 0
 
     def __getattr__(self, name):
         if not name.startswith('get_'):
@@ -189,6 +190,9 @@ class _RefreshReads:
                 if name == 'get_characters':
                     import time
                     self.roster_checked_at = time.time()
+                elif name == 'get_outpost_info':
+                    import time
+                    self.outpost_checked_at = time.time()
                 return result
         return request
 
@@ -199,7 +203,7 @@ def _stamp(value):
 
 
 async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=False,
-                        wait=False, policy=None, event=None):
+                        wait=False, policy=None, event=None, attribute_prepare=None):
     from ..nikke_profile import commands as profile
     from ..nikke_character.service import character_queries, CharacterDataError
     from ..nikke_roster.service import account_reads, get_roster_service
@@ -262,12 +266,22 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
             batch = codes[start:start+DETAIL_BATCH_SIZE]
             payload = await paced.get_character_details(batch)
             details.update(character_queries.detail_entries(payload, batch))
+        attribute_snapshot = dict(roster=data['chars'], details=details, profile=data,
+                                  profile_checked_at=profile_checked_at, outpost_checked_at=paced.outpost_checked_at)
+        if attribute_prepare is not None:
+            await attribute_prepare(attribute_snapshot)
         # Keep a card's query/render/send phase ahead of a background replacement.
         async with character_queries.background_publish(bind), binding_lock(actor, bot):
             await check_current()
             if character_queries._invalidations.get(account, 0) != invalidation:
                 raise CharacterDataError('绑定或缓存已变化，已丢弃旧更新结果。')
             saved = store.read(expected) if store is not None else {}
+            outpost_checked_at = paced.outpost_checked_at
+            saved_outpost = (saved.get('profile') or {}).get('outpost')
+            if (isinstance(saved_outpost, dict) and
+                    _stamp(saved.get('outpost_checked_at')) > outpost_checked_at):
+                data = dict(data, outpost=saved_outpost)
+                outpost_checked_at = saved['outpost_checked_at']
             rows = data['chars']
             latest_stamp, latest_rows = store.latest_roster(expected, saved) if store is not None else (0, [])
             if latest_stamp > roster_checked_at:
@@ -292,6 +306,12 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
             snapshot = dict(roster=rows, details=details, profile=dict(data, chars=rows),
                             profile_checked_at=profile_checked_at, roster_checked_at=roster_checked_at,
                             row_checked_at=row_checks, complete=complete, full_refresh_pending=not complete)
+            snapshot['outpost_checked_at'] = outpost_checked_at
+            if attribute_prepare is not None:
+                from ..nikke_resource.attributes import get_metadata
+                from ..nikke_resource.service import get_resources
+                resources = get_resources()
+                snapshot['attributes'] = get_metadata(resources).compute(snapshot, resources.load_static())
             character_queries.publish_snapshot(bind, snapshot)
             get_roster_service().invalidate_binding(bind, actor, bot, clear_image=False)
             profile._cache.pop(profile._cache_key(bind), None)
@@ -324,9 +344,10 @@ async def refresh_worker(bot, ev, policy, *, expected=None, automatic=False):
             return False
         if expected is not None and _revision(bind) != expected:
             return False
+        from ..nikke_resource.attributes import prepare_snapshot
         async with asyncio.timeout(300):
             data = await refresh_panel(client, bind, actor=ev.user_id, bot=ev.bot_id,
-                                       wait=automatic, policy=policy, event=ev)
+                                       wait=automatic, policy=policy, event=ev, attribute_prepare=prepare_snapshot)
         committed = True
         notify_bot, notify_ev, notify_policy = notification_target()
         if notify_bot is not None:

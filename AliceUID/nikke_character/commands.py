@@ -49,7 +49,7 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
                 f'或使用 {command_prefix()}刷新面板 同步社区数据。')
     try:
         name = _arguments(text)
-        if not refresh and name == '全量导出':
+        if not refresh and '全量导出' in name:
             return  # Reserved for the exact export command.
         if not refresh and name.endswith(('刷新', '更新')):
             await bot.send(f'单角色更新请使用 {command_prefix()}刷新爱丽丝面板（替换角色名）。', at_sender=True)
@@ -80,11 +80,12 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
         async def ownership_notice(role_name):
             if await current():
                 await bot.send(f'本地记录未持有「{role_name}」，正在单独查询该角色，请稍候。', at_sender=True)
+        from ..nikke_resource.attributes import prepare_character
         context = await character_queries.query(
             client, bind, name, resources.load_static(), refresh=refresh, ttl=_cache_ttl(),
             equipment_items=equipment_items, skill_icons=skill_icons,
             current_check=current, publish_lock=binding_lock(ev.user_id, ev.bot_id),
-            ownership_notice=ownership_notice,
+            ownership_notice=ownership_notice, attribute_prepare=prepare_character,
         )
         # Draw and resource preparation are owned by the integration layer.
         from .draw import draw_character

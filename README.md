@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.28-ff69b4?style=flat-square" alt="Version: 1.1.28"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.29-ff69b4?style=flat-square" alt="Version: 1.1.29"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.28**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.29**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [常见问题（QA）](#常见问题qa) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -26,7 +26,7 @@
 
 ## 亮点功能
 
-- **养成与导出**：个人名片、角色练度、皮肤图鉴与 Excel 全量导出，支持多条件筛选。
+- **养成与导出**：个人名片、角色练度、皮肤图鉴与 Excel / JSON 全量导出，包含攻防生命，支持公开链接与指定等级比较。
 - **联盟会战**：BOSS血量、出刀排行、成员阵容、缺刀和尾刀统计，以及带作者来源的阵容攻略。
 - **资源与提醒**：查看资源和保管箱，预估满仓时间，按需开启收菜提醒。
 - **兑换码**：汇总官方、GameWith和成员贡献，支持本人兑换、新码自动处理与跨来源去重。
@@ -39,7 +39,26 @@
 
 名片展示指挥官资料，角色面板展示技能、装备词条、魔方、收藏品与好感；图鉴展示本人持有的角色和皮肤。普通查询复用缓存，需要最新数据时主动刷新。
 
-`nk刷新信息` 更新名片，`nk刷新面板` 更新全部角色练度与皮肤，`nk刷新爱丽丝面板` 只更新指定角色。`nk练度全量导出` 导出Excel，支持爆裂阶段、定位、企业和属性筛选。角色面板可在后台选择宽窄、亮暗主题，或设置随机样式。
+`nk刷新信息` 更新名片，`nk刷新面板` 更新全部角色练度与皮肤，`nk刷新爱丽丝面板` 只更新指定角色。`nk练度全量导出` 导出实际等级Excel，`nk练度全量导出json`（或 `JSON`）导出实际等级JSON，包含攻击、防御和生命；Excel支持爆裂阶段、定位、企业和属性筛选。角色面板可在后台选择宽窄、亮暗主题，或设置随机样式。
+
+### 练度全量导出
+
+默认按当前实际等级导出，首次使用或需要最新资料时先执行 `nk刷新面板`；`nk刷新爱丽丝面板` 也会更新该角色属性及相关回收室数据。角色卡片不必显示攻防生命，文件仍包含这些数据。
+
+| 命令 | 内容 |
+| --- | --- |
+| `nk练度全量导出` | 实际等级，Excel |
+| `nk练度全量导出json` / `nk练度全量导出JSON` | 实际等级，JSON，便于AI分析 |
+| `nk400练度全量导出` | 400级模拟，Excel |
+| `nk1000全量导出` | 1000级模拟，Excel；支持省略“练度” |
+| `nk400练度全量导出json` | 400级模拟，JSON；同样支持大写JSON |
+| `nk练度全量导出 链接` | 指定公开用户，Excel |
+| `nk练度全量导出json 链接` | 指定公开用户，实际等级JSON |
+| `nk400练度全量导出json 链接` | 指定公开用户，400级模拟JSON |
+
+“链接”替换成 Blablalink 妮姬列表页完整URL，可紧接命令或加空格。链接导出需要发起者本人已登录对应国际版或港澳台版账号，且目标用户公开妮姬资料；目标区服由链接用户档案确定。目标未公开回收室时，仍可导出其他练度，攻防生命明确标注缺少依赖。
+
+等级模拟只改变角色等级，保留当前突破、核心、好感、技能、装备、魔方、收藏品和回收室；文件保留实际等级、计算等级，战力仍标注为当前服务器战力。400级面板便于单人突袭分析，不能直接当作实战伤害。等级必须有完整成长数据，不自动外推。缺失、隐藏的数据在Excel注明原因，JSON数值为null，不当作0。
 
 ### 联盟会战与攻略
 
@@ -140,7 +159,7 @@ python -m pip install -r plugins/AliceUID/requirements.txt
 | `nk兑换码` / `nk查询兑换码` | 兑换本人当前码，或只读查询清单与详情 |
 | `nk自动兑换码` / `nk关闭自动兑换码` | 个人自动兑换开关 |
 | `nk绑定UID` / `nk我的UID` / `nk解绑UID` | 登记或清理分享标识 |
-| `nk练度全量导出` | 导出本人练度Excel |
+| `nk练度全量导出` / `nk练度全量导出json` | 导出本人实际等级Excel / JSON；可组合等级和公开链接 |
 | `nk会战阵容` / `nk会战攻略` | 当前或最近一期对应攻略 |
 
 ## 转发设置
