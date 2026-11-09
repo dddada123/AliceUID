@@ -1,3 +1,15 @@
+# 1.1.31 · 2026-11-10
+
+## 链接目标与本人识别
+
+2026-11-10只读核对官网index-DT5Js4NW.js：COMMON_QUERY_KEYS.EncodedUid=uid，OpenId=openid；shiftys_user的目标选择为uid || openid，路由同时允许原始game-communityID并转换为Base64。开发参考源码与SHA256留在.references及handoff，不把真实用户链接写入代码或安装包。
+
+nikke_export.options接受uid、openid的任意单值组合，优先非空uid，再用openid。与官网一样不要求双参数相同；被选目标仍严格校验29080/29157及9至30位数字，保持字符串，不使用浮点数。允许原文、标准Base64及省略填充，兼容百分号编码、Markdown和HTML转义分隔符；同名参数重复、额外参数、外站/异常路径仍拒绝。
+
+无用户标识或两标识均空的nikke-list页面归一为share=None，沿用本人缓存和首次升级流程。明确目标则沿用独立公开读取、目标区服与发送前公开状态复查；绝不把openid后备值或发起者账号替代非空uid目标。全部文件格式、等级组合和自定义原生前缀共用解析规则。
+
+以下保留开发历史。
+
 # 1.1.30 · 2026-11-10
 
 ## 刷新、角色卡与导出缓存兼容

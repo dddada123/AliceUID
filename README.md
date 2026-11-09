@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.30-ff69b4?style=flat-square" alt="Version: 1.1.30"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.31-ff69b4?style=flat-square" alt="Version: 1.1.31"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.30**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.31**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [常见问题（QA）](#常见问题qa) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -56,7 +56,7 @@
 | `nk练度全量导出json 链接` | 指定公开用户，实际等级JSON |
 | `nk400练度全量导出json 链接` | 指定公开用户，400级模拟JSON |
 
-“链接”替换成 Blablalink 妮姬列表页完整URL，可紧接命令或加空格。链接导出需要发起者本人已登录对应国际版或港澳台版账号，且目标用户公开妮姬资料；目标区服由链接用户档案确定。目标未公开回收室时，仍可导出其他练度，攻防生命明确标注缺少依赖。
+“链接”替换成 Blablalink 妮姬列表页完整URL，可紧接命令或加空格。支持仅openid、仅uid、uid与openid并存的本人或他人链接；两者不同时按官网规则优先使用uid。不带用户标识的练度页链接按本人当前绑定账号处理。链接导出需要发起者本人已登录对应国际版或港澳台版账号，且目标用户公开妮姬资料；目标区服由链接用户档案确定。目标未公开回收室时，仍可导出其他练度，攻防生命明确标注缺少依赖。
 
 等级模拟只改变角色等级，保留当前突破、核心、好感、技能、装备、魔方、收藏品和回收室；文件保留实际等级、计算等级，战力仍标注为当前服务器战力。400级面板便于单人突袭分析，不能直接当作实战伤害。等级必须有完整成长数据，不自动外推。缺失、隐藏的数据在Excel注明原因，JSON数值为null，不当作0。
 
