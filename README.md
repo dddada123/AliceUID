@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.35-ff69b4?style=flat-square" alt="Version: 1.1.35"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.36-ff69b4?style=flat-square" alt="Version: 1.1.36"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.35**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.36**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [常见问题（QA）](#常见问题qa) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -55,7 +55,7 @@
 | `nk1000全量导出JSON` | 本人原始与1000级模拟对照，JSON |
 | `nk400练度全量导出json 链接` | 指定公开用户，原始与400级模拟对照 |
 
-“链接”替换成 Blablalink 主页（`/shiftyspad`）或妮姬列表页完整URL，可紧接命令或加空格。支持仅openid、仅uid、uid与openid并存的本人或他人链接；两者不同时按官网规则优先使用uid。不带用户标识的练度页链接按本人当前绑定账号处理。链接导出需要发起者本人已登录对应国际版或港澳台版账号，且目标用户公开妮姬资料；目标无需绑定Bot或预先刷新插件缓存；目标区服由链接用户档案确定。目标档案缺少展示UID，但区服和资料归属明确时仍可导出，UID标为“未提供”。目标未公开回收室时，仍可导出其他练度，攻防生命明确标注缺少依赖。
+“链接”替换成 Blablalink 主页（`/shiftyspad`）或妮姬列表页完整URL，可紧接命令或加空格。支持仅openid、仅uid、uid与openid并存的本人或他人链接；两者不同时按官网规则优先使用uid。不带用户标识的练度页链接按本人当前绑定账号处理。链接导出需要发起者本人已登录对应国际版或港澳台版账号，且目标用户公开妮姬资料；链接导出开始拉取前会提示等待；权限受限时会说明可获取内容及缺失影响。盟友／好友可见资料按查询者实际访问权限读取，回收室不可访问时攻防生命标注缺失。目标无需绑定Bot或预先刷新插件缓存；目标区服由链接用户档案确定。目标档案缺少展示UID，但区服和资料归属明确时仍可导出，UID标为“未提供”。目标未公开回收室时，仍可导出其他练度，攻防生命明确标注缺少依赖。
 
 导出战力为角色原始服务器战力，攻防生命按实际等级计算。Excel总览上方可切换“编号升序 / 原始战力降序”，与四项筛选共同生效；明细可通过列头独立排序。新增基础暴击率、暴击伤害倍率及武器基础参数，这些基础值不代表叠加技能、装备词条后的实战属性。未知、隐藏数据注明原因，JSON数值为null，不当作0。
 

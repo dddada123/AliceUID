@@ -134,8 +134,13 @@ async def _export(bot, ev, options=None):
                     raise ExportError(unavailable_message(authenticated_bind))
                 if panel_identity(authenticated_bind) != panel_identity(bind) or not await current_owner():
                     raise ExportError('绑定或权限已变化，已停止导出。')
+                await bot.send('正在获取全部角色的完整练度信息，数据量较大，可能需要较长时间，请耐心等待。', at_sender=at_sender)
+                async def notice(message):
+                    if not await current_owner():
+                        raise ExportError('绑定或权限已变化，已停止导出。')
+                    await bot.send(message, at_sender=at_sender)
                 async with asyncio.timeout(300):
-                    snapshot, target_bind, public_recheck = await fetch_public(client, bind, options.share, current_owner)
+                    snapshot, target_bind, public_recheck = await fetch_public(client, bind, options.share, current_owner, notice=notice)
                     from ..nikke_resource.attributes import prepare_snapshot
                     await prepare_snapshot(snapshot)
             else:

@@ -207,6 +207,8 @@ class AttributeMetadata:
                 continue
             bundle = self.bundle(int(code), entry['detail'], static)
             attr = calculate(owned[code], entry['detail'], outpost, bundle, level=level)
+            if attr.get('status') != 'complete' and attr.get('reason', '').startswith('回收室'):
+                attr['reason'] = snapshot.get('outpost_unavailable_reason') or attr['reason']
             attr['combat_calculation'] = calculate_combat(attr, entry['detail'], entry.get('effects'), bundle)
             attr['original'] = original_attributes(owned[code], bundle)
             attr['public_attribute_schema'] = PUBLIC_ATTRIBUTE_SCHEMA
