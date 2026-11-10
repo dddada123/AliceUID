@@ -176,9 +176,11 @@ class ResourceService:
 
     async def prepare_profile(self, context: dict) -> dict:
         from .card_meta import prepare_card_icons, prepare_badges
+        from ..nikke_profile.presentation import profile_lead_index
         result = dict(context)
         result.update(await prepare_badges(self.images))
         team = [dict(row) for row in context.get('top_nikke', [])[:5]]
+        lead_index = profile_lead_index(team)
         for index, row in enumerate(team):
             resource_id = row.get('resource_id', 0)
             skin = self._selected_skin(row)
@@ -191,7 +193,7 @@ class ResourceService:
             row['icon_badge'] = ('缺图' if image.missing else '基础' if image.fallback
                                  or not row.get('skin_mapped', True) else '')
             row.update(await prepare_card_icons(row, self.images))
-            if index == 0:
+            if index == lead_index:
                 art = await self.images.resolved_source('portraits', resource_id, skin)
                 row.update(portrait_url=art.source, portrait_skin_index=art.skin_index,
                            portrait_fallback=art.fallback, portrait_missing=art.missing,
@@ -206,10 +208,10 @@ class ResourceService:
                           avatar_hint='指挥官游戏头像')
         elif team and not team[0].get('resource_missing'):
             result.update(avatar_url=team[0]['icon_url'], avatar_source='lead',
-                          avatar_hint='展示立绘角色头像')
+                          avatar_hint='展示队伍首位角色头像')
         else:
             result.update(avatar_url=PLACEHOLDER, avatar_source='placeholder', avatar_hint='头像暂不可用')
-        result['render_version'] = 'alice-profile-v1108-shared-avatar'
+        result['render_version'] = 'alice-profile-v1133-slot-three'
         return result
 
     async def prepare_character(self, context: dict, *, framing=False) -> dict:

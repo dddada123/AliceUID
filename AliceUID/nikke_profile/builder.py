@@ -8,6 +8,7 @@ from ..nikke_api.parser import StaticData, parse_profile, parse_roster
 from ..nikke_api.resource import character_icon_url
 from ..nikke_resource.skins import resolve_skin
 from ..nikke_resource.card_meta import card_metadata, integer
+from .presentation import profile_slot
 
 TZ = timezone(timedelta(hours=8))
 ELEMENT_CN = {'Fire': '火', 'Water': '水', 'Wind': '风', 'Electric': '电', 'Electronic': '电', 'Iron': '铁', 'Light': '光', 'Dark': '暗'}
@@ -45,10 +46,10 @@ def build_profile_context(basic: dict, outpost: dict, chars: Iterable[dict], sta
     by_code = {row['name_code']: row for row in roster}
     rows = []
     seen = set()
-    for item in profile.get('profile_team') or []:
+    for item in sorted(profile.get('profile_team') or [], key=lambda row: profile_slot(row) or 6):
         code = item['name_code']
         if code in by_code and code not in seen:
-            rows.append(by_code[code])
+            rows.append(dict(by_code[code], slot=profile_slot(item)))
             seen.add(code)
         if len(rows) >= 5:
             break
@@ -60,6 +61,7 @@ def build_profile_context(basic: dict, outpost: dict, chars: Iterable[dict], sta
     team = [{
         'name': row['name'],
         'name_code': row['name_code'],
+        'slot': profile_slot(row),
         'icon_url': character_icon_url(row['resource_id'], selections[row['name_code']].skin_index) if row['resource_id'] else '',
         'resource_id': row['resource_id'],
         'costume_id': selections[row['name_code']].costume_id,

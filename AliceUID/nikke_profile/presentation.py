@@ -2,12 +2,31 @@
 from pathlib import Path
 import asyncio
 
+def profile_slot(row):
+    """Accept only reported positions 1..5; zero is an empty placeholder."""
+    value = row.get('slot')
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str) and value.isascii() and value.isdecimal():
+        value = int(value)
+    return value if isinstance(value, int) and 1 <= value <= 5 else None
+
+
+def profile_lead_index(team):
+    """Prefer slot 3; unpositioned combat fallback retains the third member."""
+    slots = [profile_slot(row) for row in team]
+    if 3 in slots:
+        return slots.index(3)
+    if any(slot is not None for slot in slots):
+        return 0
+    return 2 if len(team) >= 3 else 0
+
 async def prepare_profile_art(context, resources):
     result = dict(context)
     team = result.get('top_nikke') or []
     if not team:
         return result
-    lead = team[0]
+    lead = team[profile_lead_index(team)]
     rid = lead.get('resource_id')
     skin = resources._selected_skin(lead) if callable(getattr(resources, '_selected_skin', None)) else 0
     if not rid:

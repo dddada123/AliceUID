@@ -5,6 +5,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from ..nikke_render.theme import apply_theme
+from .presentation import profile_lead_index
 
 
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -33,9 +34,10 @@ def render_profile_html(context: dict) -> str:
         result[key]=rows
     result.setdefault('corp_towers',[])
     team=[dict(row) for row in (result.get('top_nikke') or [])[:5]]
-    lead=dict(team[0]) if team else dict(name='暂无展示角色',level='—',combat_text='—',rarity='—',role_icons=[],star_states=[],core_display='')
+    lead_index=profile_lead_index(team)
+    lead=dict(team[lead_index]) if team else dict(name='暂无展示角色',level='—',combat_text='—',rarity='—',role_icons=[],star_states=[],core_display='')
     lead['role_icons']=[dict(icon,icon_shadow_url=icon_effect(icon.get('icon_url'),result['card_theme'])) for icon in lead.get('role_icons') or []]
-    result.update(top_nikke=team,lead=lead)
+    result.update(top_nikke=team,lead=lead,squad_nikke=[row for index,row in enumerate(team) if index!=lead_index])
     result['avatar_url']=result.get('avatar_url') or PLACEHOLDER
     source=result.get('hero_art_url') or (lead.get('portrait_url') if not lead.get('portrait_missing',True) else lead.get('icon_url'))
     result['hero_art_url']=source
