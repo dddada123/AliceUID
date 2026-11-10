@@ -147,6 +147,10 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None, attribu
         ('cube', '魔方ID', 'text'), ('cube_lv', '魔方原始等级', 'integer'),
         ('favorite', '收藏品ID', 'text'), ('favorite_lv', '收藏品原始等级', 'integer'),
         ('attack', '最终攻击力', 'integer'), ('defense', '最终防御力', 'integer'), ('hp', '最终生命值', 'integer'),
+        ('critical_rate', '基础暴击率', 'percent'), ('critical_damage', '基础暴击伤害倍率', 'percent'),
+        ('max_ammo', '基础弹匣容量', 'integer'), ('reload_time', '基础换弹时间（原始值）', 'integer'),
+        ('charge_time', '基础蓄力时间（原始值）', 'integer'), ('full_charge_damage', '满蓄力伤害倍率', 'percent'),
+        ('core_damage_rate', '核心伤害倍率', 'percent'),
         ('tier_total', '已知词条阶数合计', 'integer'), ('unknown_lines', '未知阶数词条数', 'integer'),
         ('max_lines', '15阶词条数', 'integer'), ('rare_lines', '12至14阶词条数', 'integer'),
     )]
@@ -171,6 +175,8 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None, attribu
         context = build_character_context(owned, entry['detail'], entry['effects'], static)
         aggregate = aggregate_options(context['gear'])
         attr = (attributes or {}).get(str(code), {})
+        original = attr.get('original') or {}
+        weapon_stats = original.get('shot_detail') if isinstance(original.get('shot_detail'), dict) else {}
         actual_level = context['level']
         computed_level = target_level if target_level is not None else actual_level
         row = dict(code=code, name=clean_text(context['name']), burst=burst_label(context['burst']),
@@ -192,6 +198,13 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None, attribu
                    detail_checked_at=datetime.fromtimestamp(entry['checked_at'], TZ).isoformat() if type(entry.get('checked_at')) in (int,float) and math.isfinite(entry['checked_at']) and 0 < entry['checked_at'] < 253402185600 else UNKNOWN,
                    tier_total=int(aggregate['level']) if aggregate['level'] != UNKNOWN else UNKNOWN,
                    unknown_lines=aggregate['unknown_lines'], max_lines=0, rare_lines=0)
+        for key, raw in (('critical_rate', original.get('critical_ratio')),
+                         ('critical_damage', original.get('critical_damage')),
+                         ('full_charge_damage', weapon_stats.get('full_charge_damage')),
+                         ('core_damage_rate', weapon_stats.get('core_damage_rate'))):
+            row[key] = raw / 10000 if type(raw) in (int, float) and math.isfinite(raw) and raw >= 0 else UNKNOWN
+        for key in ('max_ammo', 'reload_time', 'charge_time'):
+            row[key] = integer(weapon_stats.get(key)) if integer(weapon_stats.get(key)) is not None else UNKNOWN
         for item in context['gear']:
             slot = item['slot']
             row.update({slot+'_tier': item['tier'], slot+'_lv': item['lv'], slot+'_id': str(item['tid']) if item['tid'] is not None else UNKNOWN})
@@ -225,12 +238,13 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None, attribu
         group_definitions.update({key: value['name'] for key, value in groups.items()})
         row['_title'] = f'{code}  {row["name"]}'
         row['_meta'] = f'{row["rarity"]}  爆裂{row["burst"]}  {row["role"]}  {row["company"]}  {row["element"]}'
-        row['_power'] = '战力  '+ (f'{row["combat"]:,}' if isinstance(row['combat'], int) else UNKNOWN)
+        row['_power'] = '原始战力  '+ (f'{row["combat"]:,}' if isinstance(row['combat'], int) else UNKNOWN)
         lines = [f'等级 {display(row["level"])}    突破 {display(row["grade"])}    核心 {display(row["core"])}',
                  f'技能 {display(row["skill1"])}/{display(row["skill2"])}/{display(row["burst_skill"])}    好感 {display(row["bond"])}',
                  equipment_text['cube'], equipment_text['favorite'],
                  f'{"模拟" if target_level is not None else "当前"}Lv.{display(computed_level)} 攻 / 防 / 生命：'
                  + ' / '.join(display(row[k]) for k in ('attack', 'defense', 'hp')),
+                 '基础暴击率 / 暴击伤害倍率：' + ' / '.join(f'{row[k]:.2%}' if isinstance(row[k], (int,float)) else UNKNOWN for k in ('critical_rate', 'critical_damage')),
                  ('属性状态：' + row['attribute_reason']) if row['attribute_reason'] else '',
                  f'词条阶数合计 {row["tier_total"]}'+('（含未知）' if row['unknown_lines'] else ''),
                  f'15阶 {row["max_lines"]}条    12～14阶 {row["rare_lines"]}条',
@@ -255,11 +269,19 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None, attribu
             else:
                 row[colkey] = float(item['total'] / 10000 if unit == 'Percent' else item['total'])
                 row[colkey+'_state'] = '完整'
-    for key in ('_title', '_meta', '_power', '_summary', '_head', '_torso', '_arm', '_leg', '_match', '_rank', '_position'):
+    for index, row in enumerate(rows, 1):
+        row['_order_code'] = index
+    power_order = sorted(rows, key=lambda r: (not isinstance(r['combat'], int),
+                         -r['combat'] if isinstance(r['combat'], int) else 0, r['code']))
+    for index, row in enumerate(power_order, 1):
+        row['_order_power'] = index
+    for key in ('_title', '_meta', '_power', '_summary', '_head', '_torso', '_arm', '_leg', '_match', '_rank', '_position', '_order_code', '_order_power'):
         columns.append(Column(key, key, hidden=True))
     name = '·'.join(file_part(commander[k]) for k in ('name', 'region', 'uid'))
     level_tag = f'·模拟Lv{target_level}' if target_level is not None else ''
     filename = f'[AliceUID]{name}·NIKKE练度表{level_tag}_{now:%Y%m%d%H%M}.xlsx'
     return ExportData(commander, rows, columns, now, cache_time, filename,
                       dict(source=snapshot.get('source', 'owner_cache'), target_level=target_level,
-                           attributes=attributes or {}, outpost_checked_at=snapshot.get('outpost_checked_at', snapshot.get('profile_checked_at'))))
+                           attributes=attributes or {},
+                           raw_characters={str(row['name_code']): dict(roster=row, **details[str(row['name_code'])]) for row in roster},
+                           outpost_checked_at=snapshot.get('outpost_checked_at', snapshot.get('profile_checked_at'))))

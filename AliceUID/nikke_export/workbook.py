@@ -129,8 +129,10 @@ def build_workbook(data: ExportData) -> bytes:
                      f'OR(练度总览!$H$5="全部",{element}=练度总览!$H$5))')
         detail.write_formula(r,columns['_match'],f'=IF({condition},1,0)',None,1)
         current_match = f'INDEX(${matchcol}${DATA_FIRST+1}:${matchcol}${last},ROW()-{DATA_FIRST})'
-        detail.write_formula(r,columns['_position'],'=ROW()',None,er)
-        detail.write_formula(r,columns['_rank'],f'=IF({current_match}=1,COUNTIFS(${positioncol}${DATA_FIRST+1}:${positioncol}${last},"<="&ROW(),${matchcol}${DATA_FIRST+1}:${matchcol}${last},1),0)',None,i+1)
+        order = f'IF(练度总览!$C$4="原始战力降序",INDEX({source("_order_power")},ROW()-{DATA_FIRST}),INDEX({source("_order_code")},ROW()-{DATA_FIRST}))'
+        detail.write_formula(r,columns['_position'],'='+order,None,i+1)
+        current_order = f'INDEX(${positioncol}${DATA_FIRST+1}:${positioncol}${last},ROW()-{DATA_FIRST})'
+        detail.write_formula(r,columns['_rank'],f'=IF({current_match}=1,COUNTIFS(${positioncol}${DATA_FIRST+1}:${positioncol}${last},"<="&{current_order},${matchcol}${DATA_FIRST+1}:${matchcol}${last},1),0)',None,i+1)
         for slot in ('head','torso','arm','leg'):
             for num in (1,2,3):
                 key=f'{slot}_{num}'
@@ -166,7 +168,10 @@ def build_workbook(data: ExportData) -> bytes:
     overview.merge_range('I3:K3',f'已导出 {n} 名',formats['subtitle'])
     overview.merge_range('I4:K4','',formats['label'])
     overview.write_formula('I4',f'="符合条件 "&COUNTIF({source("_match")},1)&" 名"',formats['label'],f'符合条件 {n} 名')
-    overview.merge_range('A4:F4','12～14阶：蓝色数字    15阶：黑底亮蓝',formats['subtitle'])
+    overview.merge_range('A4:B4','排序方式',formats['label'])
+    overview.merge_range('C4:E4','编号升序',formats['input'])
+    overview.data_validation('C4',{'validate':'list','source':['编号升序','原始战力降序'],'error_type':'stop'})
+    overview.merge_range('A5:F5','12～14阶：蓝色数字    15阶：黑底亮蓝',formats['subtitle'])
     overview.merge_range('I5:K5','',formats['subtitle'])
     overview.write_formula('I5',f'=IF(COUNTIF({source("_match")},1)=0,"没有符合条件的妮姬","")',formats['subtitle'],'')
     for i in range(n):

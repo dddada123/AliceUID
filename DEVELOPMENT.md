@@ -1,3 +1,17 @@
+# 1.1.34 · 2026-11-10
+
+原始练度与兼容缓存优先。匿名GET核验206份完整roledata，全部包含critical_ratio与critical_damage；原始1500/15000分别归一为15%基础暴击率及150%基础暴击伤害倍率，raw中保留原值。角色JSON不再按ROLE_KEYS投影丢弃字段，旧本地精简角色缓存不能遮蔽随包完整数据。旧字段缺失不影响卡片读取，公开扩展缺失不伪造0。
+
+PanelCache仍为schema=1，导出data_revision=3、attribute_schema=2；按刷新流程原子发布，保留旧角色/资料/词条结构。attributes.original保存当前等级基础值、武器/技能/突破属性与已获取装备元数据；完整成长与角色资料按resource_id保留公共缓存。完整刷新与单角色刷新均复用compute，回收室和详情并发更新沿用时间戳仲裁。
+
+SIMULATION_EXPORT_ENABLED=False统一控制命令和渲染入口。语法、路由、本地等级公式均保留。公开选项表只有词条ID映射，function_battlepower由官网账号详情state_effects提供；此次不查询私人账号，不能断言完整输入已验证，因此所有指定等级导出暂时关闭。
+
+Excel新增基础属性数值列，原始战力题头明确标注。C4排序选择与四项筛选联动，静态唯一编号/战力次序加COUNTIFS/INDEX/MATCH重排，卡片整块取同一索引。相同战力按编号升序，真实0先于未知。源表可自行按列排序。
+
+JSON v2保留已有characters键，新增raw_character_data、共享state_effects/equipment_metadata和0基引用；同ID不同内容的词条不合并。原始数据按角色详情范围导出并递归去除凭据，不包含完整账号资料。metadata不再重复攻防生命、等级、全局公式字段，保留逐角色依赖版本、状态和核对时间。未压缩已有字段名，以兼容现有消费者；原始属性增多后不承诺比内容较少的旧版文件更小。
+
+以下保留开发历史。
+
 # 1.1.33 · 2026-11-10
 
 ## 个人名片按槽位选择

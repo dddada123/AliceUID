@@ -17,7 +17,7 @@ from ..nikke_user.models import AliceBind
 from ..nikke_user.service import binding_lock
 from .model import ExportError, prepare
 from .workbook import build_workbook
-from .options import ExportOptions, PATTERN, parse
+from .options import ExportOptions, PATTERN, parse, require_available
 from ..nikke_api.client import NikkeApiError
 
 sv_export = SV('妮姬练度全量导出', pm=6, priority=2)
@@ -55,6 +55,7 @@ async def access(ev):
 
 def _render(snapshot, bind, options=None):
     options = options or ExportOptions()
+    require_available(options)
     from ..nikke_api.client import REGIONS, HMT_REGION
     from ..nikke_resource.service import get_resources
     region = HMT_REGION if bind.area_id == HMT_REGION.area_id else REGIONS.get(bind.area_id)
@@ -98,6 +99,11 @@ async def _export(bot, ev, options=None):
     at_sender = bool(getattr(ev, 'group_id', None))
     if not await access(ev):
         await bot.send('当前用户或群未开放妮姬练度导出，请联系管理员。', at_sender=at_sender)
+        return
+    try:
+        require_available(options)
+    except ExportError as exc:
+        await bot.send(str(exc).replace('nk', command_prefix()), at_sender=at_sender)
         return
     owner = (str(ev.user_id), str(ev.bot_id))
     if owner in _active:

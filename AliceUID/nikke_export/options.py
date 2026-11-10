@@ -7,6 +7,14 @@ from .model import ExportError
 
 PATTERN = r'^(?P<level>[0-9]{1,8})?\s*(?:练度)?全量导出(?P<tail>.*)$'
 
+# Preserve the parser and local simulator for a later verified release.
+SIMULATION_EXPORT_ENABLED = False
+
+
+def require_available(options):
+    if options.level is not None and not SIMULATION_EXPORT_ENABLED:
+        raise ExportError('指定等级模拟导出暂未开放：战力计算所需系数尚未全部核验。请使用 nk练度全量导出 或 nk练度全量导出json 导出原始练度。')
+
 @dataclass(frozen=True)
 class ExportOptions:
     level: int | None = None

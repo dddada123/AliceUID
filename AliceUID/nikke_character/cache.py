@@ -80,7 +80,7 @@ class PanelCache:
             str(code): time_metadata(entry.get('checked_at'), area)
             for code, entry in body.get('details', {}).items() if isinstance(entry, dict)
         }
-        encoded=json.dumps(body,ensure_ascii=False,allow_nan=False).encode()
+        encoded=json.dumps(body,ensure_ascii=False,allow_nan=False,separators=(',',':')).encode()
         if len(encoded)>16*1024*1024:
             raise ValueError('panel snapshot exceeds size budget')
         atomic_write(self.path(key,'snapshot.json'),encoded)
