@@ -2,8 +2,8 @@
 from ..nikke_character.attributes import FORMULA_VERSION
 import math
 
-DATA_REVISION = 3
-ATTRIBUTE_SCHEMA = 2
+DATA_REVISION = 4
+ATTRIBUTE_SCHEMA = 3
 
 def mark_current(snapshot):
     snapshot.update(data_revision=DATA_REVISION, attribute_schema=ATTRIBUTE_SCHEMA,

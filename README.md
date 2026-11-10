@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.34-ff69b4?style=flat-square" alt="Version: 1.1.34"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.1.35-ff69b4?style=flat-square" alt="Version: 1.1.35"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.1.34**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.1.35**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [常见问题（QA）](#常见问题qa) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -26,7 +26,7 @@
 
 ## 亮点功能
 
-- **养成与导出**：个人名片、角色练度、皮肤图鉴与 Excel / JSON 全量导出，包含攻防生命和基础属性，支持公开链接与原始战力排序。
+- **养成与导出**：个人名片、角色练度、皮肤图鉴与 Excel / JSON 全量导出，包含原始与模拟战力、攻防生命和基础属性，支持公开链接与原始战力排序。
 - **联盟会战**：BOSS血量、出刀排行、成员阵容、缺刀和尾刀统计，以及带作者来源的阵容攻略。
 - **资源与提醒**：查看资源和保管箱，预估满仓时间，按需开启收菜提醒。
 - **兑换码**：汇总官方、GameWith和成员贡献，支持本人兑换、新码自动处理与跨来源去重。
@@ -51,16 +51,21 @@
 | `nk练度全量导出json` / `nk练度全量导出JSON` | 实际等级，JSON，便于AI分析 |
 | `nk练度全量导出 链接` | 指定公开用户，Excel |
 | `nk练度全量导出json 链接` | 指定公开用户，实际等级JSON |
+| `nk400练度全量导出` | 本人原始与400级模拟对照，Excel |
+| `nk1000全量导出JSON` | 本人原始与1000级模拟对照，JSON |
+| `nk400练度全量导出json 链接` | 指定公开用户，原始与400级模拟对照 |
 
-“链接”替换成 Blablalink 妮姬列表页完整URL，可紧接命令或加空格。支持仅openid、仅uid、uid与openid并存的本人或他人链接；两者不同时按官网规则优先使用uid。不带用户标识的练度页链接按本人当前绑定账号处理。链接导出需要发起者本人已登录对应国际版或港澳台版账号，且目标用户公开妮姬资料；目标区服由链接用户档案确定。目标未公开回收室时，仍可导出其他练度，攻防生命明确标注缺少依赖。
+“链接”替换成 Blablalink 主页（`/shiftyspad`）或妮姬列表页完整URL，可紧接命令或加空格。支持仅openid、仅uid、uid与openid并存的本人或他人链接；两者不同时按官网规则优先使用uid。不带用户标识的练度页链接按本人当前绑定账号处理。链接导出需要发起者本人已登录对应国际版或港澳台版账号，且目标用户公开妮姬资料；目标无需绑定Bot或预先刷新插件缓存；目标区服由链接用户档案确定。目标档案缺少展示UID，但区服和资料归属明确时仍可导出，UID标为“未提供”。目标未公开回收室时，仍可导出其他练度，攻防生命明确标注缺少依赖。
 
 导出战力为角色原始服务器战力，攻防生命按实际等级计算。Excel总览上方可切换“编号升序 / 原始战力降序”，与四项筛选共同生效；明细可通过列头独立排序。新增基础暴击率、暴击伤害倍率及武器基础参数，这些基础值不代表叠加技能、装备词条后的实战属性。未知、隐藏数据注明原因，JSON数值为null，不当作0。
 
 `nk刷新面板` 会更新角色原始详情、词条和可获取的基础属性，并保留完整公开角色资料；旧卡片继续兼容旧缓存，无需删除数据。基础属性可用而攻防生命缺少回收室依赖时，仍保留已知基础值。
 
-指定等级导出（包括400级、1000级、JSON和公开链接组合）暂时停用。暴击参数已完成公开拉取，但超载战力系数等完整输入尚未核验；模拟计算源码保留，暂不导出混合原始战力与模拟属性的文件。
+指定等级导出已开放，可将400替换为成长资料覆盖的其他等级，支持Excel、json/JSON与公开链接组合。文件同时保留实际等级、原始服务器战力和原始攻防生命，并单列模拟等级、模拟战力及模拟攻防生命；只改变等级，其余配置保持当前。当前随包成长资料覆盖至1400级，不外推或截断；个别资料缺失时注明原因，所有角色都没有目标等级资料时停止模拟导出。模拟为面板估算，已核验样本最大相差3点，验收容差10点；不代表实战伤害。
 
-JSON采用schema_version=2，保留原有characters字段名称（attack、defense、hp等）及字段字典。raw_character_data补充原始角色详情和当前等级公开属性；state_effects和equipment_metadata为共享数组，effect_refs、cube_ref、favorite_ref使用0基索引引用。重复词条和装备资料只保存一次，属性元数据不重复保存同一组数值。完整多等级成长资料保留在本地公开资料缓存，不逐角色重复塞进练度文件。
+JSON采用schema_version=3，保留原有characters字段名称（attack、defense、hp等）及字段字典。raw_character_data补充原始角色详情和当前等级公开属性；state_effects和equipment_metadata为共享数组，effect_refs、cube_ref、favorite_ref使用0基索引引用。重复词条和装备资料只保存一次，属性元数据不重复保存同一组数值。完整多等级成长资料保留在本地公开资料缓存，不逐角色重复塞进练度文件。现有combat、attack、defense、hp始终表示原始练度；指定等级结果在独立simulation对象中，包含level、combat、attack、defense、hp、status和reason，simulation_complete表示模拟是否完整。
+
+新角色实装后，先执行 `nk刷新面板` 更新本人持有列表；新角色公开基础与成长资料按需获取，无需逐角色升级插件。资料尚未公开或暂时下载失败时保留已知原始练度、标明计算缺失，冷却后再次导出可补齐缺少的公开依赖。普通导出继续复用缓存；已取得更新持有列表时会识别新增角色并补齐。
 
 ### 联盟会战与攻略
 

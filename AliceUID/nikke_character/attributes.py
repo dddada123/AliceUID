@@ -9,7 +9,7 @@ import hashlib
 import json
 from ..nikke_api.parser import static_weapon_type
 
-FORMULA_VERSION = 'blablalink-slider-20261109-v1'
+FORMULA_VERSION = 'blablalink-slider-combat-20261110-v2'
 KEYS = {'attack': ('attack', 'atk', 'Atk'), 'defense': ('defence', 'def', 'Defence'), 'hp': ('hp', 'hp', 'Hp')}
 RESEARCH = {'Attacker': 1101, 'Defender': 1102, 'Supporter': 1103,
             'ELYSION': 1201, 'MISSILIS': 1202, 'TETRA': 1203, 'PILGRIM': 1204, 'ABNORMAL': 1205}
@@ -35,6 +35,73 @@ def js_round(n):
 def fingerprint(data):
     return hashlib.sha256(json.dumps(data, ensure_ascii=False, sort_keys=True,
                                      separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+
+
+def calculate_combat(attributes, detail, effects, bundle):
+    """Website panel power; count effects by equipped occurrence, never unique ID."""
+    result = dict(value=None, status='unavailable', reason='')
+    try:
+        if attributes.get('status') != 'complete':
+            raise AttributeUnavailable(attributes.get('reason') or '攻防生命资料缺失')
+        role = bundle.get('role') or {}
+        critical = number(role.get('critical_ratio'), '基础暴击率') / 10000
+        damage = number(role.get('critical_damage'), '基础暴击伤害') / 10000 - 1
+        if damage < 0:
+            raise AttributeUnavailable('基础暴击伤害无效')
+        index = {}
+        if not isinstance(effects, list):
+            raise AttributeUnavailable('超载效果资料缺失')
+        for effect in effects:
+            if not isinstance(effect, dict):
+                raise AttributeUnavailable('超载效果格式无效')
+            key = str(effect.get('id'))
+            if key in index and index[key] != effect:
+                raise AttributeUnavailable('超载效果ID存在冲突')
+            index[key] = effect
+        raw_power = 0
+        for slot in ('head', 'torso', 'arm', 'leg'):
+            tid = number(detail.get(slot + '_equip_tid'), '装备ID', integral=True)
+            if not tid:
+                continue
+            for position in (1, 2, 3):
+                oid = number(detail.get(f'{slot}_equip_option{position}_id'), '超载词条ID', integral=True)
+                if not oid:
+                    continue
+                functions = (index.get(str(oid)) or {}).get('function_details')
+                if not isinstance(functions, list) or not functions:
+                    raise AttributeUnavailable('超载战力效果缺失，请刷新面板')
+                for function in functions:
+                    value = function.get('function_battlepower') if isinstance(function, dict) else None
+                    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or abs(value) > 10**15:
+                        raise AttributeUnavailable('超载战力系数缺失或无效，请刷新面板')
+                    raw_power += max(value, 0)
+        powers = {}
+        for kind, field, level_field in (('cube', 'harmony_cube_tid', 'harmony_cube_lv'),
+                                         ('favorite', 'favorite_item_tid', 'favorite_item_lv')):
+            tid = number(detail.get(field), kind + 'ID', integral=True)
+            powers[kind] = 0
+            if tid:
+                row = bundle.get(kind) or {}
+                level = number(detail.get(level_field), kind + '等级', integral=True)
+                i = level - 1 if kind == 'cube' else level
+                values = row.get('powers')
+                if row.get('id') != tid or i < 0 or not isinstance(values, list) or i >= len(values):
+                    raise AttributeUnavailable(kind + '战力等级资料缺失')
+                powers[kind] = round(number(values[i], kind + '战力系数') / 10000, 8)
+        skills = [number(detail.get(key), '技能等级', integral=True)
+                  for key in ('skill1_lv', 'skill2_lv', 'ulti_skill_lv')]
+        if any(level > 10 for level in skills):
+            raise AttributeUnavailable('技能等级超出已核验范围')
+        overload = round(raw_power / 10000, 8)
+        coefficient = 1.3 + skills[0]*.01 + skills[1]*.01 + skills[2]*.02 + powers['cube'] + powers['favorite'] + overload
+        survival = math.floor((attributes['hp'] + attributes['defense']*100)*.7)
+        attack = math.floor(attributes['attack']*(1 + critical*damage)*18)
+        result.update(value=js_round((survival + attack)*coefficient*.01), status='complete',
+                      coefficients=dict(base=1.3, skill1=skills[0]*.01, skill2=skills[1]*.01,
+                                        burst=skills[2]*.02, overload=overload, **powers))
+    except (AttributeUnavailable, KeyError, TypeError, ValueError, OverflowError) as exc:
+        result['reason'] = str(exc) if isinstance(exc, AttributeUnavailable) else '战力依赖格式无效'
+    return result
 
 def calculate(owned, detail, outpost, bundle, *, level=None):
     result = dict(attack=None, defense=None, hp=None, status='unavailable', reason='',

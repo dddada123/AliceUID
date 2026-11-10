@@ -32,6 +32,44 @@ class ResourceService:
         self.images = ImageCache(self.root / 'resource', http=http, clock=clock)
         self._static_lock = asyncio.Lock()
         self._update_lock = asyncio.Lock()
+        self._catalog_lock = asyncio.Lock()
+        self._unknown_catalog_retry = 0
+        self._equipment_lock = asyncio.Lock()
+        self._missing_equipment_retry = 0
+
+    async def ensure_equipment_ids(self, ids):
+        def missing():
+            return set(ids) - {row.get('id') for row in self.load_equipment_items()}
+        if missing():
+            async with self._equipment_lock:
+                if missing() and self.clock() >= self._missing_equipment_retry:
+                    self._missing_equipment_retry = self.clock() + 300
+                    await self.update_tables(force=True, targets=['ItemEquipTable-zh-tw.json'])
+
+    async def ensure_character_catalog(self, codes=(), *, name=None):
+        """Unknown owned IDs bypass freshness once, but never failure cooldowns."""
+        def missing(static):
+            if not static.characters:
+                return True
+            if any(int(code) not in static.characters for code in codes):
+                return True
+            if name:
+                from ..nikke_character.builder import resolve_character, CharacterNotFound
+                try:
+                    resolve_character(name, static)
+                except CharacterNotFound:
+                    return True
+            return False
+        static = self.load_static()
+        if not missing(static):
+            return static
+        async with self._catalog_lock:
+            static = self.load_static()
+            if missing(static) and self.clock() >= self._unknown_catalog_retry:
+                self._unknown_catalog_retry = self.clock() + 300
+                await self.update_tables(force=True, targets=['nikke_list_zh-TW_v2.json'])
+                static = self.load_static()
+        return static
 
     async def update_tables(self, *, force: bool = False, targets=None) -> dict[str, str]:
         async with self._static_lock:

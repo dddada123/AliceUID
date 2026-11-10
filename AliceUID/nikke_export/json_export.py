@@ -20,7 +20,7 @@ def safe_attributes(value):
     return value
 
 def build_json(data):
-    columns = [c for c in data.columns if not c.hidden and not c.key.startswith('sum_')]
+    columns = [c for c in data.columns if not c.hidden and not c.key.startswith(('sum_', 'simulated_', 'simulation_'))]
     characters = []
     effects, equipment, effect_keys, equipment_keys = [], [], {}, {}
     raw_characters = {}
@@ -47,6 +47,11 @@ def build_json(data):
             complete=not group['unknown'] and not row['_unparsed'])
             for (key, unit), group in row['_groups'].items()]
         characters.append(item)
+        if data.metadata.get('target_level') is not None:
+            item['simulation'] = dict(level=row.get('simulated_level'),
+                **{key:row.get('simulated_'+key) if isinstance(row.get('simulated_'+key), (int,float)) else None
+                   for key in ('combat','attack','defense','hp')},
+                status=row.get('simulation_status'), reason=row.get('simulation_reason'))
         raw = data.metadata.get('raw_characters', {}).get(str(row['code']), {})
         public = dict(attr.get('original') or {})
         for kind in ('cube', 'favorite'):
@@ -55,11 +60,13 @@ def build_json(data):
         raw_characters[str(row['code'])] = dict(roster=safe_attributes(raw.get('roster', {})),
             detail=safe_attributes(raw.get('detail', {})), public_attributes=safe_attributes(public),
             effect_refs=[intern(effect, effects, effect_keys) for effect in raw.get('effects', [])])
-    document = dict(schema_version=2, plugin_version=VERSION, formula_version=FORMULA_VERSION,
+    document = dict(schema_version=3, plugin_version=VERSION, formula_version=FORMULA_VERSION,
                     exported_at=data.exported_at.isoformat(), snapshot_saved_at=data.cache_time.isoformat(),
                     source=data.metadata.get('source', 'owner_cache'), target_level=data.metadata.get('target_level'),
                     commander=data.commander, character_count=len(characters),
                     complete=True, attributes_complete=all(r['attribute_status'] == '完整' for r in data.rows),
+                    simulation_complete=(all(r.get('simulation_status') == '完整' for r in data.rows)
+                                         if data.metadata.get('target_level') is not None else None),
                     field_dictionary={c.key: dict(label=c.label, type=c.kind) for c in columns},
                     units=dict(Percent='比例数值；0.1181表示11.81%', integer='整数',
                                level='实际等级；target_level为本次计算等级', combat='实际服务器战力，非模拟战力',
@@ -70,6 +77,10 @@ def build_json(data):
                                refs='effect_refs/cube_ref/favorite_ref为对应共享数组的0基索引'),
                     characters=characters, raw_character_data=raw_characters,
                     state_effects=effects, equipment_metadata=equipment)
+    if data.metadata.get('target_level') is not None:
+        document['field_dictionary']['simulation'] = dict(label='指定等级模拟结果', type='object',
+            fields=dict(level='模拟等级',combat='模拟战力',attack='模拟攻击力',defense='模拟防御力',
+                        hp='模拟生命值',status='完整或不可计算',reason='缺失原因；未知数值为null'))
     body = json.dumps(document, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')
     if len(body) > 12 * 1024 * 1024:
         raise ExportError('JSON练度文件超出12MB上限，已停止发送。')

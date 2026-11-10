@@ -8,13 +8,13 @@ from .cache import atomic_write, public_stream, read_metadata
 from .collections import CollectionMetadata, identifier, validate_row
 from ..nikke_api.resource import obfuscate_path
 from ..nikke_api.parser import static_weapon_type
-from ..nikke_character.attributes import calculate, fingerprint
+from ..nikke_character.attributes import calculate, calculate_combat, fingerprint
 
 ROLE_KEYS = ('name_code', 'resource_id', 'original_rare', 'class', 'corporation', 'shot_id',
              'stat_enhance_detail', 'character_level_hp_list', 'character_level_attack_list',
              'character_level_defence_list')
 WARM_TIMEOUT = 45
-PUBLIC_ATTRIBUTE_SCHEMA = 2
+PUBLIC_ATTRIBUTE_SCHEMA = 3
 
 
 def original_attributes(owned, bundle):
@@ -42,6 +42,7 @@ class AttributeMetadata:
         self.collections = CollectionMetadata(resources.root, http=resources.http)
         self._locks = {}
         self._slots = asyncio.Semaphore(4)
+        self._force_retry = {}
 
     def read(self, name):
         fallback = None
@@ -61,7 +62,7 @@ class AttributeMetadata:
                 pass
         return fallback
 
-    async def get(self, name, logical):
+    async def get(self, name, logical, *, force=False):
         async with self._locks.setdefault(name, asyncio.Lock()):
             old = self.read(name)
             # Old role caches deliberately omitted combat/weapon fields. They
@@ -71,15 +72,19 @@ class AttributeMetadata:
             path = self.root / name
             meta = read_metadata(path.with_suffix('.meta.json'))
             now = time.time()
-            validated_at = meta.get('checked_at') or meta.get('bundled_loaded_at', 0)
-            if now < meta.get('retry_after', 0) or (old and enriched and 0 <= now - validated_at < 86400):
+            if force and now < self._force_retry.get(name, 0):
                 return old
-            if old and enriched and not path.exists() and not validated_at:
+            validated_at = meta.get('checked_at') or meta.get('bundled_loaded_at', 0)
+            if now < meta.get('retry_after', 0) or (not force and old and enriched and 0 <= now - validated_at < 86400):
+                return old
+            if not force and old and enriched and not path.exists() and not validated_at:
                 # The complete installer already has reviewed growth tables.
                 # First refresh must not redownload all 206 before publishing.
                 atomic_write(path.with_suffix('.meta.json'), json.dumps({'bundled_loaded_at':now}).encode())
                 return old
             try:
+                if force:
+                    self._force_retry[name] = now + 300
                 async with self._slots:
                     if self.resources.http is not None:
                         obj = await self._download(self.resources.http, logical)
@@ -100,7 +105,10 @@ class AttributeMetadata:
                     if not isinstance(obj, list) or not obj or not all(isinstance(r, dict) for r in obj):
                         raise ValueError('invalid attribute table')
                 atomic_write(path, json.dumps(obj, ensure_ascii=False, allow_nan=False).encode())
-                atomic_write(path.with_suffix('.meta.json'), json.dumps({'checked_at': now}).encode())
+                stamp = {'checked_at': now}
+                if name.startswith('roles/') and not all(k in obj for k in ('critical_ratio', 'critical_damage', 'shot_detail')):
+                    stamp['retry_after'] = now + 1800
+                atomic_write(path.with_suffix('.meta.json'), json.dumps(stamp).encode())
                 return obj
             except (httpx.HTTPError, OSError, ValueError, TypeError):
                 atomic_write(path.with_suffix('.meta.json'), json.dumps({'retry_after': now + 1800}).encode())
@@ -146,8 +154,39 @@ class AttributeMetadata:
             for kind, field in (('cubes', 'harmony_cube_tid'), ('collections', 'favorite_item_tid')):
                 tid = identifier(detail.get(field))
                 if tid is not None and tid > 0:
-                    await self.collections.get(kind, tid)
+                    lv = identifier(detail.get('harmony_cube_lv' if kind == 'cubes' else 'favorite_item_lv'))
+                    index = (lv - 1 if kind == 'cubes' else lv) if lv is not None else None
+                    await self.collections.get(kind, tid, required_index=index)
         await asyncio.gather(*(one(code, entry) for code, entry in snapshot.get('details', {}).items()))
+
+    async def repair(self, snapshot, static, *, level=None):
+        """Retry missing public dependencies without re-reading private accounts."""
+        actual = self.compute(snapshot, static)
+        target = self.compute(snapshot, static, level=level) if level is not None else actual
+        def needs(code):
+            for values in (actual.get(code, {}), target.get(code, {})):
+                if values.get('status') != 'complete' or values.get('combat_calculation', {}).get('status') != 'complete':
+                    return True
+            return False
+        missing = {code: entry for code, entry in snapshot.get('details', {}).items() if needs(code)}
+        if not missing:
+            return actual
+        # These are numerical tables, not images or skill-icon catalogues.
+        equipped = {entry['detail'].get(slot + '_equip_tid') for entry in missing.values()
+                    for slot in ('head', 'torso', 'arm', 'leg')} - {None, 0}
+        await self.resources.ensure_equipment_ids(equipped)
+        reasons = ' '.join(actual.get(code, {}).get('reason', '') for code in missing)
+        if '好感成长' in reasons:
+            await self.get('bond.json', '/character/AttractiveLevelTable.json', force=True)
+        if '回收室研究记录' in reasons:
+            await self.get('research.json', '/character/RecycleResearchStatTable.json', force=True)
+        partial = dict(snapshot, details=missing)
+        try:
+            async with asyncio.timeout(WARM_TIMEOUT):
+                await self._warm(partial, static)
+        except TimeoutError:
+            pass
+        return self.compute(snapshot, static)
 
     async def prepare(self, snapshot, static):
         # Public metadata is optional enrichment. CDN slowness must not discard
@@ -168,6 +207,7 @@ class AttributeMetadata:
                 continue
             bundle = self.bundle(int(code), entry['detail'], static)
             attr = calculate(owned[code], entry['detail'], outpost, bundle, level=level)
+            attr['combat_calculation'] = calculate_combat(attr, entry['detail'], entry.get('effects'), bundle)
             attr['original'] = original_attributes(owned[code], bundle)
             attr['public_attribute_schema'] = PUBLIC_ATTRIBUTE_SCHEMA
             attr['detail_checked_at'] = entry.get('checked_at')
@@ -184,12 +224,21 @@ def get_metadata(resources):
 async def prepare_snapshot(snapshot):
     from .service import get_resources
     resources = get_resources()
-    static = resources.load_static()
-    if any(int(code) not in static.characters for code in snapshot.get('details', {})):
-        await resources.update_tables(targets=['nikke_list_zh-TW_v2.json'])
-        static = resources.load_static()
+    static = await resources.ensure_character_catalog(snapshot.get('details', {}))
     await resources.ensure_character_tables()
     snapshot['attributes'] = await get_metadata(resources).prepare(snapshot, static)
+    snapshot['attributes'] = await get_metadata(resources).repair(snapshot, static)
+    return snapshot
+
+
+async def repair_snapshot_dependencies(snapshot, *, level=None):
+    from .service import get_resources
+    resources = get_resources()
+    if not hasattr(resources, 'root') or not hasattr(resources, 'bundled'):
+        return snapshot
+    static = await resources.ensure_character_catalog(snapshot.get('details', {}))
+    metadata = get_metadata(resources)
+    snapshot['attributes'] = await metadata.repair(snapshot, static, level=level)
     return snapshot
 
 async def prepare_character(client, roster, detail):

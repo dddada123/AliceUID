@@ -87,12 +87,13 @@ class NikkeClient:
 
     # ---------- 基础请求 ----------
 
-    def headers(self) -> dict[str, str]:
+    def headers(self, region=None) -> dict[str, str]:
+        region = region or self.region
         common = {
-            "game_id": self.region.game_id,
-            "area_id": self.region.name,
+            "game_id": region.game_id,
+            "area_id": region.name,
             "source": "pc_web",
-            "intl_game_id": self.region.game_id,
+            "intl_game_id": region.game_id,
             "language": self.language,
             "env": "prod",
         }
@@ -109,7 +110,7 @@ class NikkeClient:
             "cookie": self.credentials.cookie,
         }
 
-    async def _request(self, method: str, path: str, body: dict | None = None) -> dict:
+    async def _request(self, method: str, path: str, body: dict | None = None, *, region=None) -> dict:
         # Account services own spacing, cache and single-flight. A failed or
         # ambiguous private request must never silently multiply into retries.
         try:
@@ -117,7 +118,7 @@ class NikkeClient:
                 raise NikkeLoginRequired(300001,'登录凭据已过期，请重新登录',path)
             async with self._lock:
                 resp = await self._http.request(
-                    method,BASE+path,headers=self.headers(),
+                    method,BASE+path,headers=self.headers(region),
                     json=body if body is not None else {},follow_redirects=False,
                 )
             if resp.status_code == 401:

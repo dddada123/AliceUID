@@ -8,7 +8,7 @@ from .model import ExportError
 PATTERN = r'^(?P<level>[0-9]{1,8})?\s*(?:练度)?全量导出(?P<tail>.*)$'
 
 # Preserve the parser and local simulator for a later verified release.
-SIMULATION_EXPORT_ENABLED = False
+SIMULATION_EXPORT_ENABLED = True
 
 
 def require_available(options):
@@ -56,7 +56,7 @@ def parse(text):
         url = urlsplit(tail)
         if (url.scheme != 'https' or url.hostname not in ('www.blablalink.com', 'blablalink.com')
                 or url.port not in (None, 443) or url.username or url.password or url.fragment
-                or url.path.rstrip('/') != '/shiftyspad/nikke-list' or len(tail) > 2048):
+                or url.path.rstrip('/') not in ('/shiftyspad', '/shiftyspad/nikke-list') or len(tail) > 2048):
             raise ValueError()
         query = parse_qs(url.query, keep_blank_values=True)
         if set(query) - {'uid', 'openid'} or any(len(values) != 1 for values in query.values()):

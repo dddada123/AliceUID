@@ -53,16 +53,21 @@ class CollectionMetadata:
         self._locks = {}
         self._slot = asyncio.Lock()
 
-    async def get(self, kind, tid):
+    async def get(self, kind, tid, *, required_index=None):
         tid = identifier(tid)
         if kind not in {'collections', 'cubes'} or tid is None or tid <= 0:
             return None
         path = self.root / 'static' / kind / f'{tid}.json'
+        def complete(row):
+            if required_index is not None and (not isinstance(row.get('powers'), list)
+                    or required_index < 0 or required_index >= len(row['powers'])):
+                raise ValueError('missing battlepower level')
+            return row
         async with self._locks.setdefault(str(path), asyncio.Lock()):
             try:
                 if path.stat().st_size > MAX_JSON_BYTES:
                     raise ValueError('cached object exceeds byte limit')
-                return validate_row(json.loads(path.read_text(encoding='utf-8-sig')), kind, tid)
+                return complete(validate_row(json.loads(path.read_text(encoding='utf-8-sig')), kind, tid))
             except (OSError, ValueError, TypeError):
                 pass
             stamp = path.with_suffix('.meta.json')
@@ -78,6 +83,7 @@ class CollectionMetadata:
                     else:
                         async with httpx.AsyncClient(timeout=15, trust_env=False, follow_redirects=False) as http:
                             row = await self._download(http, logical, kind, tid)
+                    complete(row)
                     atomic_write(path, json.dumps(row, ensure_ascii=False, allow_nan=False).encode())
                     return row
                 except (httpx.HTTPError, OSError, ValueError, TypeError) as exc:

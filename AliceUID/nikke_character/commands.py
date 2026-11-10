@@ -76,6 +76,8 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
             return
         await views.enter_async_context(character_queries.foreground_view(bind))
         resources = get_resources()
+        if hasattr(resources, 'ensure_character_catalog'):
+            await resources.ensure_character_catalog(name=name)
         equipment_items, skill_icons = await resources.ensure_character_tables()
         async def ownership_notice(role_name):
             if await current():

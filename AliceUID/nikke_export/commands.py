@@ -69,12 +69,17 @@ def _render(snapshot, bind, options=None):
     attributes = snapshot.get('attributes', {})
     if getattr(resources, 'root', None) is not None and getattr(resources, 'bundled', None) is not None:
         from ..nikke_resource.attributes import get_metadata
-        attributes = get_metadata(resources).compute(snapshot, static, level=options.level)
+        attributes = get_metadata(resources).compute(snapshot, static)
+    simulations = None
     if options.level is not None:
-        if not attributes or any(a.get('target_level') != options.level or a.get('reason') == '目标等级没有完整成长数据' for a in attributes.values()):
-            raise ExportError('目标等级没有完整成长数据，请刷新面板；不会外推或截断等级。')
+        if getattr(resources, 'root', None) is not None and getattr(resources, 'bundled', None) is not None:
+            simulations = get_metadata(resources).compute(snapshot, static, level=options.level)
+        else:
+            simulations = {}
+        if simulations and all(a.get('reason') == '目标等级没有完整成长数据' for a in simulations.values()):
+            raise ExportError('目标等级没有完整成长数据，请稍后更新公开资料；不会外推或截断等级。')
     data = prepare(snapshot, bind, static, region=region.label, equipment=labels,
-                   attributes=attributes, target_level=options.level)
+                   attributes=attributes, simulations=simulations, target_level=options.level)
     if options.format == 'json':
         from .json_export import build_json
         return data.filename.removesuffix('.xlsx') + '.json', build_json(data)
@@ -141,6 +146,13 @@ async def _export(bot, ev, options=None):
                         raise ExportError('绑定或权限已变化，已停止导出。')
                     store = character_queries.store()
                     snapshot = deepcopy(store.read(panel_identity(bind))) if store is not None else {}
+                    force_refresh = False
+                    if store is not None and hasattr(store, 'latest_roster'):
+                        stamp, rows = store.latest_roster(panel_identity(bind), snapshot)
+                        if (stamp > snapshot.get('roster_checked_at', snapshot.get('saved_at', 0))
+                                and {r.get('name_code') for r in rows} != {r.get('name_code') for r in snapshot.get('roster', [])}):
+                            force_refresh = True
+                            snapshot['complete'] = False
                 from .snapshot import ready as export_ready
                 if not export_ready(snapshot):
                     from ..nikke_user.service import load_client
@@ -155,7 +167,7 @@ async def _export(bot, ev, options=None):
                     from ..nikke_resource.attributes import prepare_snapshot
                     async with asyncio.timeout(300):
                         await refresh_panel(client, bind, actor=ev.user_id, bot=ev.bot_id, wait=True,
-                                            only_missing=True, policy=get_policy(), event=ev,
+                                            only_missing=not force_refresh, policy=get_policy(), event=ev,
                                             attribute_prepare=prepare_snapshot)
                 async with binding_lock(ev.user_id, ev.bot_id):
                     if not await current_owner():
@@ -165,6 +177,9 @@ async def _export(bot, ev, options=None):
                         raise ExportError('新版面板缓存准备未完成，请稍后执行刷新面板再重试导出。')
                     epoch = character_queries._epochs.get(character_queries._account(bind), 0)
                 target_bind = bind
+            from ..nikke_resource.attributes import repair_snapshot_dependencies
+            async with asyncio.timeout(120):
+                await repair_snapshot_dependencies(snapshot, level=options.level)
             if options == ExportOptions():
                 filename, contents = await _thread_render(snapshot, target_bind)
             else:

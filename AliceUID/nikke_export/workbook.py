@@ -40,7 +40,7 @@ def build_workbook(data: ExportData) -> bytes:
         header=fmt(bold=True, font_color='white', bg_color=navy, text_wrap=True),
         role=fmt(bold=True, font_size=12, font_color='white', bg_color=navy, text_wrap=True),
         meta=fmt(font_size=9, font_color=gray, bg_color=pale, text_wrap=True),
-        power=fmt(bold=True, font_color='#75C7FF', bg_color=navy, align='right'),
+        power=fmt(bold=True, font_color='#75C7FF', bg_color=navy, align='right', text_wrap=True),
         gear=fmt(bold=True, bg_color=pale, text_wrap=True, align='center', border=1, border_color='#DBE5EE'),
         text=fmt(text_wrap=True),
         value=fmt(bold=True, num_format='0.00%', align='right'),
@@ -74,6 +74,9 @@ def build_workbook(data: ExportData) -> bytes:
         c = colname(columns[key])
         return f"'数据明细'!${c}${DATA_FIRST+1}:${c}${last}"
     def write_value(sheet, r, c, value, cell_format=None):
+        if value == '':
+            sheet.write_blank(r, c, None, cell_format)
+            return
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             if not math.isfinite(value):
                 raise ExportError('缓存包含无效数值，已停止导出。')
@@ -198,7 +201,7 @@ def build_workbook(data: ExportData) -> bytes:
         indexed(top,left+4,'_power',i,formats['power'])
         indexed(top+1,left,'_meta',i,formats['meta'],merge=(top+1,left+3))
         overview.write_formula(top+1,left+4,f'=IF({idx}=0,"","练度 / 同类词条汇总")',formats['label'],'练度 / 同类词条汇总')
-        overview.set_row(top,38)
+        overview.set_row(top,48 if data.metadata.get('target_level') is not None else 38)
         overview.set_row(top+1,30)
         for k in range(12):
             overview.set_row(top+2+k,body_height)

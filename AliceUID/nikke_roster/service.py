@@ -128,8 +128,11 @@ class RosterService:
         if not static.characters or missing:
             # A nonempty bundled snapshot can still miss newly released Nikke.
             # Shared table cache/lock/cooldown bound concurrent checks.
-            await self.resources.update_tables(targets=['nikke_list_zh-TW_v2.json'])
-            static = self.resources.load_static()
+            if hasattr(self.resources, 'ensure_character_catalog'):
+                static = await self.resources.ensure_character_catalog(codes)
+            else:
+                await self.resources.update_tables(targets=['nikke_list_zh-TW_v2.json'])
+                static = self.resources.load_static()
         if not static.characters:
             raise ValueError('角色静态资料缺失，无法安全生成完整卡片。')
         if any(code > 0 and code not in static.characters for code in codes):

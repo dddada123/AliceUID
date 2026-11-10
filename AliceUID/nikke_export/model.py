@@ -102,7 +102,7 @@ def _aggregates(gear):
     return groups
 
 
-def prepare(snapshot, bind, static, *, region, now=None, equipment=None, attributes=None, target_level=None):
+def prepare(snapshot, bind, static, *, region, now=None, equipment=None, attributes=None, simulations=None, target_level=None):
     if not isinstance(snapshot, dict) or snapshot.get('complete') is not True:
         raise ExportError('没有完整的本地练度缓存，请先刷新面板。')
     roster, details, profile = snapshot.get('roster'), snapshot.get('details'), snapshot.get('profile')
@@ -154,6 +154,16 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None, attribu
         ('tier_total', '已知词条阶数合计', 'integer'), ('unknown_lines', '未知阶数词条数', 'integer'),
         ('max_lines', '15阶词条数', 'integer'), ('rare_lines', '12至14阶词条数', 'integer'),
     )]
+    if target_level is not None:
+        original_labels = dict(combat='原始战力', attack='原始攻击力', defense='原始防御力', hp='原始生命值')
+        columns = [Column(c.key, original_labels.get(c.key, c.label), c.kind, c.hidden) for c in columns]
+        simulation_columns = [Column(key, label, kind) for key, label, kind in (
+            ('simulated_level', '模拟等级', 'integer'), ('simulated_combat', '模拟战力', 'integer'),
+            ('simulated_attack', '模拟攻击力', 'integer'), ('simulated_defense', '模拟防御力', 'integer'),
+            ('simulated_hp', '模拟生命值', 'integer'), ('simulation_status', '模拟计算状态', 'text'),
+            ('simulation_reason', '模拟缺失原因', 'text'))]
+        insert = next(i for i, column in enumerate(columns) if column.key == 'hp') + 1
+        columns[insert:insert] = simulation_columns
     for kind, title in (('cube', '魔方'), ('favorite', '收藏品')):
         columns.extend([Column(kind+'_name', title+'名称'), Column(kind+'_display_lv', title+'面板显示等级', 'integer'),
                         Column(kind+'_rarity', title+'稀有度'), Column(kind+'_notice', title+'资料状态')])
@@ -198,6 +208,14 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None, attribu
                    detail_checked_at=datetime.fromtimestamp(entry['checked_at'], TZ).isoformat() if type(entry.get('checked_at')) in (int,float) and math.isfinite(entry['checked_at']) and 0 < entry['checked_at'] < 253402185600 else UNKNOWN,
                    tier_total=int(aggregate['level']) if aggregate['level'] != UNKNOWN else UNKNOWN,
                    unknown_lines=aggregate['unknown_lines'], max_lines=0, rare_lines=0)
+        if target_level is not None:
+            simulation = (simulations or {}).get(str(code), {})
+            combat = simulation.get('combat_calculation') or {}
+            row.update(simulated_level=target_level, simulated_combat=combat.get('value'),
+                       simulated_attack=simulation.get('attack'), simulated_defense=simulation.get('defense'),
+                       simulated_hp=simulation.get('hp'),
+                       simulation_status='完整' if simulation.get('status') == 'complete' and combat.get('status') == 'complete' else '不可计算',
+                       simulation_reason=combat.get('reason') or simulation.get('reason') or ('' if combat.get('status') == 'complete' else '模拟依赖尚未准备'))
         for key, raw in (('critical_rate', original.get('critical_ratio')),
                          ('critical_damage', original.get('critical_damage')),
                          ('full_charge_damage', weapon_stats.get('full_charge_damage')),
@@ -239,16 +257,26 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None, attribu
         row['_title'] = f'{code}  {row["name"]}'
         row['_meta'] = f'{row["rarity"]}  爆裂{row["burst"]}  {row["role"]}  {row["company"]}  {row["element"]}'
         row['_power'] = '原始战力  '+ (f'{row["combat"]:,}' if isinstance(row['combat'], int) else UNKNOWN)
+        if target_level is not None:
+            simulated_power = row['simulated_combat']
+            row['_power'] = f'原始 Lv.{display(actual_level)}  ' + (f'{row["combat"]:,}' if isinstance(row['combat'], int) else UNKNOWN)
+            row['_power'] += f'\n模拟 Lv.{target_level}  ' + (f'{simulated_power:,}' if isinstance(simulated_power, int) else UNKNOWN)
         lines = [f'等级 {display(row["level"])}    突破 {display(row["grade"])}    核心 {display(row["core"])}',
                  f'技能 {display(row["skill1"])}/{display(row["skill2"])}/{display(row["burst_skill"])}    好感 {display(row["bond"])}',
                  equipment_text['cube'], equipment_text['favorite'],
-                 f'{"模拟" if target_level is not None else "当前"}Lv.{display(computed_level)} 攻 / 防 / 生命：'
-                 + ' / '.join(display(row[k]) for k in ('attack', 'defense', 'hp')),
+                 f'原始Lv.{display(actual_level)} 攻 / 防 / 生命：'
+                 + ' / '.join(f'{row[k]:,}' if isinstance(row[k], int) else display(row[k]) for k in ('attack', 'defense', 'hp')),
                  '基础暴击率 / 暴击伤害倍率：' + ' / '.join(f'{row[k]:.2%}' if isinstance(row[k], (int,float)) else UNKNOWN for k in ('critical_rate', 'critical_damage')),
                  ('属性状态：' + row['attribute_reason']) if row['attribute_reason'] else '',
                  f'词条阶数合计 {row["tier_total"]}'+('（含未知）' if row['unknown_lines'] else ''),
                  f'15阶 {row["max_lines"]}条    12～14阶 {row["rare_lines"]}条',
                  '', '四件装备 · 同类词条汇总']
+        if target_level is not None:
+            insert = [f'模拟Lv.{target_level} 攻 / 防 / 生命：' + ' / '.join(
+                f'{row[k]:,}' if isinstance(row.get(k), int) else UNKNOWN for k in ('simulated_attack', 'simulated_defense', 'simulated_hp'))]
+            if row['simulation_reason']:
+                insert.append('模拟状态：' + row['simulation_reason'])
+            lines[5:5] = insert
         lines.extend(f'{item["name"]}  {item["value"]}' for item in aggregate['rows'])
         if not aggregate['rows']:
             lines.append('无有效超载词条')
@@ -282,6 +310,6 @@ def prepare(snapshot, bind, static, *, region, now=None, equipment=None, attribu
     filename = f'[AliceUID]{name}·NIKKE练度表{level_tag}_{now:%Y%m%d%H%M}.xlsx'
     return ExportData(commander, rows, columns, now, cache_time, filename,
                       dict(source=snapshot.get('source', 'owner_cache'), target_level=target_level,
-                           attributes=attributes or {},
+                           attributes=attributes or {}, simulations=simulations or {},
                            raw_characters={str(row['name_code']): dict(roster=row, **details[str(row['name_code'])]) for row in roster},
                            outpost_checked_at=snapshot.get('outpost_checked_at', snapshot.get('profile_checked_at'))))

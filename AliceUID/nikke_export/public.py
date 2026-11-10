@@ -6,7 +6,7 @@ Public exports are ephemeral; visibility and target role are rechecked for deliv
 import time
 from types import SimpleNamespace
 from urllib.parse import urlencode
-from ..nikke_api.client import REGIONS, HMT_REGION
+from ..nikke_api.client import REGIONS, HMT_REGION, NikkeClient
 from ..nikke_character.service import CharacterQueryService
 from ..nikke_roster.service import account_reads
 from .model import ExportError
@@ -20,6 +20,8 @@ class PublicReader:
     async def request(self, path, body=None, method='POST'):
         if not await self.check():
             raise ExportError('绑定或权限已变化，已停止读取公开资料。')
+        if self.area is not None and isinstance(self.owner, NikkeClient):
+            return await self.owner._request(method, path, body, region=self.region)
         return await self.owner._request(method, path, body)
 
     async def get_privacy(self):
@@ -31,11 +33,20 @@ class PublicReader:
 
     async def get_role(self):
         data = await self.request('/api/game/proxy/Tools/GetUserSavedRoleInfo?' + urlencode({'uid': self.share}), method='GET')
-        role = (data.get('data') or {}).get('role_info')
-        if not isinstance(role, dict) or not role.get('role_id'):
-            raise ExportError('未取得目标用户绑定的游戏角色，请在 Blablalink 检查角色绑定。')
-        region = HMT_REGION if str(role.get('area_id')) == '91' else REGIONS.get(int(role.get('area_id', 0)))
-        if region is None or region.game_id != self.share.split('-')[0]:
+        payload = data.get('data') or {}
+        if payload.get('is_banned') or payload.get('is_maintenance'):
+            raise ExportError('目标资料当前不可访问或处于维护中。')
+        role = payload.get('role_info')
+        if payload.get('has_saved_role_info') is False:
+            raise ExportError('目标尚未在 Blablalink 选择游戏角色，请检查社区角色设置。')
+        if not isinstance(role, dict) or not (role.get('role_id') or role.get('role_name')):
+            raise ExportError('社区未返回可识别的目标游戏角色，无法确定资料归属。')
+        area = str(role.get('area_id', ''))
+        if not area.isascii() or not area.isdecimal():
+            raise ExportError('社区未返回有效目标区服，无法读取公开练度。')
+        region = HMT_REGION if area == '91' else REGIONS.get(int(area))
+        if (region is None or region.game_id != self.share.split('-')[0]
+                or (role.get('game_id') and str(role['game_id']) != region.game_id)):
             raise ExportError('目标用户的游戏或区服信息不匹配。')
         self.area, self.region = region.area_id, region
         return role
@@ -73,7 +84,7 @@ async def fetch_public(client, bind, share, check):
         outpost = (await read('get_game', 'GetUserProfileOutpostInfo')).get('outpost_info') or {}
     now = time.time()
     target = SimpleNamespace(area_id=reader.area, nickname=role.get('role_name') or '未知指挥官',
-                             uid=str(role['role_id']), game_id=reader.region.game_id)
+                             uid=str(role.get('role_id') or '未提供'), game_id=reader.region.game_id)
     snapshot = dict(complete=True, roster=roster, details=details, saved_at=now,
                     profile_checked_at=now, outpost_checked_at=now,
                     source='blablalink_public', profile=dict(chars=roster, saved=role,
@@ -81,7 +92,8 @@ async def fetch_public(client, bind, share, check):
     async def recheck():
         latest_privacy = await read('get_privacy')
         latest_role = await read('get_role')
-        if (str(latest_role['role_id']) != target.uid or reader.area != target.area_id
+        if (str(latest_role.get('role_id') or '未提供') != target.uid or reader.area != target.area_id
+                or (not role.get('role_id') and latest_role.get('role_name') != role.get('role_name'))
                 or latest_privacy.get('show_outpost_info') != privacy.get('show_outpost_info')):
             raise ExportError('目标用户区服、角色或公开设置已变化，请重新导出。')
     return snapshot, target, recheck
