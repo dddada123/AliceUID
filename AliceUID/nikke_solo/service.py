@@ -16,6 +16,14 @@ NOTICE = ('【实验性功能】正在从 https://dildoro.com/ 查询信息，�
           '更为详细的计算请直接访问该网站。')
 SERVERS = {81: ('JP', '日本'), 82: ('NA', '北美'), 83: ('KR', '韩国'),
            84: ('GLOBAL', '全球'), 85: ('SEA', '东南亚'), 91: ('TW-HK', '台湾·香港')}
+SERVER_LABELS = {
+    'JP': ('日本', 'Japan', '일본'),
+    'NA': ('北美', 'North America', '북미'),
+    'KR': ('韩国', '韓國', 'Korea', '한국'),
+    'GLOBAL': ('全球服', '全球', 'Global', '글로벌'),
+    'SEA': ('东南亚', '東南亞', 'SEA', '동남아'),
+    'TW-HK': ('台港澳', '台湾·香港', '台灣·香港', '台湾・香港', 'Taiwan', '대만·홍콩'),
+}
 _CAPTURE = asyncio.Semaphore(1)
 _TOTAL_TIMEOUT = 600
 _PAGE_TIMEOUT_MS = 90_000
@@ -23,6 +31,40 @@ from ..nikke_browser.runtime import diagnostic, page_reason
 
 class SoloUnavailable(Exception):
     pass
+
+
+def _server_button(text):
+    """Separate the site's trailing selection mark from its exact label."""
+    text = text.strip()
+    checked = text.endswith('✓')
+    return (text[:-1].strip() if checked else text), checked
+
+
+async def _select_server(card, server):
+    buttons = card.locator('.lab-srv button')
+    texts = await buttons.all_inner_texts()
+    matches = [i for i, text in enumerate(texts)
+               if _server_button(text)[0] in SERVER_LABELS[server]]
+
+    def detail(values):
+        # Only public button labels belong in this diagnostic, never page state.
+        labels = [' '.join(value.split())[:80] for value in values[:20]]
+        return '、'.join(labels) or '（无）'
+
+    expected = SERVER_LABELS[server][0]
+    if len(matches) != 1:
+        raise SoloUnavailable(
+            f'DILDORO服务器选项已变化：目标{expected}（{server}），'
+            f'当前按钮：{detail(texts)}。未自动改选其他服。')
+    await buttons.nth(matches[0]).click()
+    selected = await buttons.all_inner_texts()
+    checked = [label for text in selected
+               for label, marked in [_server_button(text)] if marked]
+    if len(checked) != 1 or checked[0] not in SERVER_LABELS[server]:
+        raise SoloUnavailable(
+            f'DILDORO服务器选择未确认：目标{expected}（{server}），'
+            f'当前按钮：{detail(selected)}。本次停止计算。')
+
 
 @dataclass(frozen=True)
 class SoloAccount:
@@ -183,23 +225,8 @@ async def _capture_page(page, account, progress, *, mode='default'):
         raise SoloUnavailable(str(exc)) from None
     card = page.locator('#lab-sheet .lab-card[data-kind="draft-rank"]')
     await card.wait_for(state='visible', timeout=_PAGE_TIMEOUT_MS)
-    # Runtime labSrvPicker translates these labels. Read exact buttons and disallow fallback.
-    labels = {'JP': ('日本','Japan','일본'), 'NA': ('北美','North America','북미'),
-              'KR': ('韩国','韓國','Korea','한국'), 'GLOBAL': ('全球','Global','글로벌'),
-              'SEA': ('东南亚','東南亞','SEA','동남아'), 'TW-HK': ('台湾·香港','台灣·香港','台湾・香港','Taiwan','대만·홍콩')}
-    buttons = card.locator('.lab-srv button')
-    found = []
-    for i in range(await buttons.count()):
-        text = (await buttons.nth(i).inner_text()).replace(' ✓','').strip()
-        if text in labels[server]:
-            found.append(buttons.nth(i))
-    if len(found) != 1:
-        raise SoloUnavailable('DILDORO服务器选项已变化，未自动改选其他服。')
-    await found[0].click()
-    # Read only site state to verify the server chosen by UI, before expensive work.
-    selected = await card.locator('.lab-srv').inner_text()
-    if not any(label in selected and label + ' ✓' in selected for label in labels[server]):
-        raise SoloUnavailable('DILDORO服务器选择未确认，本次停止计算。')
+    # Translate exact public labels; require one selection and disallow fallback.
+    await _select_server(card, server)
     go = card.locator('[data-role="go"]')
     if not await go.is_enabled():
         raise SoloUnavailable('当前账号不满足推荐条件，请直接访问DILDORO查看详情。')
