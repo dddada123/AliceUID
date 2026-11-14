@@ -193,8 +193,11 @@ class ResourceStatusService:
                 for attempt in range(1, 4):
                     await check_current()
                     try:
-                        async with (self.reads or account_reads).transaction(client,bind,wait=True) as paced:
-                            for method in ('get_basic_info', 'get_outpost_info', 'get_daily_progress'):
+                        # Two required endpoints only, using the panel aggressive
+                        # one-second start interval; retain shared lock/refusal gate.
+                        async with (self.reads or account_reads).transaction(
+                                client, bind, wait=True, panel_interval=1.0, batch_start=True) as paced:
+                            for method in ('get_basic_info', 'get_daily_progress'):
                                 if method not in fetched:
                                     await check_current()
                                     fetched[method] = await getattr(paced, method)()

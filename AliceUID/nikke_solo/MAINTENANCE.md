@@ -1,3 +1,5 @@
+1.2.12：资源查询改为两个必需接口及固定1秒节奏，保留首批/重试门槛。下方旧版资源节拍描述以此为准。
+
 # 1.2.06 · 2026-11-14
 
 全量面板_RefreshReads固定DETAIL_BATCH_SIZE=30，在任务创建时读取AliceUID_PanelRiskStrategy（缺失/非法conservative=2秒；aggressive=1秒）。AccountReads只对该调用显式启用panel_interval；保留同账号锁、全局2个在途槽、首批防重复门槛与前台优先。每接口不重复last_batch五秒等待，普通轻量/资源/联盟/公开导出仍用旧节拍。请求级预算覆盖前置5项与最多500角色的分批，不层叠重试。
