@@ -88,6 +88,13 @@ def solo_html(image, bind, region, theme=None):
     from ..nikke_resource.cache import PLACEHOLDER
     presentation = image.presentation if isinstance(image.presentation, dict) else {}
     codes = attribute_codes(image.site)
+    recommendation = image.site.get('recommended')
+    if recommendation:
+        simulation_settings = '已套用推荐设置 · ' + str(recommendation.get('label') or recommendation.get('code') or '')
+    elif image.site.get('recommendation_status'):
+        simulation_settings = '网站默认配置（未读取到匹配配置或导入入口）'
+    else:
+        simulation_settings = '网站现有模拟配置'
     ctx = apply_theme(dict(commander_name=bind.nickname or '昵称未知',commander_uid=bind.uid or '未知',
         commander_region=region.label,weakness=image.weakness,rank_season=image.rank_season,
         query_mode='自动跟随赛季' if image.site.get('mode', 'default') == 'default' else '手动指定',
@@ -98,7 +105,7 @@ def solo_html(image, bind, region, theme=None):
         reference_element_icon=presentation.get('reference_element_icon') or '',
         current_element_label=label(codes['current']) if codes['current'] else '属性未确认',
         reference_element_label=label(codes['reference']) if codes['reference'] else '属性未确认',
-        season_notice=season_notice(image.site),
+        season_notice=season_notice(image.site), simulation_settings=simulation_settings,
         default_weakness=label(image.site.get('default_code')),boss=image.site.get('boss',''),
         site_current_raid=image.site.get('current_raid'),source_time=source_time,
         captured_at=datetime.fromtimestamp(image.captured_at, ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S'),

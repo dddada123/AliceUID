@@ -231,10 +231,17 @@ async def _capture_page(page, account, progress, *, mode='default'):
     await page.locator('#code').select_option(weakness)
     await page.wait_for_function('(code)=>document.querySelector("#code")?.value===code', arg=weakness, timeout=_PAGE_TIMEOUT_MS)
     progress('推荐设置套用')
-    from .recommended import fetch_recommendation, browser_fetch, apply_recommendation, verify_applied
+    from .recommended import fetch_recommendation, browser_fetch, apply_recommendation, verify_applied, RecommendationUnavailable
+    recommendation_status = 'none'
+    available_recommendation = None
     try:
-        recommendation = await fetch_recommendation(weakness, lambda path: browser_fetch(page, path))
-        await apply_recommendation(page, recommendation, timeout=_PAGE_TIMEOUT_MS)
+        available_recommendation = await fetch_recommendation(weakness, lambda path: browser_fetch(page, path))
+        applied = await apply_recommendation(page, available_recommendation, timeout=_PAGE_TIMEOUT_MS)
+        recommendation = available_recommendation if applied else None
+        recommendation_status = 'applied' if applied else ('no-import-control' if available_recommendation else 'none')
+    except RecommendationUnavailable:
+        recommendation = None
+        recommendation_status = 'unavailable'
     except ValueError as exc:
         raise SoloUnavailable(str(exc)) from None
     progress('配置模式切换')
@@ -340,8 +347,11 @@ async def _capture_page(page, account, progress, *, mode='default'):
     site['native_code'] = native_code
     site['profile_fetched_at'] = imported_at or ''
     site['recommended'] = recommendation
+    site['recommended_available'] = available_recommendation
+    site['recommendation_status'] = recommendation_status
     settings_note = (f'已套用网站推荐设置：{recommendation["label"]}（代码 {recommendation["code"]}）。' if recommendation
-                     else '网站暂无匹配本次属性的推荐设置，本次采用网站现有模拟设置。')
+                     else ('未检测到推荐配置导入环节，已自动采用网站默认模拟配置。' if recommendation_status == 'no-import-control'
+                           else '未读取到匹配的推荐配置，已自动采用网站默认模拟配置。'))
     return SoloImage(image, element_label(weakness), time.time(), str(season['raid']),
                      status_notes(site) + (settings_note,) + (() if imported_at else ('网站未报告可核验的养成采集时间；本次已重新提交链接拉取请求。',)) + ('排行阵容来自网站同弱点最近可用赛季；模拟条件采用网站当前设置。',
                       '网址导入受公开设置影响；回收室等缺失数据可能使用网站默认值。'), site)

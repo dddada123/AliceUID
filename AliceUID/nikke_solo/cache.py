@@ -13,7 +13,7 @@ from .service import SoloImage, SoloUnavailable, validate_png
 
 TTL = 5 * 86400
 SCHEMA = 'solo-selection-v2'
-LAYOUT = 'solo-header-v1201-season-icons'
+LAYOUT = 'solo-header-v1203-setting-status'
 
 def identity(bind, actor=None, mode='default'):
     actor = actor or (str(bind.user_id),str(bind.bot_id))

@@ -118,7 +118,7 @@ def revision(meta):
     return fingerprint([meta.get(k) for k in ('policy', 'mode', 'code', 'raid', 'boss', 'active', 'current_raid',
                                               'current_until', 'source_fingerprint')] +
                        ([meta.get('default_code')] if meta.get('mode') == 'default' else []) +
-                       [(meta.get('recommended') or {}).get('fingerprint')])
+                       [(meta.get('recommended_available',meta.get('recommended')) or {}).get('fingerprint')])
 
 def status_notes(meta):
     notes = []
@@ -220,8 +220,11 @@ class SiteMonitor:
                         meta=metadata(listing, default_code, code, mode, season, source))
                 result = metadata(listing, default_code, code, mode, season, source)
                 if self.recommend is None:
-                    from .recommended import fetch_recommendation
-                    result['recommended'] = await fetch_recommendation(code, self.fetch)
+                    from .recommended import fetch_recommendation, RecommendationUnavailable
+                    try:
+                        result['recommended'] = await fetch_recommendation(code, self.fetch)
+                    except RecommendationUnavailable:
+                        result['recommended'] = None
                 else:
                     result['recommended'] = await self.recommend(code)
                 self.save(state)

@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.2.02-ff69b4?style=flat-square" alt="Version: 1.2.02"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.2.03-ff69b4?style=flat-square" alt="Version: 1.2.03"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.2.02**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.2.03**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [常见问题（QA）](#常见问题qa) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -99,7 +99,7 @@ JSON采用schema_version=3，保留原有characters字段名称（attack、defen
 
 默认和五种属性分别保存结果，最长保留5天。默认查询每次先检查最新赛季，再决定是否使用缓存；发现新赛季、对应排行或网站推荐设置变化后，重新导入本人公开养成并计算。手动属性的排行检查间隔为活动期1小时、休赛期6小时，由查询触发。
 
-本人养成变化后使用 `nk个人突袭推荐火刷新` 或 `nk单人突袭推荐刷新`，强制重新导入对应结果；兼容刷新前置写法，末尾可加 `亮色／暗色／随机`。每次网站重算都在独立环境填写本人链接、同步养成，自动套用同属性最新推荐设置，再依次选择“排行玩家编队”、本人区服并执行；拉取失败或网站报告的养成采集时间过旧时停止计算。
+本人养成变化后使用 `nk个人突袭推荐火刷新` 或 `nk单人突袭推荐刷新`，强制重新导入对应结果；兼容刷新前置写法，末尾可加 `亮色／暗色／随机`。每次网站重算都在独立环境填写本人链接、同步养成，识别并套用同属性最新推荐设置（支持属性简称、繁简体及日期格式变化），再依次选择“排行玩家编队”、本人区服并执行；养成拉取失败或网站报告的采集时间过旧时停止计算。未读取到推荐配置或没有导入入口时继续默认配置模拟，卡片顶部会注明；已有配置却套用失败或属性/日期冲突时停止。
 
 卡片顶部显示指挥官头像、五属性图标、网站赛季和阵容参考赛季；三栏均配各自属性图标，跨赛季分别显示。两期不一致时醒目提醒，并建议在本期活动第3天下午之后再查询或刷新；此建议不保证届时一定更新。手动指定属性可能使用历史同属性排行，不能当作本期实战阵容。主动刷新失败直接提示，自动更新失败若展示旧结果会明确标注；赛季预检失败不把旧缓存当成本期结果。网站未报告养成采集时间时卡内会说明，无法保证上游隐藏缓存的新鲜度。功能仍为实验性，模拟伤害仅供参考。
 
