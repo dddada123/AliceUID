@@ -6,10 +6,10 @@ import io
 import re
 import time
 from dataclasses import dataclass, field
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 from PIL import Image
 from .selection import BY_CODE, ELEMENTS, label as element_label
-from .site import choose, source_fingerprint, metadata, status_notes
+from .site import choose, source_fingerprint, metadata, status_notes, resolve, automatic_code
 
 SITE = 'https://dildoro.com/'
 NOTICE = ('【实验性功能】正在从 https://dildoro.com/ 查询信息，请稍后，'
@@ -71,6 +71,7 @@ class SoloAccount:
     url: str
     share_openid: str
     area: int
+    icon_id: int | str | None = None
 
 @dataclass(frozen=True)
 class SoloImage:
@@ -80,6 +81,7 @@ class SoloImage:
     rank_season: str = ''
     notes: tuple[str, ...] = ()
     site: dict = field(default_factory=dict)
+    presentation: dict = field(default_factory=dict)
 
 async def owned_account(client, bind):
     expected = (str(bind.game_id), str(bind.intl_open_id), int(bind.area_id))
@@ -96,7 +98,7 @@ async def owned_account(client, bind):
         raise SoloUnavailable('未取得可核验的本人分享标识，请稍后重试。')
     # Authenticated self endpoint owns this share ID; it need not equal the login ID.
     encoded = base64.b64encode(full.encode()).decode('ascii')
-    return SoloAccount('https://www.blablalink.com/user?' + urlencode({'openid': encoded}), match[2], actual[2])
+    return SoloAccount('https://www.blablalink.com/user?' + urlencode({'openid': encoded}), match[2], actual[2], role.get('icon'))
 
 def validate_png(data):
     if not isinstance(data, bytes) or not 0 < len(data) <= 16 * 1024 * 1024:
@@ -109,7 +111,7 @@ def validate_png(data):
 # Storage schema checked against public app.js; only account selectors are read.
 PROFILES = """() => Object.values(JSON.parse(localStorage.getItem('nikke.profiles.v1') || '{}')).map(p =>
     ({id:p.id, openid:String(p.openid), area:Number(p.area), count:Object.keys(p.fetched?.chars||{}).length,
-      notices:p.notices||[]}))"""
+      fetched_at:p.fetched?._meta?.fetched_at||p.fetched_at||"", notices:p.notices||[]}))"""
 
 async def capture_page(page, account, *, mode='default'):
     from playwright.async_api import Error, TimeoutError as BrowserTimeout
@@ -179,12 +181,26 @@ async def _capture_page(page, account, progress, *, mode='default'):
     await page.wait_for_function("() => !!document.querySelector('#url-go') && !document.querySelector('#url-go').disabled", timeout=_PAGE_TIMEOUT_MS)
     progress('本人公开数据同步')
     await page.locator('#url-in').fill(account.url)
-    await page.locator('#url-go').click()
+    # Each new context must submit an actual fetch job; a populated local profile is insufficient.
+    async with page.expect_response(lambda r: '/api/fetch' == urlsplit(r.url).path
+                                    and r.request.method == 'POST', timeout=_PAGE_TIMEOUT_MS) as sync_response:
+        await page.locator('#url-go').click()
+    if not 200 <= (await sync_response.value).status < 300:
+        raise SoloUnavailable('本人养成重新拉取失败，本次停止计算。')
     await page.wait_for_function("() => !document.querySelector('#url-go')?.disabled", timeout=180000)
     profiles = await page.evaluate(PROFILES)
     matches = [p for p in profiles if p.get('openid') == account.share_openid and p.get('area') == account.area and p.get('count', 0) > 0]
     if len(matches) != 1:
         raise SoloUnavailable('账号同步未完成或目标区服未导入。请确认blablalink个人档案和妮姬列表公开，或直接访问DILDORO导入本人数据。')
+    imported_at = matches[0].get('fetched_at')
+    if imported_at:
+        from datetime import datetime
+        try:
+            stamp = datetime.fromisoformat(imported_at.replace('Z', '+00:00'))
+            if stamp.tzinfo is None or not -60 <= time.time() - stamp.timestamp() <= 600:
+                raise ValueError('stale')
+        except (AttributeError, TypeError, ValueError):
+            raise SoloUnavailable('网站返回的本人养成采集时间过旧或无法核验，本次停止计算，请稍后重新同步。') from None
     progress('本人计算账号选择')
     # Grid mode intentionally hides the account selector. Select on the normal
     # deck first, then enter grid through the site's toggle to retain active state.
@@ -194,14 +210,26 @@ async def _capture_page(page, account, progress, *, mode='default'):
     await page.locator('#profile-pick').wait_for(state='visible', timeout=_PAGE_TIMEOUT_MS)
     await page.locator('#profile-pick').select_option(matches[0]['id'], timeout=_PAGE_TIMEOUT_MS)
     await page.wait_for_function('(id)=>document.querySelector("#profile-pick")?.value===id', arg=matches[0]['id'], timeout=_PAGE_TIMEOUT_MS)
-    default_code = await read_default(page)
-    if mode != 'default':
-        code = ELEMENTS[mode][2]
-        await page.locator('#code').select_option(code)
-        await page.wait_for_function('(code)=>document.querySelector("#code")?.value===code', arg=code, timeout=_PAGE_TIMEOUT_MS)
-    weakness = await page.locator('#code').input_value()
-    if not weakness:
-        raise SoloUnavailable('DILDORO未提供单人突袭BOSS弱点，请直接访问网站核对当期设置。')
+    native_code = await read_default(page)
+    listing_response = await page.evaluate("""async () => {const r=await fetch('/api/sr-rank/list');return {status:r.status, data:await r.json()}}""")
+    if listing_response['status'] != 200:
+        raise SoloUnavailable('DILDORO赛季信息暂不可用。')
+    initial_listing = listing_response['data']
+    server, _ = SERVERS[account.area]
+    try:
+        weakness, expected_season = resolve(initial_listing, mode, server)
+        default_code = automatic_code(initial_listing)
+    except ValueError as exc:
+        if mode == 'default':
+            raise SoloUnavailable(str(exc)) from None
+        try:
+            weakness, expected_season = resolve(initial_listing, mode, server)
+        except ValueError as error:
+            raise SoloUnavailable(str(error)) from None
+        default_code = None
+    # Always trigger the site's native change event, including automatic mode.
+    await page.locator('#code').select_option(weakness)
+    await page.wait_for_function('(code)=>document.querySelector("#code")?.value===code', arg=weakness, timeout=_PAGE_TIMEOUT_MS)
     progress('配置模式切换')
     if not await page.locator('#fast-wrap').is_visible():
         await page.locator('#fast-toggle').click()
@@ -220,7 +248,9 @@ async def _capture_page(page, account, progress, *, mode='default'):
         await page.locator('#fast-rank').click()
     listing = await (await ranks.value).json()
     try:
-        season = choose(listing, weakness, server)
+        confirmed_code, season = resolve(listing, mode, server)
+        if confirmed_code != weakness or season['raid'] != expected_season['raid']:
+            raise ValueError('网站赛季在计算期间发生变化，请重新查询。')
     except ValueError as exc:
         raise SoloUnavailable(str(exc)) from None
     card = page.locator('#lab-sheet .lab-card[data-kind="draft-rank"]')
@@ -288,8 +318,10 @@ async def _capture_page(page, account, progress, *, mode='default'):
     image = await capture_result(page, result)
     site = metadata(listing, default_code, weakness, mode, season, actual_source[0])
     site['fetched_at'] = actual_fetched[0]
+    site['native_code'] = native_code
+    site['profile_fetched_at'] = imported_at or ''
     return SoloImage(image, element_label(weakness), time.time(), str(season['raid']),
-                     status_notes(site) + ('排行阵容来自网站同弱点最近可用赛季；模拟条件采用网站当前设置。',
+                     status_notes(site) + (() if imported_at else ('网站未报告可核验的养成采集时间；本次已重新提交链接拉取请求。',)) + ('排行阵容来自网站同弱点最近可用赛季；模拟条件采用网站当前设置。',
                       '网址导入受公开设置影响；回收室等缺失数据可能使用网站默认值。'), site)
 
 async def capture_result(page, result):
@@ -357,7 +389,8 @@ async def capture(account, *, channel='auto', mode='default'):
             try:
                 async def run():
                     context = await browser.new_context(viewport={'width':1600,'height':1200},device_scale_factor=1.5,
-                                                        locale='zh-CN',timezone_id='Asia/Shanghai',service_workers='block')
+                                                        locale='zh-CN',timezone_id='Asia/Shanghai',service_workers='block',
+                                                        extra_http_headers={'Cache-Control':'no-cache','Pragma':'no-cache'})
                     try:
                         return await capture_page(await context.new_page(), account, mode=mode)
                     finally:

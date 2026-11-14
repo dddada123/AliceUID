@@ -15,16 +15,68 @@ def fingerprint(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
                                     separators=(',', ':'), allow_nan=False).encode()).hexdigest()
 
-def choose(listing, code, server):
+POLICY = 'solo-season-v120'
+ADVICE = '建议在本期活动第3天下午之后，再查询或刷新一次。'
+
+
+def seasons(listing):
     rows = listing.get('seasons')
-    if not isinstance(rows, list) or len(rows) > 100:
-        raise ValueError('排行赛季列表异常')
-    season = next((s for s in rows if isinstance(s, dict) and s.get('weakness_code') == code), None)
-    if not season or type(season.get('raid')) is not int or season['raid'] <= 0:
-        raise ValueError('网站暂无该属性的排行参考赛季')
-    if server not in season.get('servers', []):
-        raise ValueError('该属性参考赛季暂无本人区服数据')
+    if not isinstance(rows, list) or not 0 < len(rows) <= 100:
+        raise ValueError('排行赛季列表异常或尚未收录')
+    if any(not isinstance(s, dict) or type(s.get('raid')) is not int or s['raid'] <= 0
+           or s.get('weakness_code') not in BY_CODE or not isinstance(s.get('servers'), list) for s in rows):
+        raise ValueError('排行赛季信息异常')
+    if len({s['raid'] for s in rows}) != len(rows):
+        raise ValueError('排行赛季信息重复，暂无法确认')
+    return sorted(rows, key=lambda s: s['raid'], reverse=True)
+
+
+def automatic_code(listing):
+    rows = seasons(listing)
+    current = listing.get('current')
+    raid = current.get('raid') if isinstance(current, dict) else None
+    if raid is None:
+        return rows[0]['weakness_code']
+    if type(raid) is not int or raid <= 0:
+        raise ValueError('网站赛季标识异常')
+    row = next((s for s in rows if s['raid'] == raid), None)
+    if row is None:
+        raise ValueError('本期排行或属性尚未确认。' + ADVICE)
+    return row['weakness_code']
+
+
+def choose(listing, code, server):
+    season = next((s for s in seasons(listing) if s['weakness_code'] == code), None)
+    if season is None:
+        raise ValueError('网站暂无该属性的排行参考赛季。' + ADVICE)
+    if server not in season['servers']:
+        raise ValueError('该属性最新参考赛季暂无本人区服数据。' + ADVICE)
     return season
+
+
+def resolve(listing, mode, server):
+    from .selection import ELEMENTS
+    if mode == 'default':
+        code = automatic_code(listing)
+    else:
+        code = ELEMENTS[mode][2]
+    return code, choose(listing, code, server)
+
+
+def season_notice(meta):
+    current, raid = meta.get('current_raid'), meta.get('raid')
+    if type(current) is not int or type(raid) is not int:
+        return '本次未能确认赛季是否一致；当前按最近已收录的同属性赛季查询。'
+    if current == raid:
+        return ''
+    if raid > current:
+        return '参考赛季与网站赛季标识不一致，网站标识可能尚未同步，请稍后核对。' + ADVICE
+    delta = current - raid
+    detail = f'本次尚未取得第{current}期排行推荐，当前参考第{raid}期（落后{delta}期）。'
+    if meta.get('mode') != 'default':
+        detail = f'你手动指定了属性，当前使用第{raid}期同属性历史排行，与网站第{current}期不一致；本次未使用本期排行。若需本期推荐，请使用不带属性的查询。'
+    return detail + ADVICE
+
 
 def source_fingerprint(payload, season, server):
     if (payload.get('raid') != season['raid'] or
@@ -54,7 +106,7 @@ def source_fingerprint(payload, season, server):
 def metadata(listing, default_code, code, mode, season, source):
     current = listing.get('current') or {}
     raid = current.get('raid') if isinstance(current, dict) else None
-    return dict(mode=mode, code=code, default_code=default_code,
+    return dict(policy=POLICY, mode=mode, code=code, default_code=default_code,
                 raid=season['raid'], boss=str(season.get('boss') or ''),
                 fetched_at=str(season.get('fetched_at') or ''),
                 active=listing.get('active') if type(listing.get('active')) is bool else None,
@@ -63,17 +115,15 @@ def metadata(listing, default_code, code, mode, season, source):
                 source_fingerprint=source, verified_at=time.time(), _listing=listing)
 
 def revision(meta):
-    return fingerprint([meta.get(k) for k in ('mode', 'code', 'raid', 'boss', 'active', 'current_raid',
+    return fingerprint([meta.get(k) for k in ('policy', 'mode', 'code', 'raid', 'boss', 'active', 'current_raid',
                                               'current_until', 'source_fingerprint')] +
                        ([meta.get('default_code')] if meta.get('mode') == 'default' else []))
 
 def status_notes(meta):
     notes = []
     current, raid, active = meta.get('current_raid'), meta.get('raid'), meta.get('active')
-    if current is not None and current != raid:
+    if type(current) is int and type(raid) is int and current > raid:
         notes.append('本次采用历史同属性赛季阵容；BOSS机制可能不同，不代表本期实战表现。')
-        if active is True:
-            notes.append('本期同属性排行或本人区服数据尚未用于本次结果，后续查询将自动检查更新。')
     if active is True:
         notes.append('赛季进行中，已收录阵容可能尚不充分；排行、推荐与伤害预估后续仍可能变动。')
     elif active is None:
@@ -84,7 +134,7 @@ def status_notes(meta):
 
 async def fetch_json(path):
     async with httpx.AsyncClient(timeout=25, follow_redirects=False, trust_env=False) as client:
-        async with client.stream('GET', BASE + path) as response:
+        async with client.stream('GET', BASE + path, headers={'Cache-Control':'no-cache','Pragma':'no-cache'}) as response:
             response.raise_for_status()
             body = bytearray()
             async for chunk in response.aiter_bytes():
@@ -107,7 +157,7 @@ class SiteMonitor:
             if self.path.stat().st_size > 256 * 1024:
                 return {}
             state = json.loads(self.path.read_text('utf-8'))
-            if state.get('schema') == 1 and isinstance(state.get('entries'), dict):
+            if state.get('schema') == 2 and isinstance(state.get('entries'), dict):
                 return state
         except (OSError, ValueError, TypeError, AttributeError):
             pass
@@ -125,7 +175,7 @@ class SiteMonitor:
             return
         async with self.lock:
             state = self.load()
-            state.update(schema=1, listing=meta['_listing'], default_code=meta['default_code'],
+            state.update(schema=2, listing=meta['_listing'], default_code=meta['default_code'],
                          checked_at=self.clock())
             entries = state.setdefault('entries', {})
             entries[meta['code'] + ':' + server] = dict(checked_at=self.clock(), meta=meta)
@@ -134,33 +184,31 @@ class SiteMonitor:
     async def inspect(self, mode, server):
         from .selection import ELEMENTS
         async with self.lock:
-            if self.clock() < self.retry_at:
+            if mode != 'default' and self.clock() < self.retry_at:
                 raise ValueError('网站更新检查暂不可用，请稍后重试')
             try:
                 state = self.load()
                 listing = state.get('listing') or {}
                 # Unknown state is checked at the active interval, not treated as closed.
                 ttl = 21600 if listing.get('active') is False else 3600
-                if not self.fresh(state.get('checked_at'), ttl):
+                if mode == 'default' or not self.fresh(state.get('checked_at'), ttl):
                     listing = await self.fetch('/api/sr-rank/list')
-                    probe = self.probe
-                    if probe is None:
-                        from .service import probe_default
-                        probe = probe_default
-                    default_code = await probe()
-                    if default_code not in BY_CODE:
-                        raise ValueError('网站默认属性未就绪')
-                    state.update(schema=1, listing=listing, default_code=default_code, checked_at=self.clock())
-                default_code = state.get('default_code')
-                if default_code not in BY_CODE:
-                    raise ValueError('网站默认属性未确认')
-                code = default_code if mode == 'default' else ELEMENTS[mode][2]
-                season = choose(listing, code, server)
+                    # A browser's native default is unrelated to the current ranking season.
+                    seasons(listing)
+                    state.update(schema=2, listing=listing, checked_at=self.clock())
+                code, season = resolve(listing, mode, server)
+                try:
+                    default_code = automatic_code(listing)
+                except ValueError:
+                    if mode == 'default':
+                        raise
+                    default_code = None
+                state['default_code'] = default_code
                 entries = state.setdefault('entries', {})
                 entry = entries.get(code + ':' + server, {})
                 old = entry.get('meta', {})
                 ttl = 21600 if listing.get('active') is False else 3600
-                if (old.get('raid') == season['raid'] and old.get('fetched_at') == str(season.get('fetched_at') or '')
+                if (old.get('policy') == POLICY and old.get('raid') == season['raid'] and old.get('fetched_at') == str(season.get('fetched_at') or '')
                         and self.fresh(entry.get('checked_at'), ttl)):
                     source = old['source_fingerprint']
                 else:

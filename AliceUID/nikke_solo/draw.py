@@ -8,7 +8,9 @@ from PIL import Image, ImageDraw
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from ..nikke_render.theme import apply_theme, get_card_theme
 from .service import validate_png
-from .selection import label
+from .selection import label, BY_CODE
+from .site import season_notice
+from dataclasses import replace
 
 ENV = Environment(loader=FileSystemLoader(str(Path(__file__).resolve().parent.parent/'templates')),
                   autoescape=select_autoescape(['html']))
@@ -36,6 +38,41 @@ def rounded_png(data, radius=22):
     out.save(stream, format='PNG')
     return stream.getvalue()
 
+def attribute_codes(meta):
+    """Website season and actual reference are independent of the query/native default."""
+    query = meta.get('code')
+    query = query if isinstance(query, str) and query in BY_CODE else None
+    reference = meta.get('reference_code', query)
+    reference = reference if isinstance(reference, str) and reference in BY_CODE else None
+    current = None
+    raid = meta.get('current_raid')
+    listing = meta.get('_listing')
+    rows = listing.get('seasons') if isinstance(listing, dict) else None
+    if type(raid) is int and isinstance(rows, list):
+        matching = [row for row in rows if isinstance(row, dict) and type(row.get('raid')) is int and row['raid'] == raid]
+        if len(matching) == 1 and isinstance(matching[0].get('weakness_code'), str) and matching[0]['weakness_code'] in BY_CODE:
+            current = matching[0]['weakness_code']
+    return {'query': query, 'current': current, 'reference': reference}
+
+
+async def prepare_attribute_presentation(image, images):
+    from ..nikke_resource.cache import image_data_uri
+    names = {'fire':'fire','water':'water','wind':'wind','electric':'elect','iron':'iron'}
+    codes = attribute_codes(image.site)
+    sources = {}
+    for code in sorted({code for code in codes.values() if code}):
+        try:
+            data = await images.get_base_icon('attributes', 'icn_element_' + names[BY_CODE[code]])
+            sources[code] = image_data_uri(data, (128, 128)) if data else ''
+        except Exception:
+            sources[code] = ''
+    presentation = dict(image.presentation)
+    for kind, key in [('query','element_icon'), ('current','current_element_icon'), ('reference','reference_element_icon')]:
+        # Clear stale decorations rather than copying a different season's symbol.
+        presentation[key] = sources.get(codes[kind], '')
+    return presentation
+
+
 def solo_html(image, bind, region, theme=None):
     with Image.open(io.BytesIO(image.png)) as im:
         height = round(im.height * 960 / im.width)
@@ -48,9 +85,20 @@ def solo_html(image, bind, region, theme=None):
             source_time = source_stamp.astimezone(ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S') + '（北京时间）'
         except (ValueError, TypeError):
             source_time = '网站未提供可确认的时间'
+    from ..nikke_resource.cache import PLACEHOLDER
+    presentation = image.presentation if isinstance(image.presentation, dict) else {}
+    codes = attribute_codes(image.site)
     ctx = apply_theme(dict(commander_name=bind.nickname or '昵称未知',commander_uid=bind.uid or '未知',
         commander_region=region.label,weakness=image.weakness,rank_season=image.rank_season,
-        query_mode='网站默认' if image.site.get('mode', 'default') == 'default' else '手动指定',
+        query_mode='自动跟随赛季' if image.site.get('mode', 'default') == 'default' else '手动指定',
+        avatar_url=presentation.get('avatar_url') or PLACEHOLDER,
+        avatar_hint=presentation.get('avatar_hint') or '头像暂不可用',
+        element_icon=presentation.get('element_icon') or '',
+        current_element_icon=presentation.get('current_element_icon') or '',
+        reference_element_icon=presentation.get('reference_element_icon') or '',
+        current_element_label=label(codes['current']) if codes['current'] else '属性未确认',
+        reference_element_label=label(codes['reference']) if codes['reference'] else '属性未确认',
+        season_notice=season_notice(image.site),
         default_weakness=label(image.site.get('default_code')),boss=image.site.get('boss',''),
         site_current_raid=image.site.get('current_raid'),source_time=source_time,
         captured_at=datetime.fromtimestamp(image.captured_at, ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M:%S'),
@@ -61,4 +109,7 @@ def solo_html(image, bind, region, theme=None):
 
 async def draw_solo(image, bind, region, theme=None):
     from ..nikke_render.render import render_html
+    from ..nikke_resource.service import get_resources
+    presentation = await prepare_attribute_presentation(image, get_resources().images)
+    image = replace(image, presentation=presentation)
     return await render_html(solo_html(image,bind,region,theme),root_width=1072)

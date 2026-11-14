@@ -1,3 +1,23 @@
+# 共享交付目录 · 2026-11-14
+
+handoff已移至CodexZone根目录，与版本目录平级；本文件历史章节中的handoff记录均指共享目录。版本复制使用tools_alice/prepare_version_workspace.py，排除handoff及可再生缓存；构建审计数据、预览、回归和交付报告均读取/写入共享目录，不再逐版复制。已有历史归档不追溯改写。
+
+# 1.2.01 · 2026-11-14
+
+单人突袭顶部三栏均使用独立属性图标。draw.attribute_codes根据current_raid在保存的_listing中精确匹配网站赛季，实际参考属性取已核验的code；不会以计算器default_code或查询属性推断网站赛季。无匹配、重复或未知属性显示“属性未确认”。prepare_attribute_presentation复用五属性资源并按code去重加载，缺图降级文字。自动更新失败的旧结果仅更新展示所需的最新_listing，保留实际参考code/raid及原生成时间。LAYOUT修订使旧成品图自动失效重绘，不触发额外推荐重算。版本号按用户指定保留1.2.01，运行build为20261114.2。
+
+以下保留开发历史。
+
+# 1.2.0 · 2026-11-14
+
+nikke_solo.site统一resolve/automatic_code，current.raid匹配到的weakness_code决定默认属性；没有current则选最高有效raid，current尚未收录则停止默认计算。choose不再依赖列表顺序。SiteMonitor默认每次查询GET最新列表，schema2隔离旧公共状态；个人图缓存保留v2格式，policy进入revision后旧默认结果自动重算。手动属性仍按1/6小时检查。刷新或赛季变化必经owned_account与独立上下文导入，再fast-rank、精确区服、go；service要求观察本次POST /api/fetch成功，不以已有localStorage视为同步完成。已报告采集时间必须带时区且不早于10分钟前、不晚于1分钟后；缺少时间明确说明，不能承诺绕过上游隐藏服务缓存。浏览器与公共GET请求携带no-cache头，不臆造网站未公开的force参数。
+
+默认赛季预检失败不读旧推荐图；其他自动更新失败可明确标注旧图并用本次已核验的网站赛季重绘提醒，保留原图真实参考赛季及生成时间。layout、头像内容与展示状态纳入样式指纹。头像经prepare_commander复用官方映射，可从同绑定cached_profile回退首位展示角色，不为装饰拉取全量练度；装饰失败不影响推荐。顶部正常流布局三列指标和全宽警告，复用既有五属性图标，电图标键为elect。
+
+验证范围：离线浏览器虚构账号导入/区服/排行/截图与命令缓存流程、公共只读榜单及匿名计算器默认检查、浏览器和Core原生视觉验证、完整包清洁解压与逐文件哈希；不真实账号导入、部署或发群。压缩的JPG仅用于设计预览，正式DPI/截图/字体素材保持。
+
+以下保留开发历史。
+
 # 1.1.37 · 2026-11-13
 
 nikke_solo.service统一SERVER_LABELS，新增GLOBAL的全球服及TW-HK的台港澳，保留原有精确名称。_select_server只检查.lab-srv button，分离末尾✓与名称；目标必须唯一匹配，点击后所有按钮必须恰好一个选中且属于目标区服。不进行子串猜测、首项或跨区服回退；原有排行list/sets区服与赛季核验继续执行。异常只包含目标区服和公开按钮文本（限20项，每项80字符），不读取账号状态作为诊断。
@@ -463,7 +483,7 @@ AliceUID/                       ← 可安装外壳
 └─ README.md / CHANGELOG.md / DEVELOPMENT.md
 ```
 
-版本工作区额外包含 `tests_alice/`、`tools_alice/`、`docs/`、`handoff/`、`.references/`、`.runtime/`、`dist/`。这些属于开发与交付环境，不应直接放入Core插件扫描目录。生产与开发数据路径的区别见第9节。
+版本工作区额外包含 `tests_alice/`、`tools_alice/`、`docs/`、`.references/`、`.runtime/`、`dist/`。这些属于开发与交付环境，不应直接放入Core插件扫描目录。生产与开发数据路径的区别见第9节。
 
 ### 注册顺序
 

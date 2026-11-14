@@ -1,3 +1,19 @@
+# 1.2.01 · 2026-11-14
+
+单人突袭顶部三栏均使用独立属性图标。draw.attribute_codes根据current_raid在保存的_listing中精确匹配网站赛季，实际参考属性取已核验的code；不会以计算器default_code或查询属性推断网站赛季。无匹配、重复或未知属性显示“属性未确认”。prepare_attribute_presentation复用五属性资源并按code去重加载，缺图降级文字。自动更新失败的旧结果仅更新展示所需的最新_listing，保留实际参考code/raid及原生成时间。LAYOUT修订使旧成品图自动失效重绘，不触发额外推荐重算。版本号按用户指定保留1.2.01，运行build为20261114.2。
+
+以下保留开发历史。
+
+# 1.2.0 · 2026-11-14
+
+nikke_solo.site统一resolve/automatic_code，current.raid匹配到的weakness_code决定默认属性；没有current则选最高有效raid，current尚未收录则停止默认计算。choose不再依赖列表顺序。SiteMonitor默认每次查询GET最新列表，schema2隔离旧公共状态；个人图缓存保留v2格式，policy进入revision后旧默认结果自动重算。手动属性仍按1/6小时检查。刷新或赛季变化必经owned_account与独立上下文导入，再fast-rank、精确区服、go；service要求观察本次POST /api/fetch成功，不以已有localStorage视为同步完成。已报告采集时间必须带时区且不早于10分钟前、不晚于1分钟后；缺少时间明确说明，不能承诺绕过上游隐藏服务缓存。浏览器与公共GET请求携带no-cache头，不臆造网站未公开的force参数。
+
+默认赛季预检失败不读旧推荐图；其他自动更新失败可明确标注旧图并用本次已核验的网站赛季重绘提醒，保留原图真实参考赛季及生成时间。layout、头像内容与展示状态纳入样式指纹。头像经prepare_commander复用官方映射，可从同绑定cached_profile回退首位展示角色，不为装饰拉取全量练度；装饰失败不影响推荐。顶部正常流布局三列指标和全宽警告，复用既有五属性图标，电图标键为elect。
+
+验证范围：离线浏览器虚构账号导入/区服/排行/截图与命令缓存流程、公共只读榜单及匿名计算器默认检查、浏览器和Core原生视觉验证、完整包清洁解压与逐文件哈希；不真实账号导入、部署或发群。压缩的JPG仅用于设计预览，正式DPI/截图/字体素材保持。
+
+以下保留开发历史。
+
 # AliceUID 1.1.18 维护与接手说明
 
 当前新增首次启动角色列表更新、未知角色补查及数据库命令权限提示。当前行为以README、DEVELOPMENT与CHANGELOG的1.1.18章节为准；以下内容保留为历史维护记录。

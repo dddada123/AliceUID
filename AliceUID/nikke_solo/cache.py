@@ -13,6 +13,7 @@ from .service import SoloImage, SoloUnavailable, validate_png
 
 TTL = 5 * 86400
 SCHEMA = 'solo-selection-v2'
+LAYOUT = 'solo-header-v1201-season-icons'
 
 def identity(bind, actor=None, mode='default'):
     actor = actor or (str(bind.user_id),str(bind.bot_id))
@@ -34,7 +35,7 @@ def style_key(image,bind,theme):
         from ..nikke_config.config import AliceUIDConfig
         dpi = AliceUIDConfig.get_config('AliceUID_RenderDpi').data
     except (ImportError,AttributeError,KeyError,RuntimeError):dpi=144
-    values=[SCHEMA,source_hash(image),image.captured_at,image.site,list(image.notes),theme,get_glass_strength(),resolve_font().fingerprint,
+    values=[SCHEMA,LAYOUT,image.presentation,source_hash(image),image.captured_at,image.site,list(image.notes),theme,get_glass_strength(),resolve_font().fingerprint,
             get_card_language(),dpi,str(bind.nickname or ''),str(bind.uid or '')]
     from ..nikke_render.cache import style_version
     values.append(style_version(dpi=dpi, theme=theme))
@@ -54,7 +55,7 @@ class SoloCache(PanelCache):
     def metadata(self,key):
         try:
             p=self.path(key,'snapshot.json')
-            if p.stat().st_size>32768:return None
+            if p.stat().st_size>524288:return None
             m=json.loads(p.read_text('utf-8'))
             if not isinstance(m,dict) or type(m.get('captured_at')) not in (int,float):return None
             age=self.clock()-m['captured_at']
@@ -78,7 +79,7 @@ class SoloCache(PanelCache):
             if hashlib.sha256(raw).hexdigest()!=m['source_sha']:return None
             validate_png(raw)
             if not isinstance(m['notes'],list) or not all(isinstance(n,str) for n in m['notes']):return None
-            return SoloImage(raw,str(m['weakness']),m['captured_at'],str(m['rank_season']),tuple(m['notes']),m['site'])
+            return SoloImage(raw,str(m['weakness']),m['captured_at'],str(m['rank_season']),tuple(m['notes']),m['site'],m.get('presentation',{}))
         except (OSError,ValueError,KeyError,TypeError,SoloUnavailable):return None
 
     def card(self,key,image,style):
@@ -103,7 +104,7 @@ class SoloCache(PanelCache):
         renders.pop(style,None);renders[style]=hashlib.sha256(card).hexdigest()
         renders=dict(list(renders.items())[-8:])
         metadata=dict(schema=SCHEMA,source_sha=sha,captured_at=image.captured_at,weakness=image.weakness,
-                      rank_season=image.rank_season,notes=list(image.notes),site=image.site,renders=renders)
+                      rank_season=image.rank_season,notes=list(image.notes),site=image.site,presentation=image.presentation,renders=renders)
         # Publish only after both PNGs exist. Refresh errors leave the old pointer intact.
         atomic_write(self.path(key,'snapshot.json'),json.dumps(metadata,ensure_ascii=False,allow_nan=False).encode())
         keep={'source-'+sha+'.png',*('render-'+k+'.png' for k in renders)}
@@ -125,7 +126,7 @@ class SoloCache(PanelCache):
                 stamp=directory.stat().st_mtime
                 if manifest.exists():
                     stamp=manifest.stat().st_mtime
-                    if manifest.stat().st_size<=32768:
+                    if manifest.stat().st_size<=524288:
                         try:
                             m=json.loads(manifest.read_text('utf-8'))
                             value=m.get('captured_at') if isinstance(m,dict) else None
