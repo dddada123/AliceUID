@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.2.03-ff69b4?style=flat-square" alt="Version: 1.2.03"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.2.04-ff69b4?style=flat-square" alt="Version: 1.2.04"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.2.03**。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.2.04**。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [常见问题（QA）](#常见问题qa) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -92,6 +92,9 @@ JSON采用schema_version=3，保留原有characters字段名称（attack、defen
 `nk日历` 发送官网当前活动日历截图，暂不支持指定历史月份或区服。
 
 ### 个人突袭推荐
+
+网络暂时异常时，每个请求最多3轮尝试；每轮连续20秒无响应便静默重试，持续无响应约1分钟后仅向发起者返回一次最终错误。不同用户分别回复，没有群聊共享冷却；同一用户请求未结束时，重复命令不再刷“正在计算”。有真实响应或计算进度时继续等待，登录失效、权限/验证码、限流或配置冲突不会自动重试。
+
 
 `nk个人突袭推荐` 将本人养成资料导入 [DILDORO](https://dildoro.com/)，自动按网站赛季识别弱点生成本人区服的推荐队伍与模拟伤害。需要公开Blablalink个人档案和妮姬列表。
 

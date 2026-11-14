@@ -134,11 +134,14 @@ def status_notes(meta):
     return tuple(notes)
 
 async def fetch_json(path):
-    async with httpx.AsyncClient(timeout=25, follow_redirects=False, trust_env=False) as client:
+    async with httpx.AsyncClient(timeout=20, follow_redirects=False, trust_env=False) as client:
         async with client.stream('GET', BASE + path, headers={'Cache-Control':'no-cache','Pragma':'no-cache'}) as response:
+            from .resilience import network_progress
+            network_progress()
             response.raise_for_status()
             body = bytearray()
             async for chunk in response.aiter_bytes():
+                network_progress()
                 body.extend(chunk)
                 if len(body) > 8 * 1024 * 1024:
                     raise ValueError('网站排行响应过大')
@@ -230,8 +233,10 @@ class SiteMonitor:
                 self.save(state)
                 self.retry_at = 0
                 return result
-            except Exception:
-                self.retry_at = self.clock() + 300
+            except Exception as exc:
+                from .resilience import transient
+                # Network retries belong to the current request's three-round budget.
+                self.retry_at = 0 if transient(exc) else self.clock() + 300
                 raise
 
 _monitor = None

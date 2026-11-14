@@ -21,11 +21,14 @@ from .cache import get_cache, identity, style_key
 from .selection import parse_selection
 from .site import get_monitor, revision
 from .service import SERVERS
+from .errors import SoloTransient, RetryAborted
+from .resilience import RetryBudget, RequestGate, IDLE_SECONDS
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 sv_solo = SV('妮姬个人突袭推荐（实验性）',pm=6,priority=3)
-_active = set()
+_requests = RequestGate()
+_active = _requests.active
 
 async def allowed(ev):
     policy = get_policy()
@@ -38,8 +41,7 @@ async def current(ev, bind):
     latest = await AliceBind.get_bind(ev.user_id,ev.bot_id)
     return latest is not None and binding_key(latest)==binding_key(bind) and await allowed(ev)
 
-@sv_solo.on_command(('个人突袭推荐', '单人突袭推荐'))
-async def solo_command(bot,ev):
+async def _solo_command(bot,ev):
     if not await allowed(ev):
         return
     try:
@@ -51,12 +53,11 @@ async def solo_command(bot,ev):
     refresh_command = f'{command_prefix()}个人突袭推荐{selection.suffix}刷新'
     theme = get_card_theme(selection.theme or get_solo_theme_mode())
     actor = (str(ev.user_id),str(ev.bot_id))
-    if actor in _active:
-        await bot.send('你的个人突袭推荐正在排队或计算，请等待本次结果。',at_sender=True)
-        return
-    _active.add(actor)
+    retries = RetryBudget()
     client = bind = reply = fallback = None
     cache_warning = ''
+    async def retry_allowed():
+        return bind is not None and authenticated(bind) and await current(ev,bind)
     try:
         bind = await AliceBind.get_bind(*actor)
         if bind is None:
@@ -74,7 +75,10 @@ async def solo_command(bot,ev):
             if selection.mode == 'default':
                 # Fetch the public season before even reading the personal result cache.
                 try:
-                    latest = await asyncio.wait_for(get_monitor().inspect(selection.mode, SERVERS[int(bind.area_id)][0]), 60)
+                    latest = await retries.run(lambda:get_monitor().inspect(selection.mode, SERVERS[int(bind.area_id)][0]),
+                                               valid=retry_allowed, timeout=IDLE_SECONDS)
+                except (SoloTransient,RetryAborted):
+                    raise
                 except Exception as exc:
                     record_failure('个人突袭', '赛季预检', exc)
                     # Do not label old results as current when the latest season is unknown.
@@ -84,9 +88,12 @@ async def solo_command(bot,ev):
             if image is not None:
                 try:
                     if latest is None:
-                        latest = await asyncio.wait_for(get_monitor().inspect(selection.mode, SERVERS[int(bind.area_id)][0]), 300)
+                        latest = await retries.run(lambda:get_monitor().inspect(selection.mode, SERVERS[int(bind.area_id)][0]),
+                                                   valid=retry_allowed, timeout=IDLE_SECONDS)
                     if not image.site or revision(latest) != revision(image.site) or (latest.get('active') is not False and time.time()-image.captured_at >= 21600):
                         fallback, image = image, None
+                except RetryAborted:
+                    raise
                 except Exception as exc:
                     record_failure('个人突袭', '网站更新检查', exc)
                     cache_warning = '本次网站更新检查失败，以下为此前生成的缓存结果；赛季与阵容可能已有变化。\n'
@@ -110,7 +117,11 @@ async def solo_command(bot,ev):
                 reply = [MessageSegment.image(png), cache_warning + f'已使用本地缓存（{stamp} 北京时间生成，最长保存5天，读取不顺延）。\n'
                          f'如练度发生了变化，请发送{refresh_command}重新导入并计算。']
             else:
-                await bot.send(NOTICE,at_sender=True)
+                try:
+                    await bot.send(NOTICE,at_sender=True)
+                except Exception as exc:
+                    record_failure('个人突袭','等待提示发送',exc)
+                    return
                 previous_key = key
                 client,bind = await load_client(*actor)
                 if client is None:
@@ -123,7 +134,8 @@ async def solo_command(bot,ev):
                     async def prepare():
                         account = await owned_account(client,bind)
                         if not await current(ev,bind) or not authenticated(bind):return None
-                        image = await capture(account, mode=selection.mode)
+                        image = await retries.run(lambda:capture(account, mode=selection.mode),
+                                                  valid=retry_allowed)
                         from .identity import prepare_identity
                         image = replace(image, presentation=await prepare_identity(account, bind))
                         try:
@@ -147,6 +159,11 @@ async def solo_command(bot,ev):
     except NikkeLoginRequired:
         if bind is not None:mark_invalid(bind,401)
         reply = RELOGIN
+    except RetryAborted:
+        return
+    except SoloTransient as exc:
+        detail = f'最后阶段：{exc.stage}。' if exc.stage else ''
+        reply = f'个人突袭推荐暂未完成：最多3轮静默尝试仍无响应，本次请求已停止。{detail}请稍后再试。'
     except SoloUnavailable as exc:
         reply = str(exc)
     except NikkeApiError as exc:
@@ -161,18 +178,21 @@ async def solo_command(bot,ev):
         logger.warning(f'[AliceUID] solo experimental error_type={type(exc).__name__}')
         reply = '实验性个人突袭推荐暂不可用，可能是网站更新或服务繁忙，请稍后重试或直接访问dildoro.com。'
     finally:
-        try:
-            if client is not None:
+        if client is not None:
+            try:
                 await client.close()
-        finally:
-            _active.discard(actor)
+            except Exception as exc:
+                record_failure('个人突袭','连接关闭',exc)
     if fallback is not None and reply is not None and not isinstance(reply,list) and bind is not None and authenticated(bind) and await current(ev,bind):
-        # Only automatic updates may fall back; explicit refresh never reads old data.
-        if latest is not None:
-            fallback = replace(fallback, site={**fallback.site, 'current_raid': latest.get('current_raid'), 'active': latest.get('active'), '_listing': latest.get('_listing', {})})
-        png = await draw_solo(fallback,bind,REGIONS.get(int(bind.area_id)) or HMT_REGION,theme=theme)
-        stamp = datetime.fromtimestamp(fallback.captured_at,ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M')
-        reply = [MessageSegment.image(png),f'本次养成同步或重新计算未完成：{reply}\n以下为此前生成的结果（{stamp} 北京时间），赛季与阵容可能已有变化。可用{refresh_command}重试。']
+        try:
+            # Only automatic updates may fall back; explicit refresh never reads old data.
+            if latest is not None:
+                fallback = replace(fallback, site={**fallback.site, 'current_raid': latest.get('current_raid'), 'active': latest.get('active'), '_listing': latest.get('_listing', {})})
+            png = await draw_solo(fallback,bind,REGIONS.get(int(bind.area_id)) or HMT_REGION,theme=theme)
+            stamp = datetime.fromtimestamp(fallback.captured_at,ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M')
+            reply = [MessageSegment.image(png),f'本次养成同步或重新计算未完成：{reply}\n以下为此前生成的结果（{stamp} 北京时间），赛季与阵容可能已有变化。可用{refresh_command}重试。']
+        except Exception as exc:
+            record_failure('个人突袭','旧结果重绘',exc)
     if reply is not None and await allowed(ev):
         if bind is None:
             await bot.send(reply,at_sender=True)
@@ -181,3 +201,20 @@ async def solo_command(bot,ev):
                 if await current(ev,bind):
                     if isinstance(reply,list) and not authenticated(bind):reply = unavailable_message(bind)
                     await bot.send(reply,at_sender=True)
+
+
+@sv_solo.on_command(('个人突袭推荐', '单人突袭推荐'))
+async def solo_command(bot,ev):
+    if not await allowed(ev):
+        return
+    actor = _requests.enter(ev)
+    if actor is None:
+        return
+    try:
+        await _solo_command(bot,ev)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        record_failure('个人突袭','最终处理或发送',exc)
+    finally:
+        _requests.leave(actor)

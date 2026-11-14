@@ -27,10 +27,11 @@ SERVER_LABELS = {
 _CAPTURE = asyncio.Semaphore(1)
 _TOTAL_TIMEOUT = 600
 _PAGE_TIMEOUT_MS = 90_000
+_NETWORK_TIMEOUT_MS = 20_000
 from ..nikke_browser.runtime import diagnostic, page_reason
 
-class SoloUnavailable(Exception):
-    pass
+from .errors import SoloUnavailable, SoloTransient
+from .resilience import run_with_idle_timeout, IDLE_SECONDS
 
 
 def _server_button(text):
@@ -113,14 +114,35 @@ PROFILES = """() => Object.values(JSON.parse(localStorage.getItem('nikke.profile
     ({id:p.id, openid:String(p.openid), area:Number(p.area), count:Object.keys(p.fetched?.chars||{}).length,
       fetched_at:p.fetched?._meta?.fetched_at||p.fetched_at||"", notices:p.notices||[]}))"""
 
-async def capture_page(page, account, *, mode='default'):
+async def capture_page(page, account, *, mode='default', idle_seconds=IDLE_SECONDS):
     from playwright.async_api import Error, TimeoutError as BrowserTimeout
     stage = ['页面访问']
+    heartbeat = [time.monotonic(), stage[0]]
     def progress(value):
         stage[0] = value
+        heartbeat[:] = [time.monotonic(), value]
         diagnostic('DILDORO', value)
+    def responded(response):
+        url = urlsplit(response.url)
+        if url.netloc == 'dildoro.com' and url.path not in ('/api/live','/api/hit'):
+            heartbeat[0] = time.monotonic()
+    page.on('response', responded)
+    await page.expose_function('__aliceSoloHeartbeat', lambda: heartbeat.__setitem__(0,time.monotonic()))
+    await page.add_init_script(r"""(() => {
+        const Original=window.EventSource;if(typeof Original!=='function')return;
+        window.EventSource=class extends Original {constructor(url,options){super(url,options);
+            const target=new URL(url,location.href);
+            if(target.origin===location.origin && /^\/api\/(fetch|sim|sim-heavy)\/events$/.test(target.pathname))
+                this.addEventListener('message',()=>window.__aliceSoloHeartbeat().catch(()=>{}));
+        }};
+    })();""")
     try:
-        return await _capture_page(page, account, progress, mode=mode)
+        return await run_with_idle_timeout(_capture_page(page, account, progress, mode=mode), heartbeat, timeout=idle_seconds)
+    except SoloTransient as exc:
+        diagnostic('DILDORO',stage[0],exc.reason or 'NETWORK')
+        from ..nikke_logs.store import record_failure
+        record_failure('DILDORO',stage[0],exc)
+        raise
     except SoloUnavailable as exc:
         diagnostic('DILDORO', stage[0], 'VALIDATION_FAILED')
         from ..nikke_logs.store import record_failure
@@ -130,18 +152,23 @@ async def capture_page(page, account, *, mode='default'):
         from ..nikke_logs.store import record_failure
         record_failure('DILDORO', stage[0], exc)
         diagnostic('DILDORO', stage[0], 'TIMEOUT')
-        raise SoloUnavailable(f'DILDORO{stage[0]}超时，请检查容器访问dildoro.com的网络或稍后重试。') from None
+        raise SoloTransient(f'DILDORO{stage[0]}超时。',stage=stage[0],reason='TIMEOUT') from None
     except Error as exc:
         from ..nikke_logs.store import record_failure
         record_failure('DILDORO', stage[0], exc)
         reason = page_reason(str(exc))
         diagnostic('DILDORO', stage[0], reason)
-        raise SoloUnavailable(f'DILDORO{stage[0]}失败（{reason}），请检查容器网络或网站状态后重试。') from None
+        error = SoloTransient if reason in {'ERR_NAME_NOT_RESOLVED','ERR_PROXY_CONNECTION_FAILED','ERR_TUNNEL_CONNECTION_FAILED','ERR_CONNECTION_RESET','ERR_CONNECTION_TIMED_OUT','ERR_CONNECTION_CLOSED','ERR_NETWORK_CHANGED'} else SoloUnavailable
+        if error is SoloTransient:
+            raise error(f'DILDORO{stage[0]}失败（{reason}）。',stage=stage[0],reason=reason) from None
+        raise error(f'DILDORO{stage[0]}失败（{reason}）。') from None
 
     except Exception as exc:
         from ..nikke_logs.store import record_failure
         record_failure('DILDORO', stage[0], exc)
         raise
+    finally:
+        page.remove_listener('response', responded)
 
 
 async def read_default(page):
@@ -160,6 +187,8 @@ async def read_default(page):
 async def _capture_page(page, account, progress, *, mode='default'):
     progress('页面访问')
     response = await page.goto(SITE + 'account?lang=zh-CN', wait_until='domcontentloaded', timeout=_PAGE_TIMEOUT_MS)
+    if response is not None and (response.status == 408 or response.status >= 500):
+        raise SoloTransient('DILDORO账号页面暂时无响应。',stage='页面访问',reason='HTTP_SERVER')
     if response is None or response.status != 200 or not page.url.startswith(SITE):
         raise SoloUnavailable('DILDORO账号页面暂不可用，请稍后直接访问网站。')
     # Notices can open after the initial visibility check. Let Playwright dismiss
@@ -185,7 +214,10 @@ async def _capture_page(page, account, progress, *, mode='default'):
     async with page.expect_response(lambda r: '/api/fetch' == urlsplit(r.url).path
                                     and r.request.method == 'POST', timeout=_PAGE_TIMEOUT_MS) as sync_response:
         await page.locator('#url-go').click()
-    if not 200 <= (await sync_response.value).status < 300:
+    sync_status = (await sync_response.value).status
+    if sync_status == 408 or sync_status >= 500:
+        raise SoloTransient('DILDORO本人数据同步服务暂时无响应。',stage='本人公开数据同步',reason='HTTP_SERVER')
+    if not 200 <= sync_status < 300:
         raise SoloUnavailable('本人养成重新拉取失败，本次停止计算。')
     await page.wait_for_function("() => !document.querySelector('#url-go')?.disabled", timeout=180000)
     profiles = await page.evaluate(PROFILES)
@@ -205,6 +237,8 @@ async def _capture_page(page, account, progress, *, mode='default'):
     # Grid mode intentionally hides the account selector. Select on the normal
     # deck first, then enter grid through the site's toggle to retain active state.
     response = await page.goto(SITE + 'deck?lang=zh-CN', wait_until='domcontentloaded', timeout=_PAGE_TIMEOUT_MS)
+    if response is not None and (response.status == 408 or response.status >= 500):
+        raise SoloTransient('DILDORO账号选择页面暂时无响应。',stage='本人计算账号选择',reason='HTTP_SERVER')
     if response is None or response.status != 200 or not page.url.startswith(SITE):
         raise SoloUnavailable('DILDORO编队配置页面暂不可用。')
     await page.locator('#profile-pick').wait_for(state='visible', timeout=_PAGE_TIMEOUT_MS)
@@ -212,6 +246,8 @@ async def _capture_page(page, account, progress, *, mode='default'):
     await page.wait_for_function('(id)=>document.querySelector("#profile-pick")?.value===id', arg=matches[0]['id'], timeout=_PAGE_TIMEOUT_MS)
     native_code = await read_default(page)
     listing_response = await page.evaluate("""async () => {const r=await fetch('/api/sr-rank/list');return {status:r.status, data:await r.json()}}""")
+    if listing_response['status'] == 408 or listing_response['status'] >= 500:
+        raise SoloTransient('DILDORO排行信息暂时无响应。',stage='本人计算账号选择',reason='HTTP_SERVER')
     if listing_response['status'] != 200:
         raise SoloUnavailable('DILDORO赛季信息暂不可用。')
     initial_listing = listing_response['data']
@@ -284,7 +320,12 @@ async def _capture_page(page, account, progress, *, mode='default'):
     actual_fetched = []
     async def guard_sets(route):
         try:
-            upstream = await route.fetch(timeout=_PAGE_TIMEOUT_MS)
+            upstream = await route.fetch(timeout=_NETWORK_TIMEOUT_MS)
+            upstream_status = getattr(upstream,'status',200)
+            if upstream_status != 200:
+                rank_errors.append('HTTP_' + str(upstream_status))
+                await route.fulfill(status=upstream_status,content_type='application/json',body='{"error":"ranking upstream unavailable"}')
+                return
             payload = await upstream.json()
             if server not in payload.get('servers', []):
                 await route.fulfill(status=409, content_type='application/json', body='{"error":"AliceUID: selected server unavailable"}')
@@ -316,7 +357,10 @@ async def _capture_page(page, account, progress, *, mode='default'):
     await page.wait_for_function("""() => !document.querySelector('#lab-sheet')?.open ||
         !!document.querySelector('#lab-sheet .lab-out .warn')""", timeout=300000)
     if rank_errors:
-        raise SoloUnavailable(f'DILDORO排行数据请求失败（{rank_errors[0]}），请稍后重试。')
+        error = SoloTransient if rank_errors[0] == 'TIMEOUT' or rank_errors[0].startswith(('ERR_','HTTP_5')) or rank_errors[0] == 'HTTP_408' else SoloUnavailable
+        if error is SoloTransient:
+            raise error(f'DILDORO排行数据请求失败（{rank_errors[0]}）。',stage='排行推荐加载',reason=rank_errors[0])
+        raise error(f'DILDORO排行数据请求失败（{rank_errors[0]}），请稍后重试。')
     if len(actual_source) != 1:
         raise SoloUnavailable('DILDORO实际阵容来源未唯一确认，本次未发送。')
     if await page.locator('#lab-sheet').get_attribute('open') is not None:
