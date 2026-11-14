@@ -1,4 +1,5 @@
 """Resolve public recommended SOLO settings, then apply through the site's own UI."""
+from .loading import wait_until
 import re
 import asyncio
 import httpx
@@ -133,7 +134,7 @@ async def apply_recommendation(page, recommendation, *, timeout=90_000):
 
     async with page.expect_response(matches, timeout=timeout) as received:
         await trigger.click()
-        await page.wait_for_function("""() => document.querySelector('#bosslink-sheet')?.open
+        await wait_until(page, """() => document.querySelector('#bosslink-sheet')?.open
             || document.querySelector('#brecpick-sheet')?.open""", timeout=timeout)
         picker = page.locator('#brecpick-sheet[open]')
         if await picker.count():
@@ -155,6 +156,6 @@ async def apply_recommendation(page, recommendation, *, timeout=90_000):
     if await consent.count():
         await consent.uncheck()
     await page.locator('#bosslink-ok').click()
-    await page.wait_for_function("() => !document.querySelector('#bosslink-sheet')?.open", timeout=timeout)
+    await wait_until(page, "() => !document.querySelector('#bosslink-sheet')?.open", timeout=timeout)
     await verify_applied(page, recommendation)
     return True

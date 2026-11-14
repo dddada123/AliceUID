@@ -32,6 +32,7 @@ from ..nikke_browser.runtime import diagnostic, page_reason
 
 from .errors import SoloUnavailable, SoloTransient
 from .resilience import run_with_idle_timeout, IDLE_SECONDS
+from .loading import BrowserRecovery, LoadMonitor, prepare_visuals, capture_visual, wait_until
 
 
 def _server_button(text):
@@ -114,31 +115,36 @@ PROFILES = """() => Object.values(JSON.parse(localStorage.getItem('nikke.profile
     ({id:p.id, openid:String(p.openid), area:Number(p.area), count:Object.keys(p.fetched?.chars||{}).length,
       fetched_at:p.fetched?._meta?.fetched_at||p.fetched_at||"", notices:p.notices||[]}))"""
 
-async def capture_page(page, account, *, mode='default', idle_seconds=IDLE_SECONDS):
+async def capture_page(page, account, *, mode='default', idle_seconds=IDLE_SECONDS, recovery=None):
     from playwright.async_api import Error, TimeoutError as BrowserTimeout
     stage = ['页面访问']
     heartbeat = [time.monotonic(), stage[0]]
+    recovery = recovery if recovery is not None else BrowserRecovery()
+    monitor = LoadMonitor(page, heartbeat)
     def progress(value):
         stage[0] = value
         heartbeat[:] = [time.monotonic(), value]
         diagnostic('DILDORO', value)
-    def responded(response):
-        url = urlsplit(response.url)
-        if url.netloc == 'dildoro.com' and url.path not in ('/api/live','/api/hit'):
-            heartbeat[0] = time.monotonic()
-    page.on('response', responded)
-    await page.expose_function('__aliceSoloHeartbeat', lambda: heartbeat.__setitem__(0,time.monotonic()))
-    await page.add_init_script(r"""(() => {
-        const Original=window.EventSource;if(typeof Original!=='function')return;
-        window.EventSource=class extends Original {constructor(url,options){super(url,options);
-            const target=new URL(url,location.href);
-            if(target.origin===location.origin && /^\/api\/(fetch|sim|sim-heavy)\/events$/.test(target.pathname))
-                this.addEventListener('message',()=>window.__aliceSoloHeartbeat().catch(()=>{}));
-        }};
-    })();""")
     try:
-        return await run_with_idle_timeout(_capture_page(page, account, progress, mode=mode), heartbeat, timeout=idle_seconds)
+        await monitor.start()
+        await page.expose_function('__aliceSoloHeartbeat', lambda: heartbeat.__setitem__(0,time.monotonic()))
+        await page.add_init_script(r"""(() => {
+            const Original=window.EventSource;if(typeof Original!=='function')return;
+            window.EventSource=class extends Original {constructor(url,options){super(url,options);
+                const target=new URL(url,location.href);
+                if(target.origin===location.origin && /^\/api\/(fetch|sim|sim-heavy)\/events$/.test(target.pathname))
+                    this.addEventListener('message',()=>window.__aliceSoloHeartbeat().catch(()=>{}));
+            }};
+        })();""")
+        return await run_with_idle_timeout(monitor.run(_capture_page(page, account, progress, mode=mode,
+                                                                     language=recovery.language)), heartbeat, timeout=idle_seconds)
     except SoloTransient as exc:
+        # A pending translation alone is enough evidence to try the website's
+        # native language next round. Never bypass an unrelated core failure.
+        if exc.reason == 'IDLE_TIMEOUT' and monitor.translations and monitor.critical <= monitor.translations:
+            exc.reason = 'I18N_STALLED'
+        if exc.reason in {'I18N_FAILED', 'I18N_STALLED'}:
+            recovery.native_language = True
         diagnostic('DILDORO',stage[0],exc.reason or 'NETWORK')
         from ..nikke_logs.store import record_failure
         record_failure('DILDORO',stage[0],exc)
@@ -152,6 +158,11 @@ async def capture_page(page, account, *, mode='default', idle_seconds=IDLE_SECON
         from ..nikke_logs.store import record_failure
         record_failure('DILDORO', stage[0], exc)
         diagnostic('DILDORO', stage[0], 'TIMEOUT')
+        if monitor.translations and monitor.critical <= monitor.translations:
+            recovery.native_language = True
+            raise SoloTransient('网站中文翻译资源尚未就绪。',stage=stage[0],reason='I18N_STALLED') from None
+        if stage[0] in {'页面初始化','本人计算账号选择'} and not monitor.critical:
+            raise SoloUnavailable(f'DILDORO{stage[0]}未完成，可能是页面结构变化或目标账号选项缺失。') from None
         raise SoloTransient(f'DILDORO{stage[0]}超时。',stage=stage[0],reason='TIMEOUT') from None
     except Error as exc:
         from ..nikke_logs.store import record_failure
@@ -168,7 +179,7 @@ async def capture_page(page, account, *, mode='default', idle_seconds=IDLE_SECON
         record_failure('DILDORO', stage[0], exc)
         raise
     finally:
-        page.remove_listener('response', responded)
+        await monitor.close()
 
 
 async def read_default(page):
@@ -176,7 +187,7 @@ async def read_default(page):
     await page.locator('#mode-solo').wait_for(state='visible', timeout=_PAGE_TIMEOUT_MS)
     if await page.locator('#mode-solo').get_attribute('aria-pressed') != 'true':
         await page.locator('#mode-solo').click()
-    await page.wait_for_function("""() => document.querySelector('#mode-solo')?.getAttribute('aria-pressed')==='true'
+    await wait_until(page, """() => document.querySelector('#mode-solo')?.getAttribute('aria-pressed')==='true'
         && document.querySelector('#code')?.options.length >= 5
         && !!document.querySelector('#code')?.value""", timeout=_PAGE_TIMEOUT_MS)
     code = await page.locator('#code').input_value()
@@ -184,9 +195,9 @@ async def read_default(page):
         raise SoloUnavailable('DILDORO网站默认属性尚未就绪或选项已变化。')
     return code
 
-async def _capture_page(page, account, progress, *, mode='default'):
+async def _capture_page(page, account, progress, *, mode='default', language='zh-CN'):
     progress('页面访问')
-    response = await page.goto(SITE + 'account?lang=zh-CN', wait_until='domcontentloaded', timeout=_PAGE_TIMEOUT_MS)
+    response = await page.goto(SITE + 'account?lang=' + language, wait_until='domcontentloaded', timeout=_PAGE_TIMEOUT_MS)
     if response is not None and (response.status == 408 or response.status >= 500):
         raise SoloTransient('DILDORO账号页面暂时无响应。',stage='页面访问',reason='HTTP_SERVER')
     if response is None or response.status != 200 or not page.url.startswith(SITE):
@@ -207,7 +218,7 @@ async def _capture_page(page, account, progress, *, mode='default'):
     # React mounts these controls before runtime/health initialization finishes.
     # Do not unhide them ourselves or mistake the initial hidden state for failure.
     await page.locator('#url-in').wait_for(state='visible', timeout=_PAGE_TIMEOUT_MS)
-    await page.wait_for_function("() => !!document.querySelector('#url-go') && !document.querySelector('#url-go').disabled", timeout=_PAGE_TIMEOUT_MS)
+    await wait_until(page, "() => !!document.querySelector('#url-go') && !document.querySelector('#url-go').disabled", timeout=_PAGE_TIMEOUT_MS)
     progress('本人公开数据同步')
     await page.locator('#url-in').fill(account.url)
     # Each new context must submit an actual fetch job; a populated local profile is insufficient.
@@ -219,7 +230,7 @@ async def _capture_page(page, account, progress, *, mode='default'):
         raise SoloTransient('DILDORO本人数据同步服务暂时无响应。',stage='本人公开数据同步',reason='HTTP_SERVER')
     if not 200 <= sync_status < 300:
         raise SoloUnavailable('本人养成重新拉取失败，本次停止计算。')
-    await page.wait_for_function("() => !document.querySelector('#url-go')?.disabled", timeout=180000)
+    await wait_until(page, "() => !document.querySelector('#url-go')?.disabled", timeout=180000)
     profiles = await page.evaluate(PROFILES)
     matches = [p for p in profiles if p.get('openid') == account.share_openid and p.get('area') == account.area and p.get('count', 0) > 0]
     if len(matches) != 1:
@@ -236,16 +247,19 @@ async def _capture_page(page, account, progress, *, mode='default'):
     progress('本人计算账号选择')
     # Grid mode intentionally hides the account selector. Select on the normal
     # deck first, then enter grid through the site's toggle to retain active state.
-    response = await page.goto(SITE + 'deck?lang=zh-CN', wait_until='domcontentloaded', timeout=_PAGE_TIMEOUT_MS)
+    response = await page.goto(SITE + 'deck?lang=' + language, wait_until='domcontentloaded', timeout=_PAGE_TIMEOUT_MS)
     if response is not None and (response.status == 408 or response.status >= 500):
         raise SoloTransient('DILDORO账号选择页面暂时无响应。',stage='本人计算账号选择',reason='HTTP_SERVER')
     if response is None or response.status != 200 or not page.url.startswith(SITE):
         raise SoloUnavailable('DILDORO编队配置页面暂不可用。')
     await page.locator('#profile-pick').wait_for(state='visible', timeout=_PAGE_TIMEOUT_MS)
+    await wait_until(page, """id =>
+        [...(document.querySelector('#profile-pick')?.options||[])].some(o=>o.value===id)
+        && document.querySelector('#code')?.options.length>=5""", arg=matches[0]['id'], timeout=_PAGE_TIMEOUT_MS)
     await page.locator('#profile-pick').select_option(matches[0]['id'], timeout=_PAGE_TIMEOUT_MS)
-    await page.wait_for_function('(id)=>document.querySelector("#profile-pick")?.value===id', arg=matches[0]['id'], timeout=_PAGE_TIMEOUT_MS)
+    await wait_until(page, '(id)=>document.querySelector("#profile-pick")?.value===id', arg=matches[0]['id'], timeout=_PAGE_TIMEOUT_MS)
     native_code = await read_default(page)
-    listing_response = await page.evaluate("""async () => {const r=await fetch('/api/sr-rank/list');return {status:r.status, data:await r.json()}}""")
+    listing_response = await page.evaluate("""async () => {const r=await fetch('/api/sr-rank/list',{cache:'no-store'});return {status:r.status, data:await r.json()}}""")
     if listing_response['status'] == 408 or listing_response['status'] >= 500:
         raise SoloTransient('DILDORO排行信息暂时无响应。',stage='本人计算账号选择',reason='HTTP_SERVER')
     if listing_response['status'] != 200:
@@ -265,7 +279,7 @@ async def _capture_page(page, account, progress, *, mode='default'):
         default_code = None
     # Always trigger the site's native change event, including automatic mode.
     await page.locator('#code').select_option(weakness)
-    await page.wait_for_function('(code)=>document.querySelector("#code")?.value===code', arg=weakness, timeout=_PAGE_TIMEOUT_MS)
+    await wait_until(page, '(code)=>document.querySelector("#code")?.value===code', arg=weakness, timeout=_PAGE_TIMEOUT_MS)
     progress('推荐设置套用')
     from .recommended import fetch_recommendation, browser_fetch, apply_recommendation, verify_applied, RecommendationUnavailable
     recommendation_status = 'none'
@@ -285,7 +299,7 @@ async def _capture_page(page, account, progress, *, mode='default'):
         await page.locator('#fast-toggle').click()
     await page.locator('#fast-wrap').wait_for(state='visible', timeout=_PAGE_TIMEOUT_MS)
     # Verification reads the hidden selector; it never forces a hidden control.
-    await page.wait_for_function('(id)=>document.querySelector("#profile-pick")?.value===id', arg=matches[0]['id'], timeout=_PAGE_TIMEOUT_MS)
+    await wait_until(page, '(id)=>document.querySelector("#profile-pick")?.value===id', arg=matches[0]['id'], timeout=_PAGE_TIMEOUT_MS)
     profiles = await page.evaluate(PROFILES)
     if not any(p.get('id') == matches[0]['id'] and p.get('openid') == account.share_openid and p.get('area') == account.area and p.get('count', 0) > 0 for p in profiles):
         raise SoloUnavailable('进入配置模式后本人账号校验失败，本次停止计算。')
@@ -354,7 +368,7 @@ async def _capture_page(page, account, progress, *, mode='default'):
     except ValueError as exc:
         raise SoloUnavailable(str(exc)) from None
     await go.click()
-    await page.wait_for_function("""() => !document.querySelector('#lab-sheet')?.open ||
+    await wait_until(page, """() => !document.querySelector('#lab-sheet')?.open ||
         !!document.querySelector('#lab-sheet .lab-out .warn')""", timeout=300000)
     if rank_errors:
         error = SoloTransient if rank_errors[0] == 'TIMEOUT' or rank_errors[0].startswith(('ERR_','HTTP_5')) or rank_errors[0] == 'HTTP_408' else SoloUnavailable
@@ -385,7 +399,8 @@ async def _capture_page(page, account, progress, *, mode='default'):
     except ValueError as exc:
         raise SoloUnavailable(str(exc)) from None
     progress('结果截图')
-    image = await capture_result(page, result)
+    visual_state = {}
+    image = await capture_result(page, result, visual_state=visual_state)
     site = metadata(listing, default_code, weakness, mode, season, actual_source[0])
     site['fetched_at'] = actual_fetched[0]
     site['native_code'] = native_code
@@ -393,14 +408,21 @@ async def _capture_page(page, account, progress, *, mode='default'):
     site['recommended'] = recommendation
     site['recommended_available'] = available_recommendation
     site['recommendation_status'] = recommendation_status
+    site['page_language'] = language
+    site['visual_fallback'] = visual_state
     settings_note = (f'已套用网站推荐设置：{recommendation["label"]}（代码 {recommendation["code"]}）。' if recommendation
                      else ('未检测到推荐配置导入环节，已自动采用网站默认模拟配置。' if recommendation_status == 'no-import-control'
                            else '未读取到匹配的推荐配置，已自动采用网站默认模拟配置。'))
+    degradation = (() if language != 'ko' else ('中文翻译加载异常，本次使用网站原生语言完成计算，截图可能包含韩文。',))
+    if visual_state.get('missing_images'):
+        degradation += ('部分角色图片未加载，已使用占位图；阵容与伤害数据已完成校验。',)
+    if visual_state.get('font_fallback'):
+        degradation += ('网站字体加载异常，已使用系统字体显示。',)
     return SoloImage(image, element_label(weakness), time.time(), str(season['raid']),
-                     status_notes(site) + (settings_note,) + (() if imported_at else ('网站未报告可核验的养成采集时间；本次已重新提交链接拉取请求。',)) + ('排行阵容来自网站同弱点最近可用赛季；模拟条件采用网站当前设置。',
+                     status_notes(site) + (settings_note,) + degradation + (() if imported_at else ('网站未报告可核验的养成采集时间；本次已重新提交链接拉取请求。',)) + ('排行阵容来自网站同弱点最近可用赛季；模拟条件采用网站当前设置。',
                       '网址导入受公开设置影响；回收室等缺失数据可能使用网站默认值。'), site)
 
-async def capture_result(page, result):
+async def capture_result(page, result, *, visual_state=None):
     """Isolate the real result at its intrinsic width, then scale all of it together.
 
     A 960px CSS width alone crosses the site's fixed ~600px stage into its
@@ -409,12 +431,9 @@ async def capture_result(page, result):
     """
     if await result.count() != 1:
         raise SoloUnavailable('推荐截图目标不唯一，已停止截图。')
-    await result.locator('img').evaluate_all('(xs)=>xs.forEach(i=>i.loading="eager")')
-    await page.evaluate('document.fonts.ready')
-    await result.evaluate("""async e => {
-        const images=[...e.querySelectorAll('img')];
-        await Promise.all(images.map(i=>i.decode()));
-    }""")
+    assets = await prepare_visuals(page, result)
+    if visual_state is not None:
+        visual_state.update(assets)
     box = await result.bounding_box()
     if not box or not 300 <= box['width'] <= 1600:
         raise SoloUnavailable('推荐区域宽度异常，已停止截图。')
@@ -449,11 +468,11 @@ async def capture_result(page, result):
     }""")
     if not geometry['ok'] or abs(geometry['width']-960)>2 or not 200<=geometry['height']<=4000:
         raise SoloUnavailable('推荐区域内容超出截图边界，已停止发送，请稍后重试。')
-    image = await result.screenshot(type='png', animations='disabled',timeout=_PAGE_TIMEOUT_MS)
+    image = await capture_visual(page, result, font_fallback=assets['font_fallback'], timeout_ms=_PAGE_TIMEOUT_MS)
     validate_png(image)
     return image
 
-async def capture(account, *, channel='auto', mode='default'):
+async def capture(account, *, channel='auto', mode='default', recovery=None):
     from ..nikke_browser.runtime import manager, playwright as browser_playwright
     async with _CAPTURE:
         async with browser_playwright(error_type=SoloUnavailable, operation="个人突袭") as p:
@@ -465,10 +484,9 @@ async def capture(account, *, channel='auto', mode='default'):
             try:
                 async def run():
                     context = await browser.new_context(viewport={'width':1600,'height':1200},device_scale_factor=1.5,
-                                                        locale='zh-CN',timezone_id='Asia/Shanghai',service_workers='block',
-                                                        extra_http_headers={'Cache-Control':'no-cache','Pragma':'no-cache'})
+                                                        locale='zh-CN',timezone_id='Asia/Shanghai',service_workers='block')
                     try:
-                        return await capture_page(await context.new_page(), account, mode=mode)
+                        return await capture_page(await context.new_page(), account, mode=mode, recovery=recovery)
                     finally:
                         await context.close()
                 try:

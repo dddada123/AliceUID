@@ -23,6 +23,7 @@ from .site import get_monitor, revision
 from .service import SERVERS
 from .errors import SoloTransient, RetryAborted
 from .resilience import RetryBudget, RequestGate, IDLE_SECONDS
+from .loading import BrowserRecovery
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -54,6 +55,7 @@ async def _solo_command(bot,ev):
     theme = get_card_theme(selection.theme or get_solo_theme_mode())
     actor = (str(ev.user_id),str(ev.bot_id))
     retries = RetryBudget()
+    recovery = BrowserRecovery()
     client = bind = reply = fallback = None
     cache_warning = ''
     async def retry_allowed():
@@ -134,7 +136,7 @@ async def _solo_command(bot,ev):
                     async def prepare():
                         account = await owned_account(client,bind)
                         if not await current(ev,bind) or not authenticated(bind):return None
-                        image = await retries.run(lambda:capture(account, mode=selection.mode),
+                        image = await retries.run(lambda:capture(account, mode=selection.mode, recovery=recovery),
                                                   valid=retry_allowed)
                         from .identity import prepare_identity
                         image = replace(image, presentation=await prepare_identity(account, bind))

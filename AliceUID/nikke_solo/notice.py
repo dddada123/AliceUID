@@ -1,4 +1,5 @@
 """Bounded fuzzy recognition of recommended-settings notices, never battle parameters."""
+from .loading import wait_until
 import html
 import re
 import unicodedata
@@ -63,7 +64,7 @@ def validate_notice(text,recommendation):
 async def find_trigger(page,recommendation,timeout):
     # Wait only for native recommendation controls or a similarly formatted notice.
     try:
-        await page.wait_for_function("""() => {
+        await wait_until(page, """() => {
         const visible=e=>!!e&&e.getBoundingClientRect().width>0&&e.getBoundingClientRect().height>0
             &&getComputedStyle(e).visibility!=='hidden';
         return ['.rec-new .btn-primary','#boss-rec-solo','#bt-rec .bt-rec-go'].some(s=>visible(document.querySelector(s)))

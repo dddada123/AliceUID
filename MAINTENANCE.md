@@ -1,3 +1,15 @@
+# 1.2.05 · 2026-11-14
+
+移除个人突袭browser.new_context的全局Cache-Control/Pragma；不增加跨任务持久缓存，Service Worker仍阻止，账号状态每轮隔离。排行/配置显式fetch使用no-store；公开HTTP接口的局部校验策略保持。排行sets路由仅在初始化与区服选择之后注册，保留来源阻断，不提前拦截静态资源。
+
+loading.LoadMonitor使用request/response/requestfinished/requestfailed及Chromium CDP Network.dataReceived观察关键资源传输，不使用route。仅中文翻译的HTTP错误/传输失败或仅翻译持续未完成触发BrowserRecovery；401/403/429访问限制不走语言降级。恢复状态按命令实例传递到capture，后续现有重试轮使用lang=ko，全新上下文重新导入。没有新增内层重试。韩语为网站原文，其I18N.ready不下载词典；不伪造空JSON、不跳过计算规则。
+
+关键API和页面脚本字节进度、业务SSE进度延长20秒空闲等待；图片/字体、访问统计、背景轮询不续命。控件等待仍受90秒阶段上限及全流程上限约束。账号框先等目标option与属性选项填充，再选中并复核。翻译以外的核心资源缺失仍失败；日志只记类别与阶段，不记录玩家链接/传输内容。
+
+结果必须通过五队25格、伤害、区服/赛季来源及推荐配置生效校验后才调用prepare_visuals。图片decode与字体ready共同最多等待4秒；坏图以保留尺寸的占位框替换，未完成/失败字体移出FontFaceSet并启用系统字体；若全局fonts.ready仍等待网络字体，使用Chromium CDP截取已校验区域，避免标准截图的全局字体等待。降级信息写入site和卡片notes，原始计算时间不修改。韩文伤害显示可能为억；前端文本不反推计算数值或属性。
+
+当前公开网站CSP不允许unsafe-eval，Playwright.wait_for_function内部eval会触发EvalError。个人突袭统一改用loading.wait_until：在宿主侧按截止时间轮询page.evaluate，支持取消和导航上下文替换；不启用bypass_csp、不放宽网站安全策略。匿名中韩双语言初始化与无unsafe-eval的完整配队浏览器回归验证此路径。
+
 # 1.2.04 · 2026-11-14
 
 按用户最终要求实现三轮总预算、连续20秒无响应检测，不采用早先讨论的120秒间隔或群聊5分钟冷却。RetryBudget在同一命令内共享赛季预检与网页计算的失败次数，最多3轮；无额外重试延迟或递归调度。HTTP超时/连接失败、408/5xx和明确网页网络超时可重试，401/403/429、登录、配置与区服校验错误不重试。
