@@ -430,6 +430,7 @@ async def _run_login(token: str, account: str, password: str, *, mode="password"
             game_id="29080" if result.area_id != 91 else "29157",
             cookie=result.cookie, nickname=result.nickname, uid=result.uid,
             expire_at=result.expire_at, still_current=current,
+            login_notification=session if session.completion_target else None,
             **_replacement_kwargs(session),
         )
         if not current():
@@ -623,7 +624,9 @@ async def _run_cookie(token, generation, cred):
                          openid=cred.openid, area_id=region.area_id, game_id=region.game_id,
                          cookie=cred.cookie, nickname=role.get("role_name") or "",
                          uid=str(role.get("role_id") or ""), expire_at=cred.expire_at,
-                          still_current=current, **_replacement_kwargs(session))
+                          still_current=current,
+                          login_notification=session if session.completion_target else None,
+                          **_replacement_kwargs(session))
         if not current():
             return JSONResponse({"ok": False, "msg": "登录操作已取消"})
         session.nickname = role.get("role_name") or ""

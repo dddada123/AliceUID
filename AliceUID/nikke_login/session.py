@@ -41,6 +41,8 @@ class LoginSession:
     mode: str = "password"
     replace_revision: str = ""
     cookie_expire: int = 0
+    completion_target: Optional[tuple] = field(default=None, repr=False)
+    notification_ready: asyncio.Event = field(default_factory=asyncio.Event, repr=False)
     email_code: str = field(default="", repr=False)
     code_event: asyncio.Event = field(default_factory=asyncio.Event)
     code_deadline: float = 0

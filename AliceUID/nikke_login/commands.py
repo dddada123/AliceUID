@@ -87,6 +87,7 @@ async def nikke_login_cmd(bot: Bot, ev: Event):
     base_url = get_base_url()
     ttl = int(AliceUIDConfig.get_config("AliceUID_LoginTTL").data or 600)
     session = sessions.create(ev.user_id, ev.bot_id, ev.group_id, area_id=area_id, ttl=ttl)
+    session.completion_target = (bot, ev)
     session.mode = "cookie" if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" else "password"
     url = f"{base_url}/nikke/i/{session.token}"
     text = (
@@ -122,6 +123,7 @@ async def nikke_relogin_cmd(bot: Bot, ev: Event):
     ttl = int(AliceUIDConfig.get_config("AliceUID_LoginTTL").data or 600)
     session = sessions.create(ev.user_id, ev.bot_id, ev.group_id, area_id=bind.area_id, ttl=ttl)
     session.replace_revision = hashlib.sha256(bind.cookie_enc.encode()).hexdigest()
+    session.completion_target = (bot, ev)
     session.mode = "cookie" if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" else "password"
     url = f"{base_url}/nikke/i/{session.token}"
     method = "导入新Cookie" if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" else "登录原blablalink账号或导入其Cookie"
@@ -171,7 +173,7 @@ async def _notify_login(bot: Bot, ev: Event, token: str):
                 f"{'重新登录' if session.replace_revision else '绑定'}成功：{session.nickname or '未知'}（{session.area_label}）\n"
                 f"回到聊天窗口发送 {command_prefix()}我的账号 查看绑定。\n"
                 + _login_guidance() + "\n"
-                "正在后台准备本人资料、角色练度与皮肤缓存；首次查询会等待数据准备。\n" + expiry_notice(session.cookie_expire)
+                "正在后台准备本人资料、角色练度与皮肤缓存，完成后自动发送最新信息卡。\n" + expiry_notice(session.cookie_expire)
             )
         elif session.status == "failed" and failed_generation != session.generation:
             failed_generation = session.generation
@@ -188,6 +190,9 @@ async def _notify_login(bot: Bot, ev: Event, token: str):
             # Ambiguous send receipts are not replayed; a failed notice must
             # not kill observation of a later successful login.
             logger.warning(f"[AliceUID] 登录结果通知未确认 error_type={type(exc).__name__}")
+        finally:
+            if completed:
+                session.notification_ready.set()
         if completed:
             return
 

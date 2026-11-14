@@ -74,6 +74,7 @@ async def save_login(
     expire_at: int,
     still_current: Optional[Callable[[], bool]] = None,
     replace_revision: str = "",
+    login_notification=None,
 ) -> int:
     async with binding_lock(user_id, bot_id):
         existing=await AliceBind.get_bind(user_id,bot_id)
@@ -111,7 +112,7 @@ async def save_login(
             except Exception:
                 pass  # A confirmed login must not be reclassified as a failed login.
             await _invalidate_replaced(existing)
-            _start_login_prefetch(stored, group_id)
+            _start_login_prefetch(stored, group_id, notification=login_notification)
             return 0
         result = await AliceBind.save_bind(
             user_id=user_id,
@@ -136,7 +137,7 @@ async def save_login(
                         cookie_expire=expire_at, is_master=master)
         if stored is None or any(getattr(stored, key, None) != value for key, value in expected.items()):
             raise BindingPersistenceError("绑定保存后校验失败")
-        _start_login_prefetch(stored, group_id)
+        _start_login_prefetch(stored, group_id, notification=login_notification)
         try:
             from ..nikke_cdk.runtime import schedule_new_binding
             schedule_new_binding(stored, group_id)
@@ -146,11 +147,11 @@ async def save_login(
         return 0
 
 
-def _start_login_prefetch(bind, group_id):
+def _start_login_prefetch(bind, group_id, *, notification=None):
     # A background cache failure must never turn a confirmed login into failure.
     try:
         from .panel_refresh import schedule_login_prefetch
-        schedule_login_prefetch(bind, group_id)
+        schedule_login_prefetch(bind, group_id, notification=notification)
     except Exception as exc:
         from gsuid_core.logger import logger
         logger.warning(f'[AliceUID] login prefetch scheduling failed error_type={type(exc).__name__}')

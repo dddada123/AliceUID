@@ -17,8 +17,8 @@ _ENV = Environment(loader=FileSystemLoader(str(PACKAGE / 'templates')), autoesca
 @lru_cache(maxsize=1)
 def _hero_art() -> str:
     from ..nikke_resource.media import media_path
-    path = media_path('assets/ALICEUID_Login_liberalio_.jpg')
-    return 'data:image/jpeg;base64,' + base64.b64encode(path.read_bytes()).decode() if path.is_file() else ''
+    path = media_path('assets/ICON.png')
+    return 'data:image/png;base64,' + base64.b64encode(path.read_bytes()).decode() if path.is_file() else ''
 
 
 def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
@@ -30,7 +30,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
     sections = [
         {'title': '账号与 UID', 'tag': '本人账号', 'description': '登录绑定、凭据维护与UID登记；仅操作本人。', 'items': [
             {'command': f'{command_prefix()}我的账号', 'description': '查看登录绑定、区服与Cookie有效期'},
-            {'command': f'{command_prefix()}重新登录 / {command_prefix()}重新登陆', 'description': '同账号同区服更新Cookie；失败保留原绑定，成功后需重新开启自动社区'},
+            {'command': f'{command_prefix()}重新登录 / {command_prefix()}重新登陆', 'description': '同账号同区服更新Cookie；完成资料准备后自动发送信息卡，失败保留原绑定'},
             {'command': f'{command_prefix()}导入cookie 日服 Cookie内容', 'description': '高级导入仅限私聊，区服必须明确选择'},
             {'command': f'{command_prefix()}解绑', 'description': '退出登录绑定，撤销自动社区并使旧链接失效'},
             {'command': f'{command_prefix()}绑定UID', 'description': '查看社区标识 / 游戏UID / 分享链接三种登记用法'},

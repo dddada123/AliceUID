@@ -38,8 +38,30 @@ body{background:{{ theme.page }};color:{{ theme.ink }}}
 .section .command{font-size:15px;line-height:1.5;overflow-wrap:anywhere}
 .section .explain{font-size:12px;line-height:1.6;overflow-wrap:anywhere}
 .notice{margin-top:16px}.notice p{margin:3px 0}
+/* Raised glass avatar shell: only the help hero opts in to this treatment. */
+.hero{display:flex;align-items:center;gap:28px;padding:22px 26px;overflow:visible}
+.hero-content{flex:1;min-width:0}.hero h1{font-size:32px;white-space:nowrap}
+.glass-icon {
+ position: relative; display: inline-block; flex: none;
+ width: 158px; height: 158px; border-radius: 35px; overflow: hidden;
+ box-shadow: none;
+ transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease;
+ cursor: pointer;
+}
+.glass-icon:hover { transform: translateY(-4px) scale(1.035); }
+.glass-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* User-specified rounded glass highlights and refraction, over the full image. */
+.glass-icon::after {
+ content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+ background: linear-gradient(135deg, rgba(255, 255, 255, 0.31) 0%, rgba(255, 255, 255, 0.06) 38%, rgba(255, 255, 255, 0) 62%, rgba(255, 255, 255, 0.08) 100%);
+ box-shadow: inset 0 2.96px 4.15px rgba(255, 255, 255, 0.6),
+ inset 2.22px 0 4.15px rgba(255, 255, 255, 0.33),
+ inset 0 -2.96px 4.98px rgba(0, 0, 0, 0.2),
+ inset -2.22px 0 4.15px rgba(255, 255, 255, 0.15),
+ inset 0 0 0 1px rgba(255, 255, 255, 0.33);
+}
 </style></head><body><div class="help-page">
-<div class="hero">{% if hero_art %}<img class="hero-art" src="{{ hero_art }}" alt="NIKKE"><div class="hero-shade"></div>{% endif %}<div class="hero-content"><div class="eyebrow">AliceUID {{ version }} · BUILD {{ build }}</div><h1>指挥官，从这里开始</h1><p>绑定你的区服，查看个人资料与展示队伍。</p><span class="role">{{ role }}指令 · 当前可用功能</span></div></div>
+<div class="hero">{% if hero_art %}<div class="glass-icon hero-avatar"><img src="{{ hero_art }}" alt="AliceUID 爱丽丝头像"></div>{% endif %}<div class="hero-content"><div class="eyebrow">AliceUID {{ version }} · BUILD {{ build }}</div><h1>指挥官，从这里开始</h1><p>绑定你的区服，查看个人资料与展示队伍。</p><span class="role">{{ role }}指令 · 当前可用功能</span></div></div>
 <div class="label">QUICK START / 三步开始</div><div class="steps">{% for step in steps %}<div class="step"><div class="step-number">{{ step.number }}</div><div class="step-command">{{ step.command }}</div><p>{{ step.description }}</p></div>{% endfor %}</div>
 <div class="regions">{% for command in regions %}<span class="region"><span>{{ command }}</span></span>{% endfor %}</div><div class="region-hint">「登录」也可写成「登陆」，含区服登录和重新登录。选择角色所在区服，不会自动换区。</div>
 <div class="sections">{% for band in section_bands %}<div class="section-band">{% for section in band %}<section class="section {{ 'wide' if section.wide else 'half' }}" data-module="{{ section.title }}" data-count="{{ section['items']|length }}"><div class="section-header"><h2>{{ section.title }}</h2><span class="tag">{{ section.tag }} · {{ section['items']|length }}条</span></div><p class="description">{{ section.description }}</p><div class="section-items">{% for row in section.rows %}<div class="item-row{% if row|length == 1 %} single{% endif %}">{% for item in row %}<div class="item"><div class="command">{{ item.command }}</div><div class="explain">{{ item.description }}</div></div>{% endfor %}</div>{% endfor %}</div></section>{% endfor %}</div>{% endfor %}</div>
