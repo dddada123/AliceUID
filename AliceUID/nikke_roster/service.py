@@ -8,7 +8,7 @@ from .cache import RosterCache, identity
 from .draw import draw_roster, prepare_images
 from ..nikke_render.theme import get_card_theme_mode as get_card_theme
 
-RENDER_VERSION = "alice-icons10-v1208-glass"
+RENDER_VERSION = "alice-icons10-v1209-local-first"
 
 
 class RosterCooldown(ValueError):
@@ -120,7 +120,12 @@ class RosterService:
 
     async def prepare(self, client, bind, actor, bot):
         key, owner = identity(actor, bot, bind)
+        data = {}
         epoch = self.epochs.get(key, 0)
+        import time
+        from ..nikke_logs.store import event
+        started=time.monotonic()
+        event('完整卡片','资料快照','START')
         if self.snapshot_provider is not None:
             data = await self.snapshot_provider(client, bind)
             basic, owned = data['basic'], data['chars']
@@ -138,6 +143,7 @@ class RosterService:
                     saved = await paced.get_saved_role_info()
                     if saved_role_matches(saved, client.region):
                         uid = str(saved.get('role_id') or '')
+        event('完整卡片','资料快照','OK',elapsed_ms=round((time.monotonic()-started)*1000),count=len(owned) if isinstance(owned,list) else 0)
         epoch = self.epochs.get(key, 0)
         static = self.resources.load_static()
         codes = {number(row.get('name_code')) for row in owned if isinstance(row, dict)} if isinstance(owned, list) else set()
@@ -158,6 +164,9 @@ class RosterService:
                              f'{command_prefix()}数据库更新；不会将缺失资料渲染为空白卡片。')
         context = build_roster_context(basic, owned, static, nickname=bind.nickname,
                                        uid=uid, area_label=client.region.label)
+        from ..nikke_resource.identity_card import cached_identity,portrait_mapping
+        context.update(cached_identity(bind,dict(data,chars=owned)))
+        context['commander_mapping']=portrait_mapping(self.resources,context)
         from ..nikke_render.fonts import resolve_font
         from ..nikke_render.language import get_card_language
         context.update(card_theme=get_card_theme(), render_version=RENDER_VERSION,
@@ -170,10 +179,14 @@ class RosterService:
         meta = self.cache.metadata(key) or {}
         dependencies = meta.get('dependencies')
         version = resource_version(self.resources, dependencies)
-        if dependencies is not None and version is not None and meta.get('semantic') == semantic and meta.get('resources') == version:
+        if not (meta.get('partial') and self.cache.clock()-meta.get('created_at',0)>=60) and dependencies is not None and version is not None and meta.get('semantic') == semantic and meta.get('resources') == version:
             cached = self.cache.lookup(key, meta.get('fingerprint'), owner)
             if cached is not None:
+                from ..nikke_logs.store import event
+                event('完整卡片','成品缓存','HIT')
                 return cached
+        from ..nikke_logs.store import event
+        event('完整卡片','成品缓存','MISS')
         from ..nikke_resource.cache import track_assets
         with track_assets() as paths:
             context = await prepare_images(context, self.resources.images)
@@ -185,10 +198,14 @@ class RosterService:
         cached = self.cache.lookup(key, digest, owner)
         if cached is not None:
             return cached
+        import time
+        started=time.monotonic()
+        event('完整卡片','渲染编码','START')
         image = await self.renderer(context)
+        event('完整卡片','渲染编码','OK',elapsed_ms=round((time.monotonic()-started)*1000),bytes=len(image))
         if self.epochs.get(key, 0) != epoch:
             raise ValueError('资料已刷新，请重新请求卡片。')
-        return self.cache.store(key, digest, owner, image, semantic=semantic, resources=version, dependencies=dependencies)
+        return self.cache.store(key, digest, owner, image, semantic=semantic, resources=version, dependencies=dependencies,partial=context.get('_assets_partial',False))
 
     def mark_sent(self, prepared):
         return self.cache.mark_sent(prepared)

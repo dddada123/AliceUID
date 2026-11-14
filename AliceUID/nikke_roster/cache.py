@@ -91,7 +91,7 @@ class RosterCache:
             return None
         return CachedRoster(key, digest, image, owner, True)
 
-    def store(self, key, digest, owner, image, *, semantic='', resources=None, dependencies=None):
+    def store(self, key, digest, owner, image, *, semantic='', resources=None, dependencies=None, partial=False):
         if not HEX.fullmatch(digest):
             raise ValueError('invalid roster fingerprint')
         directory = self._directory(key)
@@ -99,7 +99,7 @@ class RosterCache:
         self._atomic(path, image)
         self._atomic(directory / 'meta.json', json.dumps(dict(fingerprint=digest, owner=owner,
             image=path.name, image_hash=hashlib.sha256(image).hexdigest(), semantic=semantic,
-            resources=resources, dependencies=dependencies, created_at=self.clock(), last_sent=0)).encode())
+            resources=resources, dependencies=dependencies, partial=partial, created_at=self.clock(), last_sent=0)).encode())
         # Keep the previous published pair intact until the new pair commits.
         for old in directory.glob('*.jpg'):
             if old.name != path.name:

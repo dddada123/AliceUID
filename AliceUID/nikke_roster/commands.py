@@ -27,7 +27,13 @@ async def current_before_send(policy, event, bind, prepared, model):
     return await allowed(policy, event)
 
 
-async def roster_worker(bot, event, policy):
+async def roster_worker(bot,event,policy):
+    from ..nikke_logs.store import request_scope
+    with request_scope('完整卡片'):
+        return await _roster_worker(bot,event,policy)
+
+
+async def _roster_worker(bot, event, policy):
     from gsuid_core.logger import logger
     from gsuid_core.segment import MessageSegment
     from ..nikke_api.client import NikkeApiError, NikkeLoginRequired
@@ -44,7 +50,9 @@ async def roster_worker(bot, event, policy):
         if client is None:
             await bot.send(unavailable_message(bind), at_sender=True)
             return
-        prepared = await service.prepare(client, bind, event.user_id, event.bot_id)
+        from ..nikke_logs.store import event as diagnostic_event
+        async with asyncio.timeout(120):
+            prepared = await service.prepare(client, bind, event.user_id, event.bot_id)
         # Binding mutations use this same lock. Prevent revoke/rebind between the
         # final revision check and send, and verify permissions again after work.
         async with binding_lock(event.user_id, event.bot_id):
@@ -54,11 +62,15 @@ async def roster_worker(bot, event, policy):
                 return
             data = prepared.path.read_bytes()
             from ..nikke_message import send_with_forward, display_name
+            diagnostic_event('完整卡片','发送','START',bytes=len(data))
             result = await send_with_forward(bot, event, MessageSegment.image(data),
                                              config_key='AliceUID_RosterForward',
                                              title=f'AliceUID·{display_name(getattr(bind, "nickname", ""), "未知指挥官")}·图鉴展示')
+            diagnostic_event('完整卡片','发送','OK' if result is not False else 'FAILED')
             if result is not False:
                 service.mark_sent(prepared)
+    except TimeoutError:
+        await bot.send('完整卡片生成等待超时，已结束本次任务；资料缓存保留，请稍后重试。',at_sender=True)
     except RosterCooldown as exc:
         await bot.send(str(exc), at_sender=True)
     except NikkeLoginRequired:

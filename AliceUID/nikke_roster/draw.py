@@ -25,34 +25,61 @@ def expected_size(context):
 
 
 async def prepare_images(context, images):
+    import asyncio,json,time
     from ..nikke_resource.card_meta import prepare_card_icons, prepare_badges
-    result = dict(context)
-    result.update(await prepare_badges(images))
-    cards = []
-    # ImageCache has its own persistent public-request cooldown and two slots.
-    # Resolve serially here: no 203-task request burst at first use.
-    for item in context['cards']:
-        card = dict(item)
-        resolved = await images.resolved_source('icons', card['resource_id'], card['skin_index'])
-        card.update(icon_source=resolved.source, actual_skin_index=resolved.skin_index,
-            icon_fallback=resolved.fallback, icon_missing=resolved.missing,
-            icon_hash=resolved.content_hash)
-        card['icon_badge'] = '缺图' if resolved.missing else '基础' if resolved.fallback or not card.get('skin_mapped', True) else ''
-        if resolved.missing:
-            card['skin_notice'] = 'SI图标素材缺失'
-        elif resolved.fallback:
-            card['skin_notice'] = '当前皮肤SI缺失 · 展示基础图标'
-        card.update(await prepare_card_icons(card, images))
-        cards.append(card)
-    result['cards'] = cards
+    from ..nikke_resource.display import display_assets
+    from ..nikke_resource.identity_card import prepare_portrait
+    from ..nikke_logs.store import event
+    started=time.monotonic()
+    result=dict(context)
+    async with display_assets(images) as assets:
+        result.update(await prepare_badges(assets))
+        result.update(await prepare_portrait(assets,context.get('commander_mapping')))
+        roles={}
+        async def prepare(item):
+            card=dict(item)
+            resolved=await assets.resolved_source('icons',card['resource_id'],card['skin_index'])
+            card.update(icon_source=resolved.source,actual_skin_index=resolved.skin_index,
+                        icon_fallback=resolved.fallback,icon_missing=resolved.missing,icon_hash=resolved.content_hash)
+            card['icon_badge']='缺图' if resolved.missing else '基础' if resolved.fallback or not card.get('skin_mapped',True) else ''
+            if resolved.missing:card['skin_notice']='头像暂缺，后台补齐'
+            elif resolved.fallback:card['skin_notice']='当前皮肤头像暂缺 · 展示基础图标'
+            key=json.dumps(card.get('role_spec') or {},sort_keys=True)
+            if key not in roles:
+                roles[key]=asyncio.create_task(prepare_card_icons(card,assets))
+            card.update(await roles[key])
+            return card
+        # Only two workers are live, including a cold install with hundreds of images.
+        cards=list(context['cards']);output=[None]*len(cards);iterator=iter(enumerate(cards))
+        async def worker():
+            for index,item in iterator:
+                output[index]=await prepare(item)
+        workers=[asyncio.create_task(worker()) for _ in range(2)]
+        try:
+            await asyncio.gather(*workers)
+        finally:
+            for task in [*workers,*roles.values()]:
+                if not task.done():task.cancel()
+            await asyncio.gather(*workers,*roles.values(),return_exceptions=True)
+        result['cards']=output
+        missing=sum(c['icon_missing'] for c in output)
+        result['_assets_partial']=bool(missing or getattr(assets,'unavailable',0) or (context.get('commander_mapping') and not result.get('commander_avatar_url')))
+        if missing:result['preview_notice']=f'{missing}个头像暂缺，后台补齐后再次查询可更新'
+        event('完整卡片','素材准备','OK',count=len(output),
+              reason=f"local={getattr(assets,'hits',0)} missing={getattr(assets,'misses',0)} deferred={getattr(assets,'deferred',0)}",
+              elapsed_ms=round((time.monotonic()-started)*1000))
     return result
+
 
 
 def render_roster_html(context):
     width, height = expected_size(context)
     if width * height > MAX_PIXELS:
         raise ValueError('角色数量超出完整长图安全限制，未生成截断图片。')
-    return _env.get_template('roster.html').render(**apply_theme(context, context.get("card_theme"), scene_width=width, scene_height=height), image_height=height)
+    from .finish import joined_glass
+    prepared=apply_theme(context,context.get("card_theme"),scene_width=width,scene_height=height)
+    prepared["join_glass_url"]=joined_glass(prepared["card_theme"])
+    return _env.get_template("roster.html").render(**prepared,image_height=height)
 
 
 def encode_complete(data, context):

@@ -133,6 +133,8 @@ class ResourceStatusService:
                 if on_snapshot is not None:
                     await on_snapshot(copy.deepcopy(context))
                 if renderer is None:
+                    from ..nikke_resource.identity_card import decorate_identity
+                    await decorate_identity(context,bind)
                     from .draw import draw_status
                     renderer=draw_status
                 image=await renderer(context,owner_key=key)

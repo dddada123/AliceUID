@@ -102,6 +102,8 @@ async def nikke_union_cmd(bot, ev):
                     character_map = resources._load_rows('character_id_map.json')
                 context = await union_queries.query(client, bind, view=view, day=day, refresh=refresh,
                                                     static=static, character_map=character_map, target_rank=target_rank)
+                from ..nikke_resource.identity_card import decorate_identity
+                await decorate_identity(context,bind)
                 from .progression import attach_cached_progression
                 await attach_cached_progression(context, bind)
                 from ..nikke_character.cache import panel_identity
