@@ -117,7 +117,8 @@ def metadata(listing, default_code, code, mode, season, source):
 def revision(meta):
     return fingerprint([meta.get(k) for k in ('policy', 'mode', 'code', 'raid', 'boss', 'active', 'current_raid',
                                               'current_until', 'source_fingerprint')] +
-                       ([meta.get('default_code')] if meta.get('mode') == 'default' else []))
+                       ([meta.get('default_code')] if meta.get('mode') == 'default' else []) +
+                       [(meta.get('recommended') or {}).get('fingerprint')])
 
 def status_notes(meta):
     notes = []
@@ -147,8 +148,9 @@ async def fetch_json(path):
     return value
 
 class SiteMonitor:
-    def __init__(self, path, *, clock=time.time, fetch=fetch_json, probe=None):
+    def __init__(self, path, *, clock=time.time, fetch=fetch_json, probe=None, recommend=None):
         self.path, self.clock, self.fetch, self.probe = path, clock, fetch, probe
+        self.recommend = recommend
         self.lock = asyncio.Lock()
         self.retry_at = 0
 
@@ -217,6 +219,11 @@ class SiteMonitor:
                     entries[code + ':' + server] = dict(checked_at=self.clock(),
                         meta=metadata(listing, default_code, code, mode, season, source))
                 result = metadata(listing, default_code, code, mode, season, source)
+                if self.recommend is None:
+                    from .recommended import fetch_recommendation
+                    result['recommended'] = await fetch_recommendation(code, self.fetch)
+                else:
+                    result['recommended'] = await self.recommend(code)
                 self.save(state)
                 self.retry_at = 0
                 return result

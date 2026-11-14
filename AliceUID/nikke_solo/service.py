@@ -230,6 +230,13 @@ async def _capture_page(page, account, progress, *, mode='default'):
     # Always trigger the site's native change event, including automatic mode.
     await page.locator('#code').select_option(weakness)
     await page.wait_for_function('(code)=>document.querySelector("#code")?.value===code', arg=weakness, timeout=_PAGE_TIMEOUT_MS)
+    progress('推荐设置套用')
+    from .recommended import fetch_recommendation, browser_fetch, apply_recommendation, verify_applied
+    try:
+        recommendation = await fetch_recommendation(weakness, lambda path: browser_fetch(page, path))
+        await apply_recommendation(page, recommendation, timeout=_PAGE_TIMEOUT_MS)
+    except ValueError as exc:
+        raise SoloUnavailable(str(exc)) from None
     progress('配置模式切换')
     if not await page.locator('#fast-wrap').is_visible():
         await page.locator('#fast-toggle').click()
@@ -241,6 +248,10 @@ async def _capture_page(page, account, progress, *, mode='default'):
         raise SoloUnavailable('进入配置模式后本人账号校验失败，本次停止计算。')
     if await page.locator('#code').input_value() != weakness:
         raise SoloUnavailable('进入配置模式后网站属性发生变化，本次停止计算，请重新查询。')
+    try:
+        await verify_applied(page, recommendation)
+    except ValueError as exc:
+        raise SoloUnavailable(str(exc)) from None
     progress('排行推荐加载')
     # Fresh account: a single empty set; recommendation adds the second set.
     server, _ = SERVERS[account.area]
@@ -290,6 +301,10 @@ async def _capture_page(page, account, progress, *, mode='default'):
             await route.fulfill(status=502, content_type='application/json', body='{"error":"AliceUID: ranking fetch failed"}')
     await page.route('**/api/sr-rank/sets?*', guard_sets)
     progress('推荐计算')
+    try:
+        await verify_applied(page, recommendation)
+    except ValueError as exc:
+        raise SoloUnavailable(str(exc)) from None
     await go.click()
     await page.wait_for_function("""() => !document.querySelector('#lab-sheet')?.open ||
         !!document.querySelector('#lab-sheet .lab-out .warn')""", timeout=300000)
@@ -314,14 +329,21 @@ async def _capture_page(page, account, progress, *, mode='default'):
     totals = await result.locator('.fg-row-total').all_text_contents()
     if len(totals) != 5 or any(not re.search(r'\d', t) for t in totals) or await result.locator('.fg-row-total.err').count():
         raise SoloUnavailable('部分队伍伤害尚未计算完成，本次未发送。')
+    try:
+        await verify_applied(page, recommendation)
+    except ValueError as exc:
+        raise SoloUnavailable(str(exc)) from None
     progress('结果截图')
     image = await capture_result(page, result)
     site = metadata(listing, default_code, weakness, mode, season, actual_source[0])
     site['fetched_at'] = actual_fetched[0]
     site['native_code'] = native_code
     site['profile_fetched_at'] = imported_at or ''
+    site['recommended'] = recommendation
+    settings_note = (f'已套用网站推荐设置：{recommendation["label"]}（代码 {recommendation["code"]}）。' if recommendation
+                     else '网站暂无匹配本次属性的推荐设置，本次采用网站现有模拟设置。')
     return SoloImage(image, element_label(weakness), time.time(), str(season['raid']),
-                     status_notes(site) + (() if imported_at else ('网站未报告可核验的养成采集时间；本次已重新提交链接拉取请求。',)) + ('排行阵容来自网站同弱点最近可用赛季；模拟条件采用网站当前设置。',
+                     status_notes(site) + (settings_note,) + (() if imported_at else ('网站未报告可核验的养成采集时间；本次已重新提交链接拉取请求。',)) + ('排行阵容来自网站同弱点最近可用赛季；模拟条件采用网站当前设置。',
                       '网址导入受公开设置影响；回收室等缺失数据可能使用网站默认值。'), site)
 
 async def capture_result(page, result):
