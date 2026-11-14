@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.2.05-ff69b4?style=flat-square" alt="Version: 1.2.05"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.2.06-ff69b4?style=flat-square" alt="Version: 1.2.06"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.2.05**。个人突袭推荐支持翻译异常时自动切换原生语言，以及图片、字体失败时降级出图；降级截图可能包含韩文。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.2.06**。个人突袭推荐支持翻译异常时自动切换原生语言，以及图片、字体失败时降级出图；降级截图可能包含韩文。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [常见问题（QA）](#常见问题qa) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 
@@ -59,7 +59,7 @@
 
 导出战力为角色原始服务器战力，攻防生命按实际等级计算。Excel总览上方可切换“编号升序 / 原始战力降序”，与四项筛选共同生效；明细可通过列头独立排序。新增基础暴击率、暴击伤害倍率及武器基础参数，这些基础值不代表叠加技能、装备词条后的实战属性。未知、隐藏数据注明原因，JSON数值为null，不当作0。
 
-`nk刷新面板` 会更新角色原始详情、词条和可获取的基础属性，并保留完整公开角色资料；旧卡片继续兼容旧缓存，无需删除数据。基础属性可用而攻防生命缺少回收室依赖时，仍保留已知基础值。
+`nk刷新面板` 会更新角色原始详情、词条和可获取的基础属性，并保留完整公开角色资料；旧卡片继续兼容旧缓存，无需删除数据。 后台“全量面板采集风控策略”默认保守（30人/批、2秒间隔），可选激进（30人/批、1秒间隔）。首次登录、手动面板刷新及本人导出需要的全量采集共用此策略；独立刷新信息和签到CD保持各自设置。基础属性可用而攻防生命缺少回收室依赖时，仍保留已知基础值。
 
 指定等级导出已开放，可将400替换为成长资料覆盖的其他等级，支持Excel、json/JSON与公开链接组合。文件同时保留实际等级、原始服务器战力和原始攻防生命，并单列模拟等级、模拟战力及模拟攻防生命；只改变等级，其余配置保持当前。当前随包成长资料覆盖至1400级，不外推或截断；个别资料缺失时注明原因，所有角色都没有目标等级资料时停止模拟导出。模拟为面板估算，已核验样本最大相差3点，验收容差10点；不代表实战伤害。
 
@@ -96,7 +96,16 @@ JSON采用schema_version=3，保留原有characters字段名称（attack、defen
 网络暂时异常时，每个请求最多3轮尝试；每轮连续20秒无响应便静默重试，持续无响应约1分钟后仅向发起者返回一次最终错误。不同用户分别回复，没有群聊共享冷却；同一用户请求未结束时，重复命令不再刷“正在计算”。有真实响应或计算进度时继续等待，登录失效、权限/验证码、限流或配置冲突不会自动重试。
 
 
-`nk个人突袭推荐` 将本人养成资料导入 [DILDORO](https://dildoro.com/)，自动按网站赛季识别弱点生成本人区服的推荐队伍与模拟伤害。需要公开Blablalink个人档案和妮姬列表。
+`nk个人突袭推荐` 将本人养成资料导入 [DILDORO](https://dildoro.com/)，自动按网站赛季识别弱点生成本人区服的推荐队伍与模拟伤害。有可用缓存时直接返回；需要网站重算时全局按先后排队，等待者会收到排队提示。
+
+官网妮姬资料为隐藏、仅盟友或仅好友时，实际轮到同步才会临时设为所有人可见；会先通知，查询可能较慢。截图完成立即返回，并在同条结果说明后台将恢复原公开范围，不等待隐私关闭。受限账号最多3条通知：处理/排队、临时公开、结果；原本公开账号维持处理/排队与结果两步，缓存命中直接返回。推荐失败也会安排恢复；恢复未确认时可查询状态或到官网处理，不另外刷屏。其他名片、前哨基地、资源权限不自动开启；第三方已导入的数据不会因恢复隐藏而删除。
+
+| 官网妮姬隐私命令 | 作用 |
+|---|---|
+| `nk妮姬公开` | 将本人官网妮姬资料设为所有人可见，持续生效 |
+| `nk妮姬隐藏` | 隐藏本人官网妮姬资料，持续生效 |
+| `nk妮姬公开状态` | 查看官网实际公开范围及待恢复状态 |
+
 
 可指定 `火／水／风／电／铁`，也支持完整名称 `燃烧／水冷／风压／电击／铁甲`；`nk单人突袭推荐` 是同义指令。例如 `nk个人突袭推荐火`、`nk单人突袭推荐铁甲`。不填属性自动跟随网站赛季。
 

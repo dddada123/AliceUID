@@ -71,6 +71,8 @@ class AliceBind(Bind, table=True):
                 import hashlib
                 if bind is None or hashlib.sha256(bind.cookie_enc.encode()).hexdigest() != expected_revision:
                     raise ValueError('绑定已变化，请刷新管理页后重新确认')
+            from ..nikke_privacy.service import before_unbind
+            await before_unbind(bind)
             revoke_binding(bind)
             from ..nikke_harvest.runtime import revoke_binding as revoke_harvest
             revoke_harvest(bind)

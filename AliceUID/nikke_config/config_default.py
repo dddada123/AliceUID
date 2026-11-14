@@ -221,6 +221,11 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
     ),
 
     # 查询缓存
+    'AliceUID_PanelRiskStrategy': GsStrConfig(
+        '全量面板采集风控策略',
+        '保守conservative：30人一批、2秒启动间隔（默认）；激进aggressive：30人一批、1秒。作用于首次登录预取、刷新面板及本人导出附带全量采集。同账号串行，不改变刷新信息、签到CD或推荐浏览器队列。保存后新任务生效。',
+        'conservative', options=['conservative', 'aggressive'],
+    ),
     "AliceUID_CacheTTL": GsIntConfig(
         "查询缓存（秒）",
         "同一账号的角色列表/资料缓存时间，避免触发上游限流",

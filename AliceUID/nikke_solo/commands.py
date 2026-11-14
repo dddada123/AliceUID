@@ -1,7 +1,7 @@
 """Experimental command: actor-only binding, bounded work, guarded delivery."""
 import asyncio
 import time
-from dataclasses import replace
+from dataclasses import replace, dataclass
 from gsuid_core.sv import SV
 from gsuid_core.logger import logger
 from gsuid_core.segment import MessageSegment
@@ -12,7 +12,7 @@ from ..nikke_user.service import load_client, binding_lock
 from ..nikke_user.auth_state import unavailable_message, RELOGIN, is_login_error, expired, known_invalid, mark_invalid
 from ..nikke_api.client import NikkeApiError, NikkeLoginRequired
 from ..nikke_status.service import binding_key
-from ..nikke_logs.store import record_failure
+from ..nikke_logs.store import record_failure, request_scope, event
 from .service import NOTICE, SoloUnavailable, owned_account, capture
 from .draw import draw_solo, get_solo_theme_mode
 from ..nikke_render.theme import get_card_theme
@@ -24,12 +24,15 @@ from .service import SERVERS
 from .errors import SoloTransient, RetryAborted
 from .resilience import RetryBudget, RequestGate, IDLE_SECONDS
 from .loading import BrowserRecovery
+from .queue import browser_queue
+from ..nikke_privacy.service import begin_recommendation, schedule_restore, get_service as privacy_service, LABELS, PrivacyError
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 sv_solo = SV('妮姬个人突袭推荐（实验性）',pm=6,priority=3)
 _requests = RequestGate()
 _active = _requests.active
+CACHE_CHECK_SECONDS = 2
 
 async def allowed(ev):
     policy = get_policy()
@@ -42,7 +45,14 @@ async def current(ev, bind):
     latest = await AliceBind.get_bind(ev.user_id,ev.bot_id)
     return latest is not None and binding_key(latest)==binding_key(bind) and await allowed(ev)
 
-async def _solo_command(bot,ev):
+@dataclass
+class RequestState:
+    lease: object = None
+    admission: object = None
+
+
+async def _solo_command(bot,ev,state=None):
+    state = state if state is not None else RequestState()
     if not await allowed(ev):
         return
     try:
@@ -58,8 +68,23 @@ async def _solo_command(bot,ev):
     recovery = BrowserRecovery()
     client = bind = reply = fallback = None
     cache_warning = ''
+    async def enter_queue():
+        if state.admission is not None:
+            return
+        async def queued(ahead):
+            text = (f'当前正在处理其他用户的单人突袭推荐，已为你排队，前方还有{ahead}个任务。'
+                    if ahead else NOTICE)
+            try:
+                await bot.send(text,at_sender=True)
+            except Exception as exc:
+                record_failure('个人突袭', '排队或等待提示发送', exc)
+                raise RetryAborted() from None
+        admission = browser_queue.turn(queued)
+        await admission.__aenter__()
+        state.admission = admission
     async def retry_allowed():
-        return bind is not None and authenticated(bind) and await current(ev,bind)
+        return (bind is not None and authenticated(bind) and await current(ev,bind)
+                and (state.lease is None or privacy_service().valid(state.lease)))
     try:
         bind = await AliceBind.get_bind(*actor)
         if bind is None:
@@ -74,8 +99,11 @@ async def _solo_command(bot,ev):
             except (OSError, ValueError) as exc:
                 logger.warning(f'[AliceUID] solo cache cleanup error_type={type(exc).__name__}')
             latest = None
-            if selection.mode == 'default':
-                # Fetch the public season before even reading the personal result cache.
+            image = None if refresh else cache.read(key)
+            if image is None:
+                await enter_queue()
+            if selection.mode == 'default' and image is None:
+                # Uncached work owns its FIFO position before preflight starts.
                 try:
                     latest = await retries.run(lambda:get_monitor().inspect(selection.mode, SERVERS[int(bind.area_id)][0]),
                                                valid=retry_allowed, timeout=IDLE_SECONDS)
@@ -86,12 +114,12 @@ async def _solo_command(bot,ev):
                     # Do not label old results as current when the latest season is unknown.
                     raise SoloUnavailable('本次赛季检查未完成，未使用旧缓存。' + str(exc) if isinstance(exc, ValueError)
                                           else '本次赛季检查失败，请稍后重试；尚未确认是否已有本期排行。') from None
-            image = None if refresh else cache.read(key)
             if image is not None:
                 try:
                     if latest is None:
-                        latest = await retries.run(lambda:get_monitor().inspect(selection.mode, SERVERS[int(bind.area_id)][0]),
-                                                   valid=retry_allowed, timeout=IDLE_SECONDS)
+                        latest = await asyncio.wait_for(
+                            retries.run(lambda:get_monitor().inspect(selection.mode, SERVERS[int(bind.area_id)][0]),
+                                        valid=retry_allowed, timeout=IDLE_SECONDS), timeout=CACHE_CHECK_SECONDS)
                     if not image.site or revision(latest) != revision(image.site) or (latest.get('active') is not False and time.time()-image.captured_at >= 21600):
                         fallback, image = image, None
                 except RetryAborted:
@@ -119,11 +147,7 @@ async def _solo_command(bot,ev):
                 reply = [MessageSegment.image(png), cache_warning + f'已使用本地缓存（{stamp} 北京时间生成，最长保存5天，读取不顺延）。\n'
                          f'如练度发生了变化，请发送{refresh_command}重新导入并计算。']
             else:
-                try:
-                    await bot.send(NOTICE,at_sender=True)
-                except Exception as exc:
-                    record_failure('个人突袭','等待提示发送',exc)
-                    return
+                await enter_queue()
                 previous_key = key
                 client,bind = await load_client(*actor)
                 if client is None:
@@ -135,7 +159,17 @@ async def _solo_command(bot,ev):
                         fallback = None
                     async def prepare():
                         account = await owned_account(client,bind)
-                        if not await current(ev,bind) or not authenticated(bind):return None
+                        async def opening(original):
+                            try:
+                                await bot.send('你的官网妮姬资料当前为'+LABELS[original]+'。为本次推荐将临时设为所有人可见，查询可能较慢；期间其他访问者也可读取资料。',at_sender=True)
+                            except Exception as exc:
+                                record_failure('个人突袭', '临时公开提示发送', exc)
+                                raise RetryAborted() from None
+                        async with binding_lock(*actor):
+                            if not await current(ev,bind) or not authenticated(bind):return None
+                            state.lease = await begin_recommendation(client,bind,account,opening,
+                                register=lambda lease:setattr(state,'lease',lease))
+                        if not await retry_allowed():return None
                         image = await retries.run(lambda:capture(account, mode=selection.mode, recovery=recovery),
                                                   valid=retry_allowed)
                         from .identity import prepare_identity
@@ -144,12 +178,12 @@ async def _solo_command(bot,ev):
                             await get_monitor().record(image, SERVERS[int(bind.area_id)][0])
                         except (OSError, ValueError) as exc:
                             record_failure('个人突袭', '网站快照保存', exc)
-                        if not await current(ev,bind) or not authenticated(bind):return None
+                        if not await retry_allowed():return None
                         png = await draw_solo(image,bind,client.region,theme=theme)
-                        if not await current(ev,bind) or not authenticated(bind):return None
+                        if not await retry_allowed():return None
                         style = style_key(image,bind,theme)
                         async with binding_lock(*actor):
-                            if not await current(ev,bind) or not authenticated(bind):return None
+                            if not await retry_allowed():return None
                             try:
                                 cache.save(key,image,style,png)
                             except (OSError,ValueError) as exc:
@@ -166,7 +200,7 @@ async def _solo_command(bot,ev):
     except SoloTransient as exc:
         detail = f'最后阶段：{exc.stage}。' if exc.stage else ''
         reply = f'个人突袭推荐暂未完成：最多3轮静默尝试仍无响应，本次请求已停止。{detail}请稍后再试。'
-    except SoloUnavailable as exc:
+    except (SoloUnavailable, PrivacyError) as exc:
         reply = str(exc)
     except NikkeApiError as exc:
         record_failure('个人突袭', '本人资料读取', exc)
@@ -195,6 +229,13 @@ async def _solo_command(bot,ev):
             reply = [MessageSegment.image(png),f'本次养成同步或重新计算未完成：{reply}\n以下为此前生成的结果（{stamp} 北京时间），赛季与阵容可能已有变化。可用{refresh_command}重试。']
         except Exception as exc:
             record_failure('个人突袭','旧结果重绘',exc)
+    if reply is not None and state.lease is not None:
+        note = ('\n截图完成后立即返回，官网妮姬公开将在后台恢复为原设置（'+LABELS[state.lease.original]+
+                '）；无需等待关闭。可用'+command_prefix()+'妮姬公开状态检查。')
+        if isinstance(reply,list):
+            reply.append(note)
+        else:
+            reply += '\n官网临时公开将在后台恢复原设置，可用'+command_prefix()+'妮姬公开状态检查。'
     if reply is not None and await allowed(ev):
         if bind is None:
             await bot.send(reply,at_sender=True)
@@ -212,11 +253,21 @@ async def solo_command(bot,ev):
     actor = _requests.enter(ev)
     if actor is None:
         return
+    state = RequestState()
     try:
-        await _solo_command(bot,ev)
+        with request_scope('个人突袭'):
+            await _solo_command(bot,ev,state)
     except asyncio.CancelledError:
         raise
     except Exception as exc:
         record_failure('个人突袭','最终处理或发送',exc)
     finally:
-        _requests.leave(actor)
+        try:
+            if state.lease is not None:
+                schedule_restore(state.lease)
+        finally:
+            try:
+                if state.admission is not None:
+                    await state.admission.__aexit__(None,None,None)
+            finally:
+                _requests.leave(actor)

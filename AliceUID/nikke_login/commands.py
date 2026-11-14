@@ -321,7 +321,7 @@ async def nikke_public_cmd(bot: Bot, ev: Event):
     if not await set_public(ev.user_id, ev.bot_id, True):
         await bot.send("还没有绑定账号。", at_sender=True)
         return
-    await bot.send("已开启账号公开标记。当前版本未提供群排行命令。", at_sender=True)
+    await bot.send("已开启插件本地排行预留标记；群排行尚未开放，不修改官网隐私。官网妮姬资料请用妮姬公开命令。", at_sender=True)
 
 
 @sv_account.on_fullmatch(("隐藏", "隐藏账号"))
@@ -330,7 +330,7 @@ async def nikke_private_cmd(bot: Bot, ev: Event):
     if not await set_public(ev.user_id, ev.bot_id, False):
         await bot.send("还没有绑定账号。", at_sender=True)
         return
-    await bot.send("已关闭账号公开标记。", at_sender=True)
+    await bot.send("已关闭插件本地排行预留标记，不修改官网隐私。官网妮姬资料请用妮姬隐藏命令。", at_sender=True)
 
 
 def _account_admin(ev):

@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
+from email.utils import parsedate_to_datetime
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
 
@@ -40,10 +42,12 @@ HMT_REGION = Region(91, "hmt", "港澳台服", GAME_ID_HMT)
 
 
 class NikkeApiError(Exception):
-    def __init__(self, code: int, msg: str, endpoint: str = ""):
+    def __init__(self, code: int, msg: str, endpoint: str = "", *, retry_after=0, http_status=None):
         self.code = code
         self.msg = msg
         self.endpoint = endpoint
+        self.retry_after = retry_after
+        self.http_status = http_status
         super().__init__(f"[{code}] {msg} ({endpoint})")
 
 
@@ -113,6 +117,11 @@ class NikkeClient:
     async def _request(self, method: str, path: str, body: dict | None = None, *, region=None) -> dict:
         # Account services own spacing, cache and single-flight. A failed or
         # ambiguous private request must never silently multiply into retries.
+        from ..nikke_logs.store import event
+        started = time.monotonic()
+        status = None
+        business = None
+        size = 0
         try:
             if getattr(self.credentials,'expired',False):
                 raise NikkeLoginRequired(300001,'登录凭据已过期，请重新登录',path)
@@ -121,22 +130,35 @@ class NikkeClient:
                     method,BASE+path,headers=self.headers(region),
                     json=body if body is not None else {},follow_redirects=False,
                 )
+            status, size = resp.status_code, len(resp.content)
+            delay = 0
+            retry = resp.headers.get('retry-after', '')
+            try:
+                delay = max(0, float(retry))
+            except (ValueError, TypeError):
+                try:
+                    delay = max(0, parsedate_to_datetime(retry).timestamp()-time.time())
+                except (ValueError, TypeError, OverflowError):
+                    pass
             if resp.status_code == 401:
                 raise NikkeLoginRequired(401,'登录凭据被拒绝，请重新登录',path)
             if resp.status_code in (403,429):
-                raise NikkeApiError(resp.status_code,'社区拒绝请求或请求过于频繁，请稍后检查账号状态',path)
+                raise NikkeApiError(resp.status_code,'社区拒绝请求或请求过于频繁，请稍后检查账号状态',path,
+                                    retry_after=delay, http_status=resp.status_code)
             if resp.is_redirect:
                 raise NikkeApiError(resp.status_code,'社区返回跳转，已停止请求，请检查登录状态',path)
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                raise NikkeApiError(resp.status_code,'社区HTTP请求失败，未自动重试',path,http_status=resp.status_code)
             data=resp.json()
             if not isinstance(data,dict) or type(data.get('code')) not in (int,str):
                 raise ValueError('invalid API envelope')
             code=int(data['code'])
+            business = code
             if code==0:
                 return data
             if code in (401,300001):
                 raise NikkeLoginRequired(code,'登录已失效，请重新登录',path)
-            raise NikkeApiError(code,'社区未能完成请求，请稍后重试',path)
+            raise NikkeApiError(code,'社区未能完成请求，请稍后重试',path,http_status=status)
         except NikkeLoginRequired as exc:
             if self.on_auth_failure is not None:
                 try:
@@ -150,6 +172,10 @@ class NikkeClient:
             # Transport exception strings and response bodies can contain
             # headers/account data. Expose only the error category.
             raise NikkeApiError(-1,f'请求失败（{type(exc).__name__}），未自动重试',path) from None
+        finally:
+            event('账号接口', path.split('?')[0], 'OK' if business == 0 else 'FAILED',
+                  http_status=status, business_code=business, bytes=size,
+                  network_ms=int((time.monotonic()-started)*1000))
 
     # ---------- 账号 ----------
 

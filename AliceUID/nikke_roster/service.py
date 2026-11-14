@@ -23,13 +23,14 @@ class AccountReads:
         self.slots = asyncio.Semaphore(2)
         self.foreground = {}
         self.idle = {}
+        self.failures = {}
 
     @staticmethod
     def account(bind):
         return str(bind.game_id), str(bind.intl_open_id), str(bind.area_id)
 
     @asynccontextmanager
-    async def transaction(self, client, bind, *, wait=False, background=False):
+    async def transaction(self, client, bind, *, wait=False, background=False, panel_interval=None, batch_start=False):
         account = self.account(bind)
         lock = self.locks.setdefault(account, asyncio.Lock())
         idle = self.idle.setdefault(account, asyncio.Event())
@@ -50,14 +51,19 @@ class AccountReads:
                 lock.release()
                 acquired = False
             now = self.clock()
-            if account in self.last_batch and now - self.last_batch[account] < 5:
+            if self.failures.get(account, 0) > now:
+                raise RosterCooldown('社区访问暂时受限，请稍后重试；未继续请求。')
+            if (panel_interval is None or batch_start) and account in self.last_batch and now - self.last_batch[account] < 5:
                 if not wait:
                     raise RosterCooldown('查询较频繁，请至少等待5秒后重试。')
                 await self.sleep(5-(now-self.last_batch[account]))
             self.last_batch[account] = self.clock()
             try:
-                async with self.slots:
-                    yield PacedClient(client, self, account)
+                if panel_interval is None:
+                    async with self.slots:
+                        yield PacedClient(client, self, account)
+                else:
+                    yield PacedClient(client, self, account, interval=panel_interval)
             finally:
                 self.last_batch[account] = self.clock()
         finally:
@@ -70,10 +76,11 @@ class AccountReads:
 
 
 class PacedClient:
-    def __init__(self, client, gate, account):
+    def __init__(self, client, gate, account, *, interval=None):
         self.client, self.gate, self.account = client, gate, account
         self.region = client.region
         self.calls = 0
+        self.interval = interval
 
     def __getattr__(self, name):
         if not name.startswith('get_'):
@@ -83,11 +90,21 @@ class PacedClient:
                 raise ValueError('面板刷新请求预算已用尽')
             self.calls += 1
             gate = self.gate
-            remaining = 5 - (gate.clock() - gate.last_request.get(self.account, -1e20))
+            remaining = (5 if self.interval is None else self.interval) - (gate.clock() - gate.last_request.get(self.account, -1e20))
             if remaining > 0:
                 await gate.sleep(remaining)
-            gate.last_request[self.account] = gate.clock()
-            return await getattr(self.client, name)(*args, **kwargs)
+            async def invoke():
+                gate.last_request[self.account] = gate.clock()
+                try:
+                    return await getattr(self.client, name)(*args, **kwargs)
+                except Exception as exc:
+                    if getattr(exc, 'code', None) in (403, 429):
+                        gate.failures[self.account] = gate.clock() + max(60, getattr(exc, 'retry_after', 0) or 0)
+                    raise
+            if self.interval is None:
+                return await invoke()
+            async with gate.slots:
+                return await invoke()
         return call
 
 

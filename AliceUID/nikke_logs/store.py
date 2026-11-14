@@ -10,12 +10,44 @@ from collections import deque
 from datetime import datetime, timedelta, timezone
 from importlib.metadata import PackageNotFoundError, version
 from ..version import VERSION, BUILD, ISSUES
+from contextvars import ContextVar
+from contextlib import contextmanager
+import secrets
 
 TZ = timezone(timedelta(hours=8))
 STARTED = time.time()
 _rows = deque(maxlen=10000)
 _lock = threading.Lock()
 _chars = 0
+_request = ContextVar('alice_diagnostic_request', default='')
+
+
+@contextmanager
+def request_scope(operation, request_id=None):
+    identity = request_id if isinstance(request_id, str) and re.fullmatch(r'r[0-9a-f]{12}', request_id) else 'r' + secrets.token_hex(6)
+    token = _request.set(identity)
+    started = time.monotonic()
+    event(operation, '任务', 'START')
+    try:
+        yield
+    except BaseException as exc:
+        event(operation, '任务', 'CANCELLED' if isinstance(exc, __import__('asyncio').CancelledError) else 'FAILED')
+        raise
+    finally:
+        event(operation, '任务', 'FINISHED', elapsed_ms=int((time.monotonic()-started)*1000))
+        _request.reset(token)
+
+
+def current_request():
+    return _request.get()
+
+
+def event(operation, stage, result, **metrics):
+    allowed = {'count', 'elapsed_ms', 'queue_wait_ms', 'pace_wait_ms', 'network_ms',
+               'http_status', 'business_code', 'batch_index', 'batch_total', 'batch_size',
+               'interval_ms', 'bytes', 'attempt', 'policy', 'reason', 'warning', 'retry_after'}
+    fields = ' '.join(f'{key}={value}' for key, value in metrics.items() if key in allowed)
+    append(time.time(), 'INFO', f'[AliceUID] {operation} stage={stage} result={result} {fields}')
 
 
 def redact(text):
@@ -45,7 +77,7 @@ def redact(text):
         metrics.append(m[0])
         return f'ALICEMETRIC{len(metrics)-1}END'
     text = re.sub(r'\bline \d+\b', metric, text)
-    text = re.sub(r'\b(?:input_bytes|output_bytes|bytes|elapsed_ms|timeout|timeout_ms|wait_seconds|width|height|status|count|line|lineno)=\d+(?:\.\d+)?\b', metric, text)
+    text = re.sub(r'\b(?:input_bytes|output_bytes|bytes|elapsed_ms|queue_wait_ms|pace_wait_ms|network_ms|http_status|business_code|interval_ms|retry_after|timeout|timeout_ms|wait_seconds|width|height|status|count|line|lineno)=\d+(?:\.\d+)?\b', metric, text)
     text = re.sub(r'\b\d{5,}\b', '[编号已脱敏]', text)
     text = re.sub(r'\b[A-Za-z0-9_-]{28,}\b', '[标识已脱敏]', text)
     for i, value in enumerate(metrics):
@@ -62,6 +94,8 @@ def record_failure(operation, stage, exc):
 def append(stamp, level, text):
     global _chars
     text = redact(text)
+    if _request.get():
+        text = f'request_id={_request.get()} ' + text
     with _lock:
         if not _rows:
             _chars = 0

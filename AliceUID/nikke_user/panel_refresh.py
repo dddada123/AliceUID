@@ -10,7 +10,8 @@ _queue_locks = {}
 _profile_locks = {}
 _profile_failures = {}
 _refresh_locks = {}
-DETAIL_BATCH_SIZE = 20
+_refresh_versions = {}
+DETAIL_BATCH_SIZE = 30
 MAX_OWNED_CHARACTERS = 500
 
 
@@ -176,14 +177,20 @@ class _RefreshReads:
         self.region = client.region
         self.roster_checked_at = 0
         self.outpost_checked_at = 0
+        from .pacing import panel_interval
+        self.interval = panel_interval()
+        self.calls = 0
 
     def __getattr__(self, name):
         if not name.startswith('get_'):
             raise AttributeError(name)
         async def request(*args, **kwargs):
+            self.calls += 1
+            if self.calls > 5 + (MAX_OWNED_CHARACTERS + DETAIL_BATCH_SIZE - 1) // DETAIL_BATCH_SIZE:
+                raise ValueError('全量面板请求预算已用尽')
             await self.check()
             async with self.reads.transaction(self.client, self.bind, wait=self.wait if self.first else True,
-                                               background=True) as paced:
+                                               background=True, panel_interval=self.interval, batch_start=self.first) as paced:
                 self.first = False
                 await self.check()
                 result = await getattr(paced, name)(*args, **kwargs)
@@ -227,9 +234,19 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
                 raise CharacterDataError('权限已变化，已停止更新资料。')
 
     # Serialize full refresh jobs, never hold the foreground character lock over I/O.
+    arrived_version = _refresh_versions.get(expected, 0)
     async with _refresh_locks.setdefault(expected, asyncio.Lock()):
         await check_current()
         store = character_queries.store()
+        # Login/manual/export callers that overlapped consume the successful
+        # collection they just waited for, rather than collecting it again.
+        if _refresh_versions.get(expected, 0) != arrived_version and store is not None:
+            completed = store.read(expected)
+            from ..nikke_export.snapshot import ready as export_ready
+            saved_profile = cached_profile(bind)
+            if (completed.get('complete') and saved_profile is not None
+                    and (attribute_prepare is None or export_ready(completed))):
+                return saved_profile
         if only_missing:
             snapshot = store.read(expected) if store is not None else {}
             codes = character_queries.roster_codes(snapshot.get('roster', []))
@@ -268,6 +285,10 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
             batch = codes[start:start+DETAIL_BATCH_SIZE]
             payload = await paced.get_character_details(batch)
             details.update(character_queries.detail_entries(payload, batch))
+            from ..nikke_logs.store import event as diagnostic_event
+            diagnostic_event('全量面板', '角色详情', 'OK', batch_index=start//DETAIL_BATCH_SIZE+1,
+                             batch_total=(len(codes)+DETAIL_BATCH_SIZE-1)//DETAIL_BATCH_SIZE,
+                             batch_size=len(batch), interval_ms=int(paced.interval*1000))
         attribute_snapshot = dict(roster=data['chars'], details=details, profile=data,
                                   profile_checked_at=profile_checked_at, outpost_checked_at=paced.outpost_checked_at)
         if attribute_prepare is not None:
@@ -317,12 +338,19 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
                 from ..nikke_export.snapshot import mark_current
                 mark_current(snapshot)
             character_queries.publish_snapshot(bind, snapshot)
+            _refresh_versions[expected] = _refresh_versions.get(expected, 0) + 1
             get_roster_service().invalidate_binding(bind, actor, bot, clear_image=False)
             profile._cache.pop(profile._cache_key(bind), None)
         return cached_profile(bind) or data
 
 
 async def refresh_worker(bot, ev, policy, *, expected=None, automatic=False):
+    from ..nikke_logs.store import request_scope
+    with request_scope('全量面板'):
+        return await _refresh_worker(bot, ev, policy, expected=expected, automatic=automatic)
+
+
+async def _refresh_worker(bot, ev, policy, *, expected=None, automatic=False):
     from gsuid_core.logger import logger
     from ..nikke_api.client import NikkeApiError, NikkeLoginRequired
     from ..nikke_character.service import CharacterDataError

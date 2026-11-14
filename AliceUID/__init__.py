@@ -55,6 +55,7 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
     from .nikke_roster.commands import setup as setup_roster  # noqa: E402
     from .nikke_union import commands as _union_commands  # noqa: E402
     from .nikke_solo import commands as _solo_commands  # noqa: E402,F401
+    from .nikke_privacy.commands import setup as setup_privacy  # noqa: E402
     from .nikke_status import commands as _status_commands  # noqa: E402,F401
 
     def _database_config(key):
@@ -64,6 +65,7 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
         return await policy.query_allowed(getattr(ev, "group_id", None)) and policy.user_allowed(getattr(ev, "user_id", None))
 
     setup_calendar()
+    setup_privacy()
     from .nikke_raid_guide.commands import setup as setup_raid_guide
     setup_raid_guide(policy)
     setup_database_commands(_database_config)

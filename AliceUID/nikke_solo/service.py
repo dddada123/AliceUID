@@ -378,7 +378,12 @@ async def _capture_page(page, account, progress, *, mode='default', language='zh
     if len(actual_source) != 1:
         raise SoloUnavailable('DILDORO实际阵容来源未唯一确认，本次未发送。')
     if await page.locator('#lab-sheet').get_attribute('open') is not None:
-        raise SoloUnavailable('DILDORO未能完成推荐，可能没有完整适用队伍或计算服务繁忙，请直接访问网站查看。')
+        from ..nikke_logs.store import event, redact
+        warning = page.locator('#lab-sheet .lab-out .warn')
+        text = redact((await warning.inner_text())[:800]) if await warning.count() else ''
+        event('DILDORO', '推荐计算', 'SITE_WARNING', warning=text or 'UNKNOWN', count=len(actual_source))
+        raise SoloUnavailable('DILDORO未能完成推荐：'+text if text else
+                              'DILDORO未能完成推荐，网站没有提供具体警告，请稍后重试。')
     sets = page.locator('#fast-grid > .fg-set')
     if await sets.count() == 2:
         result = sets.nth(1)

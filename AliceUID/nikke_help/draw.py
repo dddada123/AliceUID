@@ -32,7 +32,6 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}我的账号', 'description': '查看登录绑定、区服与Cookie有效期'},
             {'command': f'{command_prefix()}重新登录 / {command_prefix()}重新登陆', 'description': '同账号同区服更新Cookie；失败保留原绑定，成功后需重新开启自动社区'},
             {'command': f'{command_prefix()}导入cookie 日服 Cookie内容', 'description': '高级导入仅限私聊，区服必须明确选择'},
-            {'command': f'{command_prefix()}公开 / {command_prefix()}隐藏', 'description': '设置公开标记；本版尚无群排行'},
             {'command': f'{command_prefix()}解绑', 'description': '退出登录绑定，撤销自动社区并使旧链接失效'},
             {'command': f'{command_prefix()}绑定UID', 'description': '查看社区标识 / 游戏UID / 分享链接三种登记用法'},
             {'command': f'{command_prefix()}我的UID / {command_prefix()}解绑UID', 'description': '查看或清除UID登记；不代表登录或账号归属'},
@@ -46,6 +45,11 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}自动社区 点赞开启', 'description': '单独授权点赞，不会自动评论'},
             {'command': f'{command_prefix()}自动社区 点赞关闭', 'description': '只撤销点赞；已暂停的任务保持暂停'},
         ]},
+        {'title': '官网妮姬隐私', 'tag': '本人账号', 'full_width': True, 'description': '控制Blablalink官网妮姬资料的公开范围。', 'items': [
+            {'command': f'{command_prefix()}妮姬公开', 'description': '官网妮姬资料设为所有人可见，持续生效'},
+            {'command': f'{command_prefix()}妮姬隐藏', 'description': '隐藏官网妮姬资料，持续生效'},
+            {'command': f'{command_prefix()}妮姬公开状态', 'description': '查看官网实际公开范围和待恢复状态'},
+        ]},
         {'title': '个人查询', 'tag': '本人功能', 'description': '资料、角色练度、收菜与个人突袭；日历和别名查询无需绑定。', 'items': [
             {'command': f'{command_prefix()}信息 / {command_prefix()}名片', 'description': '读取本人资料缓存；展示战役爬塔、主立绘与当前皮肤'},
             {'command': f'{command_prefix()}爱丽丝练度 / {command_prefix()}爱丽丝面板', 'description': '本人立绘、装备与技能；已有本地数据和图片优先复用'},
@@ -58,7 +62,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}刷新面板', 'description': '更新本人资料、全部角色练度、基础属性与皮肤；完成后发送信息图'},
             {'command': f'{command_prefix()}资源查询 [刷新]', 'description': '无可用图时同步本人收菜并出图；成功出图后复用5分钟，失败仅短暂冷却；显示90%和回满预计时间'},
             {'command': f'{command_prefix()}开启收菜提醒 / {command_prefix()}关闭收菜提醒', 'description': '当前群聊或私聊独立开关；开启发一次资源卡，后续纯文字；连续两晚23点MAX自动停查'},
-            {'command': f'{command_prefix()}个人突袭推荐[火/水/风/电/铁] [主题]', 'description': '实验性：默认或指定弱点，支持完整属性名及单人突袭推荐；查询自动检查更新'},
+            {'command': f'{command_prefix()}个人突袭推荐[火/水/风/电/铁] [主题]', 'description': '实验性：缓存直发；重算按序排队，受限妮姬资料临时公开并后台恢复'},
             {'command': f'{command_prefix()}收菜提醒状态', 'description': '查看本会话订阅、共享快照和下一检查；不请求游戏接口'},
             {'command': f'{command_prefix()}个人突袭推荐[属性]刷新 [主题]', 'description': '刷新对应属性；主题可用亮色/暗色/随机，默认暗色'},
             {'command': f'{command_prefix()}收菜免打扰 00:00-08:00', 'description': '仅收菜提醒，北京时间；支持跨午夜，输入关闭取消；不影响签到及其他业务'},
@@ -152,7 +156,7 @@ def section_bands(sections: list[dict]) -> list[list[dict]]:
         items = section['items']
         if not items:
             continue
-        wide = len(items) > 7
+        wide = len(items) > 7 or section.get('full_width', False)
         columns = 2 if wide else 1
         prepared = dict(section, wide=wide,
                         rows=[items[i:i + columns] for i in range(0, len(items), columns)])
