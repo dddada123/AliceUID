@@ -1,0 +1,1 @@
+{% macro commander(source, label='指挥官头像', fallback='指') -%}<div class="commander-avatar avatar-glass" title="{{label}}">{% if source %}<img src="{{source}}" alt="{{label}}">{% else %}<span class="avatar-empty">{{fallback}}</span>{% endif %}<span class="avatar-glass-edge"></span></div>{%- endmacro %}

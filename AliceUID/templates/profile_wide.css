@@ -3,3 +3,7 @@
 .game-left-badges{position:absolute;left:3px;top:3px;display:flex;flex-direction:column;gap:2px}.game-symbol{position:relative;width:18px;height:21px;display:flex;align-items:center;justify-content:center}.hex-frame{position:absolute;width:100%;height:100%;object-fit:contain}.symbol-icon{position:relative;width:13px;height:13px;object-fit:contain}.game-element{position:absolute;right:3px;bottom:3px;width:21px;height:24px;display:flex;align-items:center;justify-content:center}.game-element .symbol-icon{width:16px;height:16px}
 
 .hero-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:{{theme.muted}};font-size:16px}.role-icon{position:relative;display:flex;align-items:center;justify-content:center;width:24px;height:24px;flex:none;border:1px solid {{theme.line}};border-radius:50%;background:transparent}.role-icon .role-image{position:relative;z-index:1;width:19px;height:19px;object-fit:contain;filter:none;transform:none}.role-icon .role-shadow{position:absolute;width:28.5px;height:28.5px;left:-3.25px;top:-3.25px;object-fit:contain;filter:none;transform:none}
+
+.member-thumb.avatar-glass,.member-thumb>.avatar-glass-edge{border-radius:14px}
+
+.member-thumb>.avatar-glass-edge{width:112px;height:112px}

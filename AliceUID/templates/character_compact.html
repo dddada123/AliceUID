@@ -13,7 +13,7 @@
 .module{position:absolute;border-radius:20px;border:1px solid {{ theme.line }};box-shadow:inset 0 1px rgba(255,255,255,.12);background:transparent;overflow:hidden}
 .compact-portrait{left:16px;top:172px;width:320px;height:{{ compact_geometry.portrait_height }}px;padding:0}
 .compact-portrait img{position:absolute;display:block;width:100%;height:100%;object-fit:contain;object-position:center center;border-radius:19px}
-.compact-portrait::after{content:"";position:absolute;inset:0;border:1px solid {{ theme.line }};border-radius:inherit;pointer-events:none}
+.compact-portrait-edge{position:absolute;left:0;top:0;width:100%;height:100%;z-index:2;border:1px solid {{ theme.line }};border-radius:inherit;pointer-events:none}
 .compact-portrait img[data-kind="icons"]{object-fit:contain;object-position:center center;padding:24px}
 .compact-tools{left:16px;top:{{ compact_geometry.tools_top }}px;width:320px;height:104px;display:grid;grid-template-columns:minmax(0,1fr) 66px;align-items:center;gap:6px;padding:8px 12px}
 .tool-grid{width:184px;justify-self:center;display:grid;grid-template-columns:repeat(2,88px);grid-template-rows:repeat(2,40px);gap:4px 8px}
@@ -54,10 +54,12 @@
 .compact-header .commander{position:static;display:flex;align-items:center;justify-content:flex-end;height:34px;min-height:34px;width:210px;max-width:210px;gap:8px}
 .compact-header .commander-copy{display:block;min-width:0;text-align:right}.compact-header .commander-name{max-width:172px;line-height:16px}.compact-header .commander-id{max-width:172px;line-height:14px}
 .cube-tool .tool-icon.decor-ring{width:34px;height:34px;border-radius:50%}.favorite-icon.decor-ring{width:52px;height:52px;border-radius:50%}.favorite-icon.decor-ring img.alpha-effect{width:44px;height:44px;max-width:44px;max-height:44px}
+.compact-header .commander{height:44px;min-height:44px}.compact-header .commander-avatar.avatar-glass,.compact-header .commander-avatar.avatar-glass>img{width:42px;height:42px;border-radius:10px}.compact-header .commander-avatar>.avatar-glass-edge{border-radius:10px}.compact-header .commander-name,.compact-header .commander-id{max-width:156px}
+.compact-header .commander-avatar>.avatar-glass-edge{width:42px;height:42px}
 {% endblock %}
 {% block content %}
 <div class="compact-header" data-background="{{ compact_background_name }}">{{ compact_header() }}</div>
-<div class="module compact-portrait">{% if art_shadow_url %}<img class="portrait-shadow" src="{{ art_shadow_url }}" style="{{ art_shadow_style }}" alt="" aria-hidden="true">{% endif %}<img src="{{ compact_portrait_url }}" alt="{{ name }}当前皮肤半身像" data-kind="{{ compact_image_kind }}" style="{{ portrait_style }}"></div>
+<div class="module compact-portrait">{% if art_shadow_url %}<img class="portrait-shadow" src="{{ art_shadow_url }}" style="{{ art_shadow_style }}" alt="" aria-hidden="true">{% endif %}<img src="{{ compact_portrait_url }}" alt="{{ name }}当前皮肤半身像" data-kind="{{ compact_image_kind }}" style="{{ portrait_style }}"><span class="compact-portrait-edge"></span></div>
 <div class="module compact-tools"><div class="tool-grid">
 {% for skill in skills %}<div class="tool skill"><div class="tool-icon">{% if not skill.icon_missing %}{{ effect_icon(skill.icon_url,skill.icon_shadow_url,skill.name) }}{% else %}{{ loop.index }}{% endif %}</div><div class="tool-info"><div class="tool-label">{{ ['技能Ⅰ','技能Ⅱ','爆裂'][loop.index0] }}</div><div class="tool-lv">{{ skill.level if skill.level is not none else '—' }}</div></div></div>{% endfor %}
 <div class="tool cube-tool"><div class="tool-icon decor-ring frosted-accessory">{% if card_theme=='dark' %}<span class="ring-frost"></span>{% endif %}{% if cube_display.icon_url %}{{ effect_icon(cube_display.icon_url,cube_display.icon_shadow_url,'魔方') }}{% else %}魔方{% endif %}</div><div class="tool-info"><div class="tool-label">魔方</div><div class="tool-lv">{{ cube_display.display_level if cube_display.icon_url else '未装备' if cube_display.status=='not_equipped' else '未知' }}</div></div></div>

@@ -41,7 +41,11 @@ async def _draw_union(context, resources, key, dependencies):
     context = copy.deepcopy(context)
     static = resources.load_static()
     from ..nikke_resource.skins import resolve_skin
-    async def prepare(character):
+    from .progression import decorate
+    from ..nikke_resource.card_meta import prepare_card_icons, prepare_badges
+    async def prepare(character, cached):
+        decorate(character, static, cached)
+        character.update(await prepare_card_icons(character, resources.images))
         if character.get('resource_id') is not None:
             selection = resolve_skin(character, static)
             requested = selection.skin_index if selection.reported and selection.mapped else 0
@@ -53,7 +57,10 @@ async def _draw_union(context, resources, key, dependencies):
                 character['skin_notice'] += '；记录皮肤头像缺失，使用基础头像'
     from ..nikke_resource.cache import track_assets
     with track_assets() as paths:
-        await asyncio.gather(*(prepare(character) for member in context.get('details', [])
+        if context.get('details'):
+            context.update(await prepare_badges(resources.images))
+        await asyncio.gather(*(prepare(character, context.get('progression_cache', {}).get(str(member.get('openid')), {}).get(str(character.get('name_code')), {}))
+                               for member in context.get('details', [])
                                for attack in member['attacks'] for character in attack['characters']))
     dependencies[:] = sorted(paths)
     dependency = key()

@@ -65,7 +65,8 @@ def normalize_attacks(payload):
             team.append({'slot': slot, 'tid': integer(character.get('tid'), '角色ID', minimum=1),
                          'lv': integer(character.get('lv'), '角色等级'),
                          'combat': integer(character.get('combat'), '角色战力'),
-                         'costume_id': integer(character.get('costume_id'), '皮肤ID')})
+                         'costume_id': integer(character.get('costume_id'), '皮肤ID'),
+                         **{key: character[key] for key in ('grade','core') if key in character}})
         local = row.get('name_localvalues')
         if not isinstance(local, dict) or any(not isinstance(v, str) for v in local.values()):
             raise UnionDataError('联盟Boss名称格式异常。')

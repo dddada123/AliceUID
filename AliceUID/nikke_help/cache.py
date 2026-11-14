@@ -11,7 +11,7 @@ from pathlib import Path
 from ..nikke_resource.cache import atomic_write
 
 TTL = 30 * 24 * 60 * 60
-CACHE_VERSION = '1.2.07:glass-icon-fix2'
+CACHE_VERSION = '1.2.08:native-glass-radius20'
 PNG_HEADER = b'\x89PNG\r\n\x1a\n'
 
 

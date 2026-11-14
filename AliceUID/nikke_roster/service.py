@@ -8,7 +8,7 @@ from .cache import RosterCache, identity
 from .draw import draw_roster, prepare_images
 from ..nikke_render.theme import get_card_theme_mode as get_card_theme
 
-RENDER_VERSION = "alice-icons10-v102-game-badges"
+RENDER_VERSION = "alice-icons10-v1208-glass"
 
 
 class RosterCooldown(ValueError):

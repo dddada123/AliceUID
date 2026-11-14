@@ -9,14 +9,14 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.2.07-ff69b4?style=flat-square" alt="Version: 1.2.07"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.2.08-ff69b4?style=flat-square" alt="Version: 1.2.08"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
 
 适用于 GsCore 的《胜利女神：NIKKE》插件，支持本人账号绑定、名片与角色练度、皮肤图鉴、会战出刀、资源与收菜提醒、社区签到、兑换码查询与兑换，以及 **DILDORO** 个人突袭编队推荐。
 
-当前版本 **1.2.07 fix2**。首次登录和重新登录完成资料准备后，自动向原会话发送信息卡；帮助页顶部采用爱丽丝头像玻璃边框。个人突袭推荐支持翻译异常时自动切换原生语言，以及图片、字体失败时降级出图；降级截图可能包含韩文。默认指令前缀为 `nk`，可在Core插件管理中调整。
+当前版本 **1.2.08**。妮姬小头像与指挥官头像统一玻璃描边；出刀详情补齐属性、星级、等级和核心角标，记录缺失的突破信息参考该成员本地缓存。首次登录和重新登录完成资料准备后，自动向原会话发送信息卡；帮助页顶部采用爱丽丝头像玻璃边框。个人突袭推荐支持翻译异常时自动切换原生语言，以及图片、字体失败时降级出图；降级截图可能包含韩文。默认指令前缀为 `nk`，可在Core插件管理中调整。
 
 [亮点功能](#亮点功能) · [功能说明](#功能说明) · [常见问题（QA）](#常见问题qa) · [效果预览](#效果预览) · [版本记录](CHANGELOG.md) · [开发文档与接口映射](DEVELOPMENT.md) · [问题反馈](https://github.com/dddada123/AliceUID/issues)
 

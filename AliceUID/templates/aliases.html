@@ -8,6 +8,6 @@
 .tip{font-size:13px;line-height:1.7;margin-top:16px;color:{{ theme.muted }}}
 h1,h2,.alias{color:{{ theme.ink }}}
 {% include 'glass_finish.css' %}
-</style></head><body><main class="page"><header class="hero"><img class="avatar" src="{{ icon_url }}" alt="{{ name }}"><div><div class="eyebrow">NIKKE / CHARACTER ALIASES</div><h1>{{ name }}</h1><div class="muted">本名与别名均可用于角色查询</div></div></header>
+{% include 'avatar_glass.css' %}.avatar.avatar-glass,.avatar>.avatar-glass-edge{width:120px;height:120px;border-radius:18px}.avatar.avatar-glass>img{width:120px;height:120px}</style></head><body><main class="page"><header class="hero"><div class="avatar avatar-glass"><img src="{{ icon_url }}" alt="{{ name }}"><span class="avatar-glass-edge"></span></div><div><div class="eyebrow">NIKKE / CHARACTER ALIASES</div><h1>{{ name }}</h1><div class="muted">本名与别名均可用于角色查询</div></div></header>
 <section class="panel"><h2>已注册别名</h2><div class="aliases">{% for alias in aliases %}<span class="alias">{{ alias }}</span>{% else %}<span class="muted">暂无自定义别名</span>{% endfor %}</div>{% if automatic_aliases %}<h2 style="margin-top:20px">省略符号写法</h2><div class="aliases">{% for alias in automatic_aliases %}<span class="alias">{{ alias }}</span>{% endfor %}</div>{% endif %}<div class="tip">支持简繁体及省略符号；新增别名由 Bot 主使用「角色名新增别名别名」或「角色名注册别名别名」。</div></section>
 {% include 'brand_credit.html' %}</main></body></html>

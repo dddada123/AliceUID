@@ -249,7 +249,7 @@ class ResourceService:
                           avatar_hint='展示队伍首位角色头像')
         else:
             result.update(avatar_url=PLACEHOLDER, avatar_source='placeholder', avatar_hint='头像暂不可用')
-        result['render_version'] = 'alice-profile-v1133-slot-three'
+        result['render_version'] = 'alice-profile-v1208-glass'
         return result
 
     async def prepare_character(self, context: dict, *, framing=False) -> dict:
