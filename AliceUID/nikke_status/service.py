@@ -7,7 +7,7 @@ import hashlib
 import math
 import time
 
-from .builder import StatusDataError,build_resources
+from .builder import StatusDataError,build_resources,build_storage
 
 
 class StatusCooldown(StatusDataError):
@@ -170,18 +170,26 @@ class ResourceStatusService:
             return exc.code == 1302127 or (type(exc.code) is int and 500 <= exc.code < 600)
         return isinstance(exc, (httpx.TransportError, TimeoutError, ConnectionError))
 
-    async def query(self,client,bind,*,refresh=False,actor=None,fresh=False,still_current=None):
+    async def query_storage(self, client, bind, *, actor=None, still_current=None):
+        """Fresh reminder snapshot; never publish partial data into resource-card cache."""
+        return await self.query(client, bind, actor=actor, fresh=True,
+                                still_current=still_current, _storage_only=True)
+
+    async def query(self,client,bind,*,refresh=False,actor=None,fresh=False,still_current=None,_storage_only=False):
         """Data cache only. Production commands commit the window via prepare_image."""
         check_client(client,bind)
         key=self.owner_key(bind,actor)
         async with self._locks.setdefault(key,asyncio.Lock()):
-            cached=self._cache.get(key)
+            cache = {} if _storage_only else self._cache
+            cached=cache.get(key)
             if not fresh and cached and 0<=self.clock()-cached[0]<self.cache_ttl():
                 return copy.deepcopy(cached[1])
             self._check_failure(key)
             epoch=self._epochs.get(key,0)
             from ..nikke_roster.service import account_reads
             fetched = {}
+            from ..nikke_user.pacing import panel_interval
+            interval = panel_interval()
 
             async def check_current():
                 if self._epochs.get(key, 0) != epoch:
@@ -193,17 +201,21 @@ class ResourceStatusService:
                 for attempt in range(1, 4):
                     await check_current()
                     try:
-                        # Two required endpoints only, using the panel aggressive
-                        # one-second start interval; retain shared lock/refusal gate.
+                        # Only required endpoints, using the selected game-read cadence;
+                        # retain the shared account lock and refusal gate.
                         async with (self.reads or account_reads).transaction(
-                                client, bind, wait=True, panel_interval=1.0, batch_start=True) as paced:
-                            for method in ('get_basic_info', 'get_daily_progress'):
-                                if method not in fetched:
-                                    await check_current()
-                                    fetched[method] = await getattr(paced, method)()
-                        context=build_resources(fetched['get_basic_info'],fetched['get_daily_progress'],
-                                                bind=bind,region=client.region,
-                                                fetched_at=self.wall_clock(),ttl=self.cache_ttl())
+                                client, bind, wait=True, panel_interval=interval, batch_start=True, turbo=interval==0.8) as paced:
+                            from ..nikke_user.pacing import run_group
+                            async def read_method(method):
+                                await check_current()
+                                fetched[method] = await getattr(paced, method)()
+                            methods = ('get_daily_progress',) if _storage_only else ('get_basic_info','get_daily_progress')
+                            await run_group([lambda method=method: read_method(method) for method in methods if method not in fetched],
+                                            turbo=interval==0.8)
+                        arguments = dict(bind=bind,region=client.region,
+                                         fetched_at=self.wall_clock(),ttl=self.cache_ttl())
+                        context = (build_storage(fetched['get_daily_progress'], **arguments) if _storage_only else
+                                   build_resources(fetched['get_basic_info'],fetched['get_daily_progress'], **arguments))
                         await check_current()
                         break
                     except Exception as exc:
@@ -219,11 +231,11 @@ class ResourceStatusService:
                         # Shared account pacing delays the next attempt by at least
                         # five seconds. Successful endpoints are not requested again.
             except Exception as exc:
-                self._cache.pop(key,None)
+                cache.pop(key,None)
                 if not isinstance(exc, StatusRetryExhausted):
                     self._record_failure(key,exc)
                 raise
-            self._cache[key]=(self.clock(),context)
+            cache[key]=(self.clock(),context)
             return copy.deepcopy(context)
 
 

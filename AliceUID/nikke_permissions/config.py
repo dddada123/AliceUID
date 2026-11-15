@@ -105,6 +105,13 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                 return super()._migrate_config(old_path, new_path)
 
             def write_config(self):
+                from ..nikke_user.pacing import STRATEGY_KEY, normalize_strategy
+                if STRATEGY_KEY in self.config:
+                    self.config[STRATEGY_KEY].data = normalize_strategy(self.config[STRATEGY_KEY].data)
+                # Reconcile/serialize in the same UI order, retaining unknown user keys.
+                ordered = {key: self.config[key] for key in self.config_list if key in self.config}
+                ordered.update({key: value for key, value in self.config.items() if key not in ordered})
+                self.config = ordered
                 config_lists(self)
                 # Migration runs before StringConfig construction. Remove the
                 # retired UI controls only after their values are backed up.
@@ -116,6 +123,11 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
 
             def set_config(self, key, value):
                 with _CONFIG_LOCK:
+                    from ..nikke_user.pacing import STRATEGY_KEY, STRATEGIES, normalize_strategy
+                    if key == STRATEGY_KEY:
+                        if not isinstance(value, str) or value not in (*STRATEGIES, 'aggressive', 'conservative', 'turbo', 'fast', 'medium', 'slow'):
+                            return False
+                        value = normalize_strategy(value)
                     from ..nikke_commands import PREFIX_KEYS
                     from ..nikke_community.pacing import RANGE_KEYS, parse_range
                     from ..nikke_community.notify_policy import ENABLED, WHITE, BLACK, valid_groups

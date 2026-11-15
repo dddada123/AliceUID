@@ -77,6 +77,7 @@ class NikkeClient:
             limits=httpx.Limits(max_connections=4,max_keepalive_connections=2),
         )
         self._lock = asyncio.Lock()
+        self._parallel_read_slots = asyncio.Semaphore(4)
         self.on_auth_failure = on_auth_failure
 
     async def close(self):
@@ -125,7 +126,10 @@ class NikkeClient:
         try:
             if getattr(self.credentials,'expired',False):
                 raise NikkeLoginRequired(300001,'登录凭据已过期，请重新登录',path)
-            async with self._lock:
+            from ..nikke_user.pacing import parallel_game_reads
+            parallel = (parallel_game_reads.get() and method == 'POST'
+                        and path.startswith('/api/game/proxy/Game/Get'))
+            async with (self._parallel_read_slots if parallel else self._lock):
                 resp = await self._http.request(
                     method,BASE+path,headers=self.headers(region),
                     json=body if body is not None else {},follow_redirects=False,

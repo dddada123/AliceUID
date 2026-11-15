@@ -65,7 +65,7 @@ async def allowed(sub, acc):
     return transport is not None and getattr(transport, 'bot', None) is not None
 
 
-async def fetch(acc):
+async def fetch(acc, *, full=False):
     from ..nikke_user.service import load_client
     from ..nikke_user.auth_state import unavailable_message, is_login_error
     from ..nikke_status.service import resource_status
@@ -76,10 +76,13 @@ async def fetch(acc):
     try:
         if account_key(bind) != acc['key'] or revision(bind) != acc['revision']:
             raise HarvestAuthError('本人绑定已变化，请重新开启收菜提醒。')
-        context = await resource_status.query(client, bind, actor=(acc['user'], acc['bot']), fresh=True)
+        read = resource_status.query if full else resource_status.query_storage
+        kwargs = {'fresh': True} if full else {}
+        context = await read(client, bind, actor=(acc['user'], acc['bot']), **kwargs)
         result = snapshot(context)
-        _contexts[acc['key']] = context
-        _contexts.move_to_end(acc['key'])
+        if full:
+            _contexts[acc['key']] = context
+            _contexts.move_to_end(acc['key'])
         while len(_contexts) > 256:
             _contexts.popitem(last=False)
         return result
@@ -152,7 +155,7 @@ def get_runtime():
     if _runtime is None:
         from ..nikke_config.config import MAIN_PATH
         _runtime = HarvestService(Store(MAIN_PATH/'harvest.sqlite3'), fetch, allowed, send,
-                                  render=render, has_context=lambda key: key in _contexts and 0 <= time.time()-_contexts[key]['fetched_at_epoch'] < 300)
+                                  fetch_card=lambda acc: fetch(acc, full=True), render=render, has_context=lambda key: key in _contexts and 0 <= time.time()-_contexts[key]['fetched_at_epoch'] < 300)
     return _runtime
 
 

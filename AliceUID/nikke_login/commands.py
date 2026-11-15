@@ -92,12 +92,12 @@ async def nikke_login_cmd(bot: Bot, ev: Event):
     url = f"{base_url}/nikke/i/{session.token}"
     text = (
         f"NIKKE 账号绑定 · {REGIONS[area_id].label}\n"
-        f"请在 {ttl // 60} 分钟内打开下面的链接，选择账号密码或导入Cookie：\n"
+        f"请在{ttl // 60}分钟内打开下一条链接，登录账号或导入Cookie。\n"
         f"{url}\n\n"
-        "绑定仅使用所选区服，查不到角色会失败，不会自动换区。\n"
-        "登录成功后会加密保存 Cookie；请勿在聊天中发送密码。\n"
-        "链接仅供本人绑定，请勿转发；群成员请各自获取自己的链接。\n"
-        "如果页面出现拼图，按提示拖动即可。\n" + expiry_notice()
+        "仅绑定所选区服，不自动换区。\n"
+        "登录后加密保存Cookie，请勿在聊天中发送密码。\n"
+        "链接仅供本人使用，请勿转发；请不要使用其他人的链接。\n"
+        "如有拼图验证，按页面提示完成。\n" + expiry_notice()
     )
 
     await _send_login_link(bot, text, url, ev=ev)
@@ -139,7 +139,7 @@ async def _send_login_link(bot, text, url, *, ev=None):
     qr_enabled = bool(AliceUIDConfig.get_config("AliceUID_LoginQRCode").data)
     qr_png = _make_qr_png(url) if qr_enabled else None
     # URL is an independent node for QQ Select All/Copy; no duplicate embedded URL.
-    explanation = text.replace(url, "").strip()
+    explanation = "\n".join(line.strip() for line in text.replace(url, "").splitlines() if line.strip())
     content = [MessageSegment.text(explanation), MessageSegment.text(url)]
     if qr_png:
         content.append(MessageSegment.image(qr_png))

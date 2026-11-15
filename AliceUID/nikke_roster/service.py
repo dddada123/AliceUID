@@ -21,6 +21,8 @@ class AccountReads:
         self.clock, self.sleep = clock, sleep
         self.locks, self.last_batch, self.last_request = {}, {}, {}
         self.slots = asyncio.Semaphore(2)
+        self.request_slots = asyncio.Semaphore(4)
+        self.bursts = {}
         self.foreground = {}
         self.idle = {}
         self.failures = {}
@@ -30,7 +32,7 @@ class AccountReads:
         return str(bind.game_id), str(bind.intl_open_id), str(bind.area_id)
 
     @asynccontextmanager
-    async def transaction(self, client, bind, *, wait=False, background=False, panel_interval=None, batch_start=False):
+    async def transaction(self, client, bind, *, wait=False, background=False, panel_interval=None, batch_start=False, turbo=False):
         account = self.account(bind)
         lock = self.locks.setdefault(account, asyncio.Lock())
         idle = self.idle.setdefault(account, asyncio.Event())
@@ -63,7 +65,7 @@ class AccountReads:
                     async with self.slots:
                         yield PacedClient(client, self, account)
                 else:
-                    yield PacedClient(client, self, account, interval=panel_interval)
+                    yield PacedClient(client, self, account, interval=panel_interval, turbo=turbo)
             finally:
                 self.last_batch[account] = self.clock()
         finally:
@@ -76,11 +78,12 @@ class AccountReads:
 
 
 class PacedClient:
-    def __init__(self, client, gate, account, *, interval=None):
+    def __init__(self, client, gate, account, *, interval=None, turbo=False):
         self.client, self.gate, self.account = client, gate, account
         self.region = client.region
         self.calls = 0
         self.interval = interval
+        self.turbo = turbo
 
     def __getattr__(self, name):
         if not name.startswith('get_'):
@@ -90,18 +93,39 @@ class PacedClient:
                 raise ValueError('面板刷新请求预算已用尽')
             self.calls += 1
             gate = self.gate
-            remaining = (5 if self.interval is None else self.interval) - (gate.clock() - gate.last_request.get(self.account, -1e20))
-            if remaining > 0:
-                await gate.sleep(remaining)
+            if not self.turbo:
+                remaining = (5 if self.interval is None else self.interval) - (gate.clock() - gate.last_request.get(self.account, -1e20))
+                if remaining > 0:
+                    await gate.sleep(remaining)
+            async def burst_wait():
+                while True:
+                    now = gate.clock()
+                    started, count = gate.bursts.get(self.account, (-1e20, 0))
+                    if now - started >= self.interval - 1e-6:
+                        gate.bursts[self.account] = (now, 1)
+                        return
+                    if count < 4:
+                        gate.bursts[self.account] = (started, count + 1)
+                        return
+                    await gate.sleep(self.interval - (now - started))
             async def invoke():
-                gate.last_request[self.account] = gate.clock()
-                try:
-                    return await getattr(self.client, name)(*args, **kwargs)
-                except Exception as exc:
-                    if getattr(exc, 'code', None) in (403, 429):
-                        gate.failures[self.account] = gate.clock() + max(60, getattr(exc, 'retry_after', 0) or 0)
-                    raise
-            if self.interval is None:
+                from ..nikke_user.pacing import parallel_game_reads
+                async with gate.request_slots:
+                    if self.turbo:
+                        await burst_wait()
+                    if gate.failures.get(self.account, 0) > gate.clock():
+                        raise RosterCooldown('社区访问暂时受限，请稍后重试；未继续请求。')
+                    token = parallel_game_reads.set(self.turbo)
+                    gate.last_request[self.account] = gate.clock()
+                    try:
+                        return await getattr(self.client, name)(*args, **kwargs)
+                    except Exception as exc:
+                        if getattr(exc, 'code', None) in (403, 429):
+                            gate.failures[self.account] = gate.clock() + max(60, getattr(exc, 'retry_after', 0) or 0)
+                        raise
+                    finally:
+                        parallel_game_reads.reset(token)
+            if self.interval is None or self.turbo:
                 return await invoke()
             async with gate.slots:
                 return await invoke()

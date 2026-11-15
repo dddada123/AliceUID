@@ -164,6 +164,8 @@ class CharacterQueryService:
                     if str(saved_code).isascii() and str(saved_code).isdigit() and isinstance(saved,dict):
                         if isinstance(saved.get('detail'),dict) and isinstance(saved.get('effects'),list):
                             self._details[revision+(int(saved_code),)]=(self.clock(),saved['detail'],saved['effects'])
+            from ..nikke_user.pacing import panel_interval
+            interval = panel_interval()
             fetched = False
             detail_fetched = False
             network_client = client
@@ -178,7 +180,7 @@ class CharacterQueryService:
                 if store is not None:
                     from ..nikke_roster.service import account_reads
                     network_client = await network_stack.enter_async_context(
-                        account_reads.transaction(client, bind, wait=True))
+                        account_reads.transaction(client, bind, wait=True, panel_interval=interval, batch_start=True, turbo=interval==0.8))
                 fetched = True
             def fresh(entry):
                 return entry is not None and (store is not None or 0 <= self.clock() - entry[0] < max(0, ttl))
@@ -390,7 +392,7 @@ class CharacterQueryService:
                             if store is not None and not fetched:
                                 from ..nikke_roster.service import account_reads
                                 network_client = await network_stack.enter_async_context(
-                                    account_reads.transaction(client, bind, wait=True))
+                                    account_reads.transaction(client, bind, wait=True, panel_interval=interval, batch_start=True, turbo=interval==0.8))
                             role = await network_client.get_saved_role_info()
                             if current_check is not None and not await current_check():
                                 raise CharacterDataError('绑定或权限已变化，已停止保存和展示旧账号数据。')

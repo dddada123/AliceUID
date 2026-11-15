@@ -11,9 +11,10 @@ from .planner import (TZ, DEFAULT_QUIET, account_key, revision, night_next, pre_
 
 class HarvestService:
     def __init__(self, store, fetch, allowed, send, *, clock=time.time, render=None,
-                 has_context=lambda key: True):
+                 has_context=lambda key: True, fetch_card=None):
         self.store, self.fetch, self.allowed, self.send = store, fetch, allowed, send
         self.clock, self.render, self.has_context = clock, render, has_context
+        self.fetch_card = fetch_card
         self.locks = {}
         self.send_lock = asyncio.Lock()
         self.tick_lock = asyncio.Lock()
@@ -81,7 +82,7 @@ class HarvestService:
                     raise ValueError('当前会话、本人绑定或机器人路由不可用，未开启收菜提醒。')
                 if reset or not self.has_context(key):
                     acc['bot'] = route['bot']
-                    snap = await asyncio.wait_for(self.fetch(acc), 90)
+                    snap = await asyncio.wait_for((self.fetch_card or self.fetch)(acc), 90)
                     if not self.live(acc):
                         raise ValueError('订阅或绑定已变化，本次开启已取消。')
                     self.plan(acc, snap)

@@ -79,6 +79,14 @@ def build_resources(basic, daily, *, bind, region, fetched_at, ttl):
         items.append(dict(name=name,value=compact_number(value) if known else '—',
                           exact=f'{value:,}' if known else '未提供或已隐藏',known=known,
                           icon_name=f'icon-res-pic{index}.png'))
+    return dict(identity(bind,region,fetched_at,ttl),kind='resources',title='我的资源',items=items,
+                fetched_at_epoch=fetched_at,
+                **storage_fields(daily, fetched_at),
+                notes=['钻石合计付费与免费钻石；缺失或隐藏的资源显示「—」。',
+                       '保管箱按24小时回满线性估算，北京时间；实际收取、游戏加成或社区同步延迟会影响结果。'])
+
+
+def storage_fields(daily, fetched_at):
     if not isinstance(daily,dict) or not isinstance(daily.get('daily_progress'),list):
         raise StatusDataError('社区未返回日常进度，无法核对保管箱容量。')
     progress=daily['daily_progress']
@@ -95,14 +103,14 @@ def build_resources(basic, daily, *, bind, region, fetched_at, ttl):
         if decimal not in HIDDEN:
             if not 0<=decimal<=1:raise StatusDataError('保管箱容量比例超出范围。')
             storage=decimal*100
-    return dict(identity(bind,region,fetched_at,ttl),kind='resources',title='我的资源',items=items,
-                fetched_at_epoch=fetched_at,
-                storage_text='MAX' if storage==100 else f'{storage:.1f}%' if storage is not None else '未知',
+    return dict(storage_text='MAX' if storage==100 else f'{storage:.1f}%' if storage is not None else '未知',
                 storage_width=format(storage,'f') if storage is not None else '0',
-                storage_known=storage is not None,
-                **storage_estimates(storage,fetched_at),
-                notes=['钻石合计付费与免费钻石；缺失或隐藏的资源显示「—」。',
-                       '保管箱按24小时回满线性估算，北京时间；实际收取、游戏加成或社区同步延迟会影响结果。'])
+                storage_known=storage is not None, **storage_estimates(storage,fetched_at))
+
+
+def build_storage(daily, *, bind, region, fetched_at, ttl):
+    return dict(identity(bind,region,fetched_at,ttl), fetched_at_epoch=fetched_at,
+                **storage_fields(daily, fetched_at))
 
 
 def hp_percentage(current, maximum):

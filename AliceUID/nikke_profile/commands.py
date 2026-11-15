@@ -80,38 +80,27 @@ def _cache_ttl() -> int:
 
 
 async def _fetch(client) -> dict:
-    basic = await client.get_basic_info()
-    outpost = await client.get_outpost_info()
-    chars = await client.get_characters()
-
-    try:
-        saved = await client.get_saved_role_info()
-        from ..nikke_login.regions import saved_role_matches
-        if not saved_role_matches(saved, client.region):
-            saved = {}
-    except NikkeLoginRequired:
-        raise
-    except NikkeApiError as exc:
-        if exc.code in (401, 403, 429, 300001):
+    from ..nikke_user.pacing import game_reads, run_group
+    # Resolve optional endpoints inside the same paced adapter, preserving denial errors.
+    async def optional(method):
+        try:
+            value = await getattr(client, method)()
+            if method == 'get_saved_role_info':
+                from ..nikke_login.regions import saved_role_matches
+                return value if saved_role_matches(value, client.region) else {}
+            return value if str(value.get('area_id', '')) == str(client.region.area_id) else {}
+        except NikkeLoginRequired:
             raise
-        saved = {}
-    except Exception:  # Optional endpoint failure must not disclose response text.
-        saved = {}
-
-    try:
-        player = await client.get_game_player_info()
-        if str(player.get('area_id', '')) != str(client.region.area_id):
-            player = {}
-    except NikkeLoginRequired:
-        raise
-    except NikkeApiError as exc:
-        if exc.code in (401, 403, 429, 300001):
-            raise
-        player = {}
-    except Exception:
-        player = {}
-
-    return {"basic": basic, "outpost": outpost, "chars": chars, "saved": saved, "player": player}
+        except NikkeApiError as exc:
+            if exc.code in (401, 403, 429, 300001): raise
+            return {}
+        except Exception:
+            return {}
+    # Keep the original serial order in the three non-turbo modes.
+    main = await game_reads(client, [('get_basic_info',()), ('get_outpost_info',()), ('get_characters',())])
+    saved, player = await run_group([lambda: optional('get_saved_role_info'),
+                                     lambda: optional('get_game_player_info')], turbo=getattr(client,'turbo',False))
+    return dict(zip(('basic','outpost','chars','saved','player'), [*main, saved, player]))
 
 
 async def send_profile_image(bot, ev, client, bind, data, *, policy=None):

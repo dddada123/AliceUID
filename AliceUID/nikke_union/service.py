@@ -23,6 +23,7 @@ class UnionService:
         self._locks, self._cache, self._last_remote = {}, {}, {}
         self._guild_locks, self._guild_cache = {}, {}
         self.season_loader, self.history, self.persistent = season_loader, history, persistent
+        self._bursts = {}
 
     def history_store(self):
         if self.history is None and self.persistent:
@@ -74,14 +75,40 @@ class UnionService:
         return response['data']
 
     async def _fetch(self, client, bind, account, season, *, refresh=False):
-        async def remote(endpoint, body):
-            last = self._last_remote.get(account)
-            if last is not None:
-                delay = self.cooldown - (self.clock() - last)
-                if delay > 0:
-                    await self.sleeper(delay)
-            self._last_remote[account] = self.clock()
-            return self._payload(await client._request('POST', PREFIX + endpoint, body))
+        from ..nikke_user.pacing import panel_interval
+        interval = panel_interval()
+        prefetched = {}
+        async def raw_remote(endpoint, body):
+            async def invoke():
+                last = self._last_remote.get(account)
+                if interval == 0.8:
+                    while True:
+                        now = self.clock()
+                        started,count = self._bursts.get(account,(-1e20,0))
+                        if now-started >= interval - 1e-6:
+                            self._bursts[account]=(now,1);break
+                        if count < 4:
+                            self._bursts[account]=(started,count+1);break
+                        await self.sleeper(interval-(now-started))
+                elif last is not None:
+                    delay = interval - (self.clock() - last)
+                    if delay > 0: await self.sleeper(delay)
+                self._last_remote[account] = self.clock()
+                return self._payload(await client._request('POST',PREFIX+endpoint,body))
+            from ..nikke_roster.service import account_reads
+            async def limited():
+                async with account_reads.request_slots:
+                    return await invoke()
+            if interval == 0.8:
+                return await limited()
+            async with account_reads.slots:
+                return await limited()
+        async def remote(endpoint,body):
+            if endpoint in prefetched:
+                result=prefetched.pop(endpoint)
+                if isinstance(result,Exception): raise result
+                return result
+            return await raw_remote(endpoint,body)
 
         warnings = []
         guild_id, guild_name, members = None, '当前联盟', None
@@ -103,18 +130,6 @@ class UnionService:
         async def load_snapshot():
             members = None
             notes = list(warnings)
-            if guild_id is not None:
-                try:
-                    payload = await remote('GetGuildMembers', {'guild_id': guild_id, 'nikke_area_id': str(client.region.area_id)})
-                    members = normalize_members(payload)
-                except NikkeLoginRequired:
-                    raise
-                except NikkeApiError as exc:
-                    if exc.code in (401, 403, 429, 300001):
-                        raise
-                    notes.append('成员名单暂不可用；仅统计已出刀成员，0刀未知。')
-            else:
-                notes.append('未取得可确认的联盟信息；仅统计已出刀成员，0刀未知。')
             body = {'intl_open_id': client.credentials.openid, 'nikke_area_id': client.region.area_id}
             if guild_id is not None:
                 body['guild_id'] = guild_id
@@ -132,6 +147,35 @@ class UnionService:
                     raise UnionDataError('无法确认本人联盟，不能读取历史会战。')
                 body = {'area_id': int(bind.area_id), 'guild_id': guild_id, 'season_id': str(season['id'])}
                 endpoint, level_endpoint = 'GetUnionRaidDataOfGuildSeason', 'GetUnionRaidLevelDataOfGuildSeason'
+            if interval == 0.8:
+                from ..nikke_user.pacing import run_group
+                calls=[]
+                if guild_id is not None:
+                    calls.append(('GetGuildMembers', {'guild_id':guild_id,'nikke_area_id':str(client.region.area_id)}))
+                if not (not refresh and previous and self._data_reusable(previous,season)
+                        and previous.get('attacks') and previous.get('level_payload',{}).get('level_info')):
+                    calls.extend([(endpoint,body),(level_endpoint,body)])
+                async def preload(name,request_body):
+                    try:
+                        value=await raw_remote(name,request_body)
+                    except NikkeApiError as exc:
+                        if exc.code in (401,403,429,300001): raise
+                        value=exc
+                    prefetched[name]=value
+                await run_group([lambda name=name,request_body=request_body: preload(name,request_body)
+                                 for name,request_body in calls],turbo=True)
+            if guild_id is not None:
+                try:
+                    payload = await remote('GetGuildMembers', {'guild_id': guild_id, 'nikke_area_id': str(client.region.area_id)})
+                    members = normalize_members(payload)
+                except NikkeLoginRequired:
+                    raise
+                except NikkeApiError as exc:
+                    if exc.code in (401, 403, 429, 300001):
+                        raise
+                    notes.append('成员名单暂不可用；仅统计已出刀成员，0刀未知。')
+            else:
+                notes.append('未取得可确认的联盟信息；仅统计已出刀成员，0刀未知。')
             local = False
             try:
                 if (not refresh and previous and self._data_reusable(previous, season)
