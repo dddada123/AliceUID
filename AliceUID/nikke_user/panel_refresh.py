@@ -132,9 +132,8 @@ async def ensure_profile(client, bind, *, refresh=False):
         _check_profile_failure(expected)
         try:
             from .pacing import panel_interval
-            interval = panel_interval()
             async with account_reads.transaction(client, bind, wait=not refresh,
-                                                 panel_interval=interval, batch_start=True, turbo=interval==0.8) as paced:
+                                                 panel_interval=panel_interval(), batch_start=True) as paced:
                 data = await _fetch(paced)
                 import time
                 checked_at = time.time()
@@ -182,7 +181,6 @@ class _RefreshReads:
         self.outpost_checked_at = 0
         from .pacing import panel_interval
         self.interval = panel_interval()
-        self.turbo = self.interval == 0.8
         self.calls = 0
 
     def __getattr__(self, name):
@@ -194,7 +192,7 @@ class _RefreshReads:
                 raise ValueError('全量面板请求预算已用尽')
             await self.check()
             async with self.reads.transaction(self.client, self.bind, wait=self.wait if self.first else True,
-                                               background=True, panel_interval=self.interval, batch_start=self.first, turbo=self.turbo) as paced:
+                                               background=True, panel_interval=self.interval, batch_start=self.first) as paced:
                 self.first = False
                 await self.check()
                 result = await getattr(paced, name)(*args, **kwargs)
@@ -206,31 +204,6 @@ class _RefreshReads:
                     self.outpost_checked_at = time.time()
                 return result
         return request
-
-
-    async def read_many(self, calls):
-        if not self.turbo:
-            return [await getattr(self, name)(*args) for name,args in calls]
-        from .pacing import game_reads
-        results = []
-        for start in range(0, len(calls), 4):
-            group = calls[start:start+4]
-            self.calls += len(group)
-            if self.calls > 5 + (MAX_OWNED_CHARACTERS + DETAIL_BATCH_SIZE - 1) // DETAIL_BATCH_SIZE:
-                raise ValueError('全量面板请求预算已用尽')
-            await self.check()
-            async with self.reads.transaction(self.client,self.bind,wait=self.wait if self.first else True,
-                    background=True,panel_interval=self.interval,batch_start=self.first,turbo=True) as paced:
-                self.first = False
-                await self.check()
-                values = await game_reads(paced, group)
-                await self.check()
-                import time
-                for (name,_),value in zip(group,values):
-                    if name == 'get_characters': self.roster_checked_at = time.time()
-                    elif name == 'get_outpost_info': self.outpost_checked_at = time.time()
-                results.extend(values)
-        return results
 
 
 def _stamp(value):
@@ -310,18 +283,14 @@ async def refresh_panel(client, bind, *, actor=None, bot=None, only_missing=Fals
         if len(codes) > MAX_OWNED_CHARACTERS:
             raise CharacterDataError('角色数量超过本次更新预算，已停止请求。')
         details = {}
-        batches = [codes[start:start+DETAIL_BATCH_SIZE] for start in range(0,len(codes),DETAIL_BATCH_SIZE)]
-        from .pacing import game_reads
-        # Bound each wave so foreground reads can proceed between background groups.
-        width = 4 if paced.turbo else 1
-        for start in range(0,len(batches),width):
-            group = batches[start:start+width]
-            payloads = await game_reads(paced,[('get_character_details',(batch,)) for batch in group])
-            for index,(batch,payload) in enumerate(zip(group,payloads),start+1):
-                details.update(character_queries.detail_entries(payload,batch))
-                from ..nikke_logs.store import event as diagnostic_event
-                diagnostic_event('全量面板','角色详情','OK',batch_index=index,
-                                 batch_total=len(batches),batch_size=len(batch),interval_ms=int(paced.interval*1000))
+        for start in range(0, len(codes), DETAIL_BATCH_SIZE):
+            batch = codes[start:start+DETAIL_BATCH_SIZE]
+            payload = await paced.get_character_details(batch)
+            details.update(character_queries.detail_entries(payload, batch))
+            from ..nikke_logs.store import event as diagnostic_event
+            diagnostic_event('全量面板', '角色详情', 'OK', batch_index=start//DETAIL_BATCH_SIZE+1,
+                             batch_total=(len(codes)+DETAIL_BATCH_SIZE-1)//DETAIL_BATCH_SIZE,
+                             batch_size=len(batch), interval_ms=int(paced.interval*1000))
         attribute_snapshot = dict(roster=data['chars'], details=details, profile=data,
                                   profile_checked_at=profile_checked_at, outpost_checked_at=paced.outpost_checked_at)
         if attribute_prepare is not None:

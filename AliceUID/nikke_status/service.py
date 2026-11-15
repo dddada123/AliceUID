@@ -204,14 +204,12 @@ class ResourceStatusService:
                         # Only required endpoints, using the selected game-read cadence;
                         # retain the shared account lock and refusal gate.
                         async with (self.reads or account_reads).transaction(
-                                client, bind, wait=True, panel_interval=interval, batch_start=True, turbo=interval==0.8) as paced:
-                            from ..nikke_user.pacing import run_group
-                            async def read_method(method):
-                                await check_current()
-                                fetched[method] = await getattr(paced, method)()
+                                client, bind, wait=True, panel_interval=interval, batch_start=True) as paced:
                             methods = ('get_daily_progress',) if _storage_only else ('get_basic_info','get_daily_progress')
-                            await run_group([lambda method=method: read_method(method) for method in methods if method not in fetched],
-                                            turbo=interval==0.8)
+                            for method in methods:
+                                if method not in fetched:
+                                    await check_current()
+                                    fetched[method] = await getattr(paced, method)()
                         arguments = dict(bind=bind,region=client.region,
                                          fetched_at=self.wall_clock(),ttl=self.cache_ttl())
                         context = (build_storage(fetched['get_daily_progress'], **arguments) if _storage_only else

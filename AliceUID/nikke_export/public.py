@@ -92,7 +92,7 @@ async def fetch_public(client, bind, share, check, notice=None):
     interval, first = panel_interval(), True
     async def read(name, *args):
         nonlocal first
-        async with account_reads.transaction(reader, bind, wait=True, panel_interval=interval, batch_start=first, turbo=interval==0.8) as paced:
+        async with account_reads.transaction(reader, bind, wait=True, panel_interval=interval, batch_start=first) as paced:
             first = False
             return await getattr(paced, name)(*args)
     privacy = await read('get_privacy')
@@ -124,19 +124,10 @@ async def fetch_public(client, bind, share, check, notice=None):
     if outpost_reason and notice is not None:
         await notice(partial_notice(outpost_reason, partial=bool(research_levels(outpost))))
     details = {}
-    batches = [codes[start:start+20] for start in range(0,len(codes),20)]
-    if interval == 0.8:
-        from ..nikke_user.pacing import game_reads
-        for start in range(0,len(batches),4):
-            group = batches[start:start+4]
-            async with account_reads.transaction(reader,bind,wait=True,panel_interval=interval,turbo=True) as paced:
-                payloads = await game_reads(paced,[('get_game',('GetUserCharacterDetails',batch)) for batch in group])
-            for batch,payload in zip(group,payloads):
-                details.update(CharacterQueryService.detail_entries(payload,batch))
-    else:
-        for batch in batches:
-            payload = await read('get_game','GetUserCharacterDetails',batch)
-            details.update(CharacterQueryService.detail_entries(payload,batch))
+    for start in range(0, len(codes), 20):
+        batch = codes[start:start + 20]
+        payload = await read('get_game', 'GetUserCharacterDetails', batch)
+        details.update(CharacterQueryService.detail_entries(payload, batch))
     now = time.time()
     target = SimpleNamespace(area_id=reader.area, nickname=role.get('role_name') or '未知指挥官',
                              uid=str(role.get('role_id') or '未提供'), game_id=reader.region.game_id)

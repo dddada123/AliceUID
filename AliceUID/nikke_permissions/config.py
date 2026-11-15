@@ -123,9 +123,9 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
 
             def set_config(self, key, value):
                 with _CONFIG_LOCK:
-                    from ..nikke_user.pacing import STRATEGY_KEY, STRATEGIES, normalize_strategy
+                    from ..nikke_user.pacing import STRATEGY_KEY, STRATEGIES, LEGACY_STRATEGIES, normalize_strategy
                     if key == STRATEGY_KEY:
-                        if not isinstance(value, str) or value not in (*STRATEGIES, 'aggressive', 'conservative', 'turbo', 'fast', 'medium', 'slow'):
+                        if not isinstance(value, str) or value not in (*STRATEGIES, *LEGACY_STRATEGIES):
                             return False
                         value = normalize_strategy(value)
                     from ..nikke_commands import PREFIX_KEYS
