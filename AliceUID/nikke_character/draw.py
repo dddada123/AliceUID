@@ -322,7 +322,7 @@ async def draw_character(context: dict, style: str | None = None, theme: str | N
     except ImportError:
         resources = None  # Pure offline adapters can supply their own painter.
     stable=content_context(context)
-    stable.update(render_version='alice-v1216-bento-1',
+    stable.update(render_version='alice-v1217-bento-1',
                   theme=theme,style=style,presentation_mode=character_presentation_mode(),
                   wide_art_scale=get_wide_art_scale_offset(),
                   presentation=style_version())

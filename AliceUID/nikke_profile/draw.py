@@ -67,16 +67,16 @@ def render_profile_html(context: dict) -> str:
         stamp = datetime.now(timezone(timedelta(hours=8)))
     result['credit_timestamp'] = stamp.strftime('%Y-%m-%d·%H:%M')
 
-    # Bento v2 theme tokens
+    # Bento v2 theme tokens (unified gold on dark, crimson on light)
     color = result['card_theme']
-    lead_elem = (lead.get('role_spec') or {}).get('element_id', {}).get('element', {}).get('element')
-    v2_base = v2_theme_tokens('Water', color)
-    v2_lead = v2_theme_tokens(lead_elem, color)
+    v2_base = v2_theme_tokens(None, color)
     result['palette'] = v2_base['palette']
-    result['accent'] = '#1565B4' if color == 'light' else '#6BC4FF'
-    result['lead_accent'] = v2_lead['element_accent']
-    result['lead_accent_soft'] = v2_lead['element_accent_soft']
-    result['lead_accent_border'] = v2_lead['element_accent_border']
+    result['accent'] = v2_base['element_accent']
+    result['lead_accent'] = v2_base['element_accent']
+    result['lead_accent_soft'] = v2_base['element_accent_soft']
+    result['lead_accent_border'] = v2_base['element_accent_border']
+    for badge_key in ('neutral_frame', 'star_on', 'star_off', 'core_icon'):
+        result.setdefault(badge_key, '')
     result['lead_corp_watermark_url'] = next(
         (r.get('icon_url') for r in (lead.get('role_icons') or []) if isinstance(r, dict) and r.get('kind') == 'corporation' and r.get('icon_url')),
         '',

@@ -126,13 +126,13 @@ def resolve_character_presentation(style=None, theme=None):
     return layout, color
 
 
-V2_ELEMENT_ACCENTS = {
-    'Fire': {'light': '#C93B4B', 'dark': '#FF7B89', 'soft_light': 'rgba(201,59,75,0.12)', 'soft_dark': 'rgba(255,123,137,0.16)', 'border_light': 'rgba(201,59,75,0.32)', 'border_dark': 'rgba(255,123,137,0.38)'},
-    'Electronic': {'light': '#6D44C4', 'dark': '#BA94FF', 'soft_light': 'rgba(109,68,196,0.12)', 'soft_dark': 'rgba(186,148,255,0.16)', 'border_light': 'rgba(109,68,196,0.32)', 'border_dark': 'rgba(186,148,255,0.38)'},
-    'Electric': {'light': '#6D44C4', 'dark': '#BA94FF', 'soft_light': 'rgba(109,68,196,0.12)', 'soft_dark': 'rgba(186,148,255,0.16)', 'border_light': 'rgba(109,68,196,0.32)', 'border_dark': 'rgba(186,148,255,0.38)'},
-    'Water': {'light': '#1668B8', 'dark': '#6BC4FF', 'soft_light': 'rgba(22,104,184,0.12)', 'soft_dark': 'rgba(107,196,255,0.16)', 'border_light': 'rgba(22,104,184,0.32)', 'border_dark': 'rgba(107,196,255,0.38)'},
-    'Wind': {'light': '#147D64', 'dark': '#5CE0B8', 'soft_light': 'rgba(20,125,100,0.12)', 'soft_dark': 'rgba(92,224,184,0.16)', 'border_light': 'rgba(20,125,100,0.32)', 'border_dark': 'rgba(92,224,184,0.38)'},
-    'Iron': {'light': '#B4690E', 'dark': '#F6C15C', 'soft_light': 'rgba(180,105,14,0.12)', 'soft_dark': 'rgba(246,193,92,0.16)', 'border_light': 'rgba(180,105,14,0.32)', 'border_dark': 'rgba(246,193,92,0.38)'},
+V2_UNIFIED_ACCENTS = {
+    'light': '#D43D51',
+    'dark': '#F6C15C',
+    'soft_light': 'rgba(212,61,81,0.12)',
+    'soft_dark': 'rgba(246,193,92,0.16)',
+    'border_light': 'rgba(212,61,81,0.32)',
+    'border_dark': 'rgba(246,193,92,0.38)',
 }
 
 V2_PALETTES = {
@@ -182,9 +182,9 @@ V2_PALETTES = {
 
 
 def v2_theme_tokens(element_key: str | None = None, theme: str = 'light') -> dict:
-    """Return shared Bento v2 palette and element accent tokens."""
+    """Return unified Bento v2 palette and theme accent tokens (gold on dark, crimson on light)."""
     color = 'dark' if theme == 'dark' else 'light'
-    acc = V2_ELEMENT_ACCENTS.get(str(element_key or ''), V2_ELEMENT_ACCENTS['Water'])
+    acc = V2_UNIFIED_ACCENTS
     return {
         'palette': V2_PALETTES[color],
         'element_accent': acc[color],
@@ -237,7 +237,7 @@ def apply_theme(context: dict, theme: str | None = None, *, scene_width=1000, sc
                 background_source='local-card-bg',background_scene_width=scene_width,background_scene_height=scene_height)
 
 
-WIDE_ART_BASE_SCALE = 0.85
+WIDE_ART_BASE_SCALE = 0.825
 WIDE_ART_SCALE_KEY = 'AliceUID_WideArtScaleOffset'
 
 

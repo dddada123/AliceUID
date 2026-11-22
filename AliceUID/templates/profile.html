@@ -6,11 +6,13 @@
 <style>
 {% include 'alice_v2_tokens.css' %}
 {% include 'profile_v2.css' %}
+{% include 'squad_badges.css' %}
 .avatar-empty{font-weight:800;color:{{ accent }};font-size:22px}
 .hero-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:{{ palette.muted }};font-size:15px}
 </style>
 </head>
 <body>
+{% from 'card_badges.html' import progression as rank_badges, role_corners %}
 <div class="page profile-wide profile-page {{ card_theme }}">
   <div class="page-scrim"></div>
 
@@ -51,17 +53,9 @@
           </span>
           {% endif %}
           {% endfor %}
-          <div class="lead-stars">
-            {% for on in lead.star_states or [] %}
-            <img class="lead-star" src="{{ star_on if on else star_off }}" alt="">
-            {% endfor %}
-            {% if lead.core_display %}
-            <span class="lead-core-badge">
-              {% if core_icon %}<img src="{{ core_icon }}" alt="">{% endif %}
-              <b>{{ lead.core_display }}</b>
-            </span>
-            {% endif %}
-          </div>
+          {% if lead.star_states or lead.core_display %}
+          {{ rank_badges(lead, star_on, star_off, core_icon) }}
+          {% endif %}
         </div>
         <span class="lead-power">{{ lead.combat_text }}</span>
       </div>
@@ -167,17 +161,10 @@
           <div class="avatar-glass">
             <img src="{{ n.icon_url }}" alt="{{ n.name }}头像">
             <span class="member-level">Lv.{{ n.level }}</span>
-            <div class="member-corners-left">
-              {% if n.weapon_icon %}<span class="corner-hex"><img src="{{ n.weapon_icon }}" alt=""></span>{% endif %}
-              {% if n.burst_icon %}<span class="corner-hex"><img src="{{ n.burst_icon }}" alt=""></span>{% endif %}
-            </div>
+            {{ role_corners(n, neutral_frame) }}
             {% if n.star_states or n.core_display %}
-            <div class="member-rank">
-              {% for on in n.star_states or [] %}<img class="star" src="{{ star_on if on else star_off }}" alt="">{% endfor %}
-              {% if n.core_display %}<span class="core-mini">{{ n.core_display }}</span>{% endif %}
-            </div>
+            {{ rank_badges(n, star_on, star_off, core_icon, 'corner-rank') }}
             {% endif %}
-            {% if n.element_icon %}<span class="member-elem"><img src="{{ n.element_icon }}" alt=""></span>{% endif %}
             <span class="avatar-glass-edge"></span>
           </div>
           <div class="member-name">{{ n.name }}</div>

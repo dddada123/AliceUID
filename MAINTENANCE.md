@@ -1,4 +1,10 @@
-﻿# 1.2.16 · 2026-11-22
+﻿# 1.2.17 · 2026-11-22
+
+- `nikke_render/theme.py` 移除属性自适应变色 `V2_ELEMENT_ACCENTS`，改为 `V2_UNIFIED_ACCENTS`（暗版 `#F6C15C`、亮版 `#D43D51`）；`nikke_profile/draw.py` 同步采用统一主题色。
+- `WIDE_ART_BASE_SCALE` 调整为 `0.825`（等效 1.2.16 下 `-3%` 比例），`nikke_character/draw.py` `render_version` 升级为 `alice-v1217-bento-1`。
+- `profile.html` 与 `profile_v2.css` 复用 `card_badges.html`（`progression`、`role_corners`）与 `squad_badges.css`，消除 `.lead-core-badge b` 黑底方框并使右下角 4 名妮姬角标与 `union.html` 一致；`nikke_resource/service.py` `render_version` 升级为 `alice-profile-v1217-bento`。
+
+# 1.2.16 · 2026-11-22
 
 - 横版角色练度大立绘默认缩放基准 `WIDE_ART_BASE_SCALE` 调整为 `0.85`（在 1.2.15 `0.90` 基础上再缩 5%）；新增 `AliceUID_WideArtScaleOffset`（`GsStrConfig`，默认 `"0"`，接受 `-100`~`+100` 可带 `%` 整数）并在 `ValidatedStringConfig` 校验归一化、在 `draw_character` 缓存键加入 `wide_art_scale` 并升级 `render_version='alice-v1216-bento-1'`。
 - `profile.html` 主推角色 `.lead-role-icon` 改用 `.icon-stack` + `icon-shadow` + `alpha-effect` 双层阴影，`nikke_resource/service.py` `render_version` 升级为 `alice-profile-v1216-bento`。

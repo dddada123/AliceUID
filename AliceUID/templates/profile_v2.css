@@ -66,11 +66,10 @@ html,body{width:1280px;height:740px;overflow:hidden}
 .lead-icons-left{display:flex;align-items:center;gap:6px}
 .lead-role-icon{width:20px;height:20px;flex:none;overflow:visible;display:flex;align-items:center;justify-content:center}
 .lead-role-icon img{width:19px;height:19px;object-fit:contain}
-.lead-stars{display:flex;align-items:center;gap:2px}
-.lead-star{width:13px;height:13px;object-fit:contain}
-.lead-core-badge{position:relative;width:21px;height:22px;display:inline-flex;align-items:center;justify-content:center;margin-left:2px}
-.lead-core-badge img{position:absolute;inset:0;width:21px;height:22px;object-fit:contain}
-.lead-core-badge b{position:relative;z-index:1;background:#101923d0;color:#fff;border-radius:4px;padding:1px 3px 0;font-size:9px;font-weight:800;line-height:11px}
+.lead-meta-row .progress-badges{height:20px;gap:2px}
+.lead-meta-row .core-emblem{width:21px;height:21px;margin-left:2px}
+.lead-meta-row .core-emblem img{width:21px;height:21px}
+.lead-meta-row .core-emblem b{font-size:9px;line-height:11px}
 .lead-power{font-size:14px;font-weight:800;color:{{ palette.ink }};font-variant-numeric:tabular-nums}
 
 /* 右侧 Bento 主体 (x:450, y:24, 806 x 672) */
@@ -168,33 +167,7 @@ html,body{width:1280px;height:740px;overflow:hidden}
   display:flex;flex-direction:column;align-items:center;justify-content:space-between;
 }
 .squad-member .avatar-glass,.squad-member .avatar-glass>img{width:116px;height:116px;border-radius:14px}
-.member-level{
-  position:absolute;left:5px;bottom:5px;z-index:4;
-  padding:2px 6px 1px;border-radius:5px;
-  background:rgba(9,22,39,0.78);color:#fff;
-  font-size:9px;font-weight:800;font-variant-numeric:tabular-nums;
-}
-.member-corners-left{position:absolute;left:5px;top:5px;display:flex;flex-direction:column;gap:3px;z-index:4}
-.corner-hex{
-  width:20px;height:20px;border-radius:6px;
-  background:rgba(12,24,42,0.78);border:1px solid rgba(255,255,255,0.45);
-  display:flex;align-items:center;justify-content:center;
-}
-.corner-hex img{width:14px;height:14px;object-fit:contain}
-.member-elem{
-  position:absolute;right:5px;bottom:5px;z-index:4;
-  width:22px;height:22px;border-radius:6px;
-  background:rgba(12,24,42,0.82);border:1px solid rgba(255,255,255,0.50);
-  display:flex;align-items:center;justify-content:center;
-}
-.member-elem img{width:15px;height:15px;object-fit:contain}
-.member-rank{
-  position:absolute;right:5px;top:5px;z-index:4;
-  display:flex;align-items:center;gap:2px;
-  padding:2px 5px;border-radius:6px;background:rgba(9,22,39,0.72);
-}
-.member-rank img.star{width:11px;height:11px;object-fit:contain}
-.member-rank .core-mini{font-size:9px;font-weight:800;color:#FFD982;margin-left:2px}
+.squad-member .game-left-badges,.squad-member .game-element,.squad-member .corner-rank,.squad-member .member-level{z-index:4}
 .member-name{
   font-size:12px;font-weight:800;color:{{ palette.ink }};
   line-height:16px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:162px;
