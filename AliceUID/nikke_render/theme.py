@@ -235,3 +235,44 @@ def apply_theme(context: dict, theme: str | None = None, *, scene_width=1000, sc
     return dict(context, command_prefix=command_prefix(), card_theme=theme, theme=tokens, texture_uri=tokens['texture_uri'],
                 frost_scene_uri=photo_uri, frost_panel_uri='',
                 background_source='local-card-bg',background_scene_width=scene_width,background_scene_height=scene_height)
+
+
+WIDE_ART_BASE_SCALE = 0.85
+WIDE_ART_SCALE_KEY = 'AliceUID_WideArtScaleOffset'
+
+
+def parse_wide_art_scale_offset(value) -> int:
+    """Parse a wide-card portrait scale offset percentage in [-100, 100]."""
+    import re
+    if isinstance(value, bool):
+        raise ValueError('缩放微调不能为布尔值')
+    if isinstance(value, int):
+        offset = value
+    elif isinstance(value, str):
+        text = value.strip()
+        if text.endswith('%'):
+            text = text[:-1].strip()
+        if not re.fullmatch(r'[+-]?\d+', text):
+            raise ValueError('请输入 -100 到 +100 之间的整数百分比')
+        offset = int(text)
+    else:
+        raise ValueError('请输入 -100 到 +100 之间的整数百分比')
+    if not -100 <= offset <= 100:
+        raise ValueError('缩放微调范围须在 -100 到 +100 之间')
+    return offset
+
+
+def normalize_wide_art_scale_offset(value) -> str:
+    try:
+        return str(parse_wide_art_scale_offset(value))
+    except ValueError:
+        return '0'
+
+
+def get_wide_art_scale_offset() -> int:
+    try:
+        from ..nikke_config.config import AliceUIDConfig
+        raw = AliceUIDConfig.get_config(WIDE_ART_SCALE_KEY).data
+        return parse_wide_art_scale_offset(raw)
+    except (ImportError, AttributeError, KeyError, TypeError, ValueError):
+        return 0

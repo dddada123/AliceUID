@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.2.15-ff69b4?style=flat-square" alt="Version: 1.2.15"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.2.16-ff69b4?style=flat-square" alt="Version: 1.2.16"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
@@ -37,10 +37,10 @@
 
 ---
 
-> **当前版本：1.2.15**
+> **当前版本：1.2.16**
 >
-> - **全新 Bento 战术玻璃视觉体系**：角色练度（横版 / 纵版）、指挥官名片与资源查询卡片全面升级，支持按角色属性动态点缀主题色、高可读性三档超载词条阶位梯度、纵版补齐循环室展示与资源保管箱 90% 刻度仪表盘；后台练度样式选项全面中文化（`横版亮色` / `横版暗色` / `纵版亮色` / `纵版暗色`，支持随机与旧配置无感兼容）。
-> - **爱丽丝专属兑换码提醒**：使用 `nk兑换码ABCDEFG` 命中本地已有兑换记录时，爱丽丝将用专属口吻告知兔子先生已兑换时间，清晰感知自动兑换状态。
+> - **全新 Bento 战术玻璃视觉体系与自定义缩放**：角色练度（横版 / 纵版）、指挥官名片与资源查询卡片全面升级；横版大立绘支持后台 `AliceUID_WideArtScaleOffset`（`-100%` ~ `+100%`）自定义缩放，亮色名片图标补齐阴影与资源提示精简。
+> - **爱丽丝专属兑换码提醒与结果标识**：使用 `nk兑换码ABCDEFG` 命中本地已有兑换记录时，爱丽丝将用专属口吻告知兔子先生已兑换时间；批量兑换汇总行非零项自动附带状态 Emoji（`✅`/`❗`/`❌`/`❓`）。
 > - **稳定三档串行查询**：游戏查询提供高速（1 秒）/ 中速（推荐，默认 2 秒）/ 缓速（5 秒）三档串行速率；默认指令前缀为 `nk`，可在 Core 插件管理中自定义。
 
 ---

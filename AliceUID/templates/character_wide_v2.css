@@ -148,7 +148,7 @@ html,body{width:1280px;height:820px;overflow:hidden}
   font-size:11px;font-weight:800;
   background:{{ palette.pill_inner_bg }};border:1px solid {{ palette.sub_border }};color:{{ palette.ink }};
 }
-.skill-lv-pill.maxed{background:{{ element_accent }};border-color:{{ element_accent }};color:#ffffff}
+.skill-lv-pill.maxed{background:{{ element_accent_soft }};border-color:{{ element_accent_border }};color:{{ element_accent }}}
 
 .card-accessories{width:352px;height:96px;padding:12px 14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .acc-slot{

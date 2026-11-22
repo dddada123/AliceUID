@@ -64,7 +64,7 @@ html,body{width:1280px;height:740px;overflow:hidden}
 }
 .lead-meta-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .lead-icons-left{display:flex;align-items:center;gap:6px}
-.lead-role-icon{width:20px;height:20px;display:flex;align-items:center;justify-content:center}
+.lead-role-icon{width:20px;height:20px;flex:none;overflow:visible;display:flex;align-items:center;justify-content:center}
 .lead-role-icon img{width:19px;height:19px;object-fit:contain}
 .lead-stars{display:flex;align-items:center;gap:2px}
 .lead-star{width:13px;height:13px;object-fit:contain}

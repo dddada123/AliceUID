@@ -106,7 +106,12 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
 
             def write_config(self):
                 from ..nikke_user.pacing import STRATEGY_KEY, normalize_strategy
-                from ..nikke_render.theme import normalize_character_style, normalize_character_random
+                from ..nikke_render.theme import (
+                    WIDE_ART_SCALE_KEY,
+                    normalize_character_random,
+                    normalize_character_style,
+                    normalize_wide_art_scale_offset,
+                )
                 if STRATEGY_KEY in self.config:
                     self.config[STRATEGY_KEY].data = normalize_strategy(self.config[STRATEGY_KEY].data)
                 if 'AliceUID_CharacterCardStyle' in self.config:
@@ -116,6 +121,10 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                 if 'AliceUID_CharacterRandomTheme' in self.config:
                     self.config['AliceUID_CharacterRandomTheme'].data = normalize_character_random(
                         self.config['AliceUID_CharacterRandomTheme'].data
+                    )
+                if WIDE_ART_SCALE_KEY in self.config:
+                    self.config[WIDE_ART_SCALE_KEY].data = normalize_wide_art_scale_offset(
+                        self.config[WIDE_ART_SCALE_KEY].data
                     )
                 # Reconcile/serialize in the same UI order, retaining unknown user keys.
                 ordered = {key: self.config[key] for key in self.config_list if key in self.config}
@@ -159,6 +168,12 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                             return False
                     if key in ('AliceUID_GlassStrength', 'AliceUID_ForwardJpegQuality'):
                         if type(value) is not int or not 0<=value<=100:
+                            return False
+                    from ..nikke_render.theme import WIDE_ART_SCALE_KEY, parse_wide_art_scale_offset
+                    if key == WIDE_ART_SCALE_KEY:
+                        try:
+                            value = str(parse_wide_art_scale_offset(value))
+                        except ValueError:
                             return False
                     if key == 'AliceUID_ForwardReceiptSeconds':
                         if type(value) is not int or not 5 <= value <= 300:

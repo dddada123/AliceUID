@@ -281,7 +281,16 @@ def render_character_html(context: dict, style: str | None = None, theme: str | 
             anchor_y=(context.get('wide_anchor') or {}).get('y') if (context.get('wide_anchor') or {}).get('matched') else None,
             head_top=(context.get('wide_anchor') or {}).get('head_top') if (context.get('wide_anchor') or {}).get('matched') else None,
         )
-        context['wide_art_style'] = _scale_placement(raw_placement, 516, 0.90, ax) if exact_full else raw_placement
+        from ..nikke_render.theme import WIDE_ART_BASE_SCALE, get_wide_art_scale_offset, parse_wide_art_scale_offset
+        if context.get('wide_art_scale_offset') is not None:
+            try:
+                offset_pct = parse_wide_art_scale_offset(context['wide_art_scale_offset'])
+            except ValueError:
+                offset_pct = get_wide_art_scale_offset()
+        else:
+            offset_pct = get_wide_art_scale_offset()
+        scale_mult = WIDE_ART_BASE_SCALE * max(0.10, 1.0 + offset_pct / 100.0)
+        context['wide_art_style'] = _scale_placement(raw_placement, 516, scale_mult, ax) if exact_full else raw_placement
     from ..nikke_render.icon_effects import apply_icon_effects, portrait_shadow
     context = apply_icon_effects(context)
     if style == 'wide':
@@ -305,7 +314,7 @@ async def draw_character(context: dict, style: str | None = None, theme: str | N
     if not identity:
         return await _draw_uncached(context,style,theme)
     from .cache import get_panel_cache
-    from ..nikke_render.theme import character_presentation_mode
+    from ..nikke_render.theme import character_presentation_mode, get_wide_art_scale_offset
     from ..nikke_render.cache import content_context, style_version, resource_version
     from ..nikke_resource.service import get_resources
     try:
@@ -313,8 +322,9 @@ async def draw_character(context: dict, style: str | None = None, theme: str | N
     except ImportError:
         resources = None  # Pure offline adapters can supply their own painter.
     stable=content_context(context)
-    stable.update(render_version='alice-v1215-bento-1',
+    stable.update(render_version='alice-v1216-bento-1',
                   theme=theme,style=style,presentation_mode=character_presentation_mode(),
+                  wide_art_scale=get_wide_art_scale_offset(),
                   presentation=style_version())
     code=context['name_code']
     store=get_panel_cache()

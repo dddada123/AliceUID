@@ -121,7 +121,7 @@ async def draw_status(context, *, owner_key):
     mode = get_card_theme_mode()
     font = resolve_font()
     stable = dict(
-        context, render_version='alice-v1215-bento-status-1', theme_mode=mode,
+        context, render_version='alice-v1216-bento-status-1', theme_mode=mode,
         language=get_card_language(), font=font.fingerprint, owner=owner_key,
     )
     stable['presentation'] = status_style_key()

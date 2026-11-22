@@ -77,8 +77,16 @@ def result_text(results, *, all_claimed_note: bool = False):
         elif row.get('pool_status') == 'blocked':
             lines.append('共享缓存：已存在停用标记，未重新入池')
     counts = Counter(r['status'] for r in results)
-    lines.append('｜'.join(f'{label}{counts[key]}' for key, label in
-        [('success', '成功'), ('claimed', '已领取'), ('skipped', '跳过'), ('failed', '失败'), ('uncertain', '未确认')]))
+    lines.append('｜'.join(
+        f'{label}{counts[key]}{emoji if counts[key] > 0 else ""}'
+        for key, label, emoji in [
+            ('success', '成功', '✅'),
+            ('claimed', '已领取', '✅'),
+            ('skipped', '跳过', '❗'),
+            ('failed', '失败', '❌'),
+            ('uncertain', '未确认', '❓'),
+        ]
+    ))
     if all_claimed_note and results and counts['success'] == 0 and counts['claimed'] > 0 and counts['failed'] == 0 and counts['uncertain'] == 0:
         lines.append('兔子先生，当前所有有效兑换码爱丽丝都帮你领完啦，快去游戏邮箱看看吧～')
     return '\n'.join(lines)

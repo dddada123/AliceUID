@@ -43,7 +43,12 @@
         <div class="lead-icons-left">
           {% for icon in lead.role_icons or [] %}
           {% if icon.kind in ['class','element','burst'] and icon.icon_url %}
-          <span class="lead-role-icon" title="{{ icon.label }}"><img src="{{ icon.icon_url }}" alt="{{ icon.label }}"></span>
+          <span class="lead-role-icon" title="{{ icon.label }}">
+            <span class="icon-stack">
+              {% if icon.icon_shadow_url %}<img class="icon-shadow" src="{{ icon.icon_shadow_url }}" alt="">{% endif %}
+              <img class="alpha-effect" src="{{ icon.icon_url }}" alt="{{ icon.label }}">
+            </span>
+          </span>
           {% endif %}
           {% endfor %}
           <div class="lead-stars">

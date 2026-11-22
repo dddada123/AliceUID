@@ -1,4 +1,11 @@
-﻿# 1.2.15 · 2026-11-22
+﻿# 1.2.16 · 2026-11-22
+
+- 横版角色练度大立绘默认缩放基准 `WIDE_ART_BASE_SCALE` 调整为 `0.85`（在 1.2.15 `0.90` 基础上再缩 5%）；新增 `AliceUID_WideArtScaleOffset`（`GsStrConfig`，默认 `"0"`，接受 `-100`~`+100` 可带 `%` 整数）并在 `ValidatedStringConfig` 校验归一化、在 `draw_character` 缓存键加入 `wide_art_scale` 并升级 `render_version='alice-v1216-bento-1'`。
+- `profile.html` 主推角色 `.lead-role-icon` 改用 `.icon-stack` + `icon-shadow` + `alpha-effect` 双层阴影，`nikke_resource/service.py` `render_version` 升级为 `alice-profile-v1216-bento`。
+- `nikke_status/builder.py` 保管箱估算注记精简为 `保管箱按24时回满线性估算。`，`nikke_status/draw.py` `render_version` 升级为 `alice-v1216-bento-status-1`。
+- `nikke_cdk/commands.py` `result_text()` 汇总行仅对数量 `> 0` 的状态追加 Emoji（`✅`/`✅`/`❗`/`❌`/`❓`）。
+
+# 1.2.15 · 2026-11-22
 
 角色练度（横版 1280×820 / 纵版 570×1048）、指挥官名片（1280×740）与资源查询（730px）正式切换为 Bento 战术玻璃 v2 视觉体系；1.2.14 旧版模板与样式已备份至工作区 HistoryDoc/legacy_card_styles_1.2.14/，生产包内不再保留旧版样式。
 

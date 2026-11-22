@@ -118,7 +118,7 @@ html,body{width:570px;height:1048px;overflow:hidden}
   font-size:10px;font-weight:800;
   background:{{ palette.pill_inner_bg }};border:1px solid {{ palette.sub_border }};color:{{ palette.ink }};
 }
-.skill-lv-pill.maxed{background:{{ element_accent }};border-color:{{ element_accent }};color:#ffffff}
+.skill-lv-pill.maxed{background:{{ element_accent_soft }};border-color:{{ element_accent_border }};color:{{ element_accent }}}
 
 /* 收藏品与魔方 280 x 78 */
 .compact-acc{width:280px;height:78px;padding:8px 9px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}

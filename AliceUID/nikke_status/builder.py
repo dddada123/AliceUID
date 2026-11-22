@@ -83,7 +83,7 @@ def build_resources(basic, daily, *, bind, region, fetched_at, ttl):
                 fetched_at_epoch=fetched_at,
                 **storage_fields(daily, fetched_at),
                 notes=['钻石合计付费与免费钻石；缺失或隐藏的资源显示「—」。',
-                       '保管箱按24小时回满线性估算，北京时间；实际收取、游戏加成或社区同步延迟会影响结果。'])
+                       '保管箱按24时回满线性估算。'])
 
 
 def storage_fields(daily, fetched_at):
