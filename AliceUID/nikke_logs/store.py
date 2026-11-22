@@ -70,6 +70,11 @@ def redact(text):
         except ValueError:
             return '[链接已脱敏]'
     text = re.sub(r'https?://[^\s<>\x22\x27\\]+', url, text)
+    # Preserve relative /api/... diagnostic routes (without query strings) from the 28-char token masker.
+    def api_route(match):
+        safe_urls.append(match[0])
+        return f'ALICESAFEURL{len(safe_urls)-1}END'
+    text = re.sub(r'(?<![A-Za-z0-9_])/api/[A-Za-z0-9_./-]+', api_route, text)
     # Credential values can include spaces/semicolons: mask their whole line.
     text = re.sub(r'(?i)(cookie|authorization|password|passwd|(?:access_|refresh_|game_)?token|api[_-]?key|secret|验证码|密码)[\s\x22\x27]*[:=][^\n]*', r'\1=[已脱敏]', text)
     text = re.sub(r'(?i)(email|account|(?:intl_)?openid|nickname|user_id|group_id|uid|qq|昵称)[\s\x22\x27]*[:=]\s*(?:\x22[^\x22]*\x22|\x27[^\x27]*\x27|[^\s,;]+)', r'\1=[已脱敏]', text)
