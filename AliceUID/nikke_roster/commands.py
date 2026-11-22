@@ -98,16 +98,16 @@ async def _roster_worker(bot, event, policy):
 
 
 async def queue_roster(bot, event, policy):
-    if not await allowed(policy, event):
-        await bot.send('当前用户或群未开放妮姬查询，请联系管理员。', at_sender=True)
-        return
     try:
         from ..nikke_message.persona import send_reply, wait_roster_generating
     except ImportError:
-        async def send_reply(b, e, p, *, at_sender=True, newline=False):
+        async def send_reply(b, e, p, *, at_sender=True, newline=False, sep=None):
             return await b.send(p, at_sender=at_sender)
         def wait_roster_generating(*, merged=False, style=None):
             return '[AliceUID·完整卡片]\n' + ('正在合并重复请求，完整卡片生成中，请稍候。' if merged else '正在准备完整卡片，请稍候。')
+    if not await allowed(policy, event):
+        await send_reply(bot, event, '当前用户或群未开放妮姬查询，请联系管理员。', at_sender=True)
+        return
     key = (str(event.user_id), str(event.bot_id))
     async with _queue_locks.setdefault(key, asyncio.Lock()):
         if key in _tasks and not _tasks[key].done():

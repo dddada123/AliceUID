@@ -39,7 +39,8 @@ def profile_errors(func):
             return await func(bot, ev)
         except Exception as exc:
             logger.error(f"[AliceUID] 资料命令失败 command={func.__name__} error_type={type(exc).__name__}")
-            await bot.send("查询操作失败，请稍后重试。", at_sender=True)
+            from ..nikke_message.persona import send_reply
+            await send_reply(bot, ev, "查询操作失败，请稍后重试。", at_sender=True)
     return guarded
 
 
@@ -221,7 +222,8 @@ async def nikke_profile_refresh_cmd(bot: Bot, ev: Event):
         await send_reply(bot, ev, unavailable_message(bind), at_sender=True)
         return
     try:
-        await send_reply(bot, ev, '正在轻量刷新本人名片资料，不读取全部角色装备详情。', at_sender=True)
+        from ..nikke_message.persona import wait_profile_refresh
+        await send_reply(bot, ev, wait_profile_refresh(), at_sender=True)
         data = await ensure_profile(client, bind, refresh=True)
         await send_profile_image(bot, ev, client, bind, data, policy=policy)
     except RosterCooldown as exc:

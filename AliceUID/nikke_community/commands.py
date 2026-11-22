@@ -48,8 +48,10 @@ class CommunityCommands:
             if str(binding.actor_id) != str(actor_id) or str(binding.bot_id) != str(bot_id):
                 return "仅能操作本人当前绑定账号。"
             state = self.service.status(client, actor_id, bot_id, binding.revision)
+            from ..nikke_message.persona import community_enable_text, titled
             if option == "状态":
-                return (f"自动社区：{'开启' if state['enabled'] else '关闭'}\n"
+                return titled('自动社区',
+                        f"自动社区：{'开启' if state['enabled'] else '关闭'}\n"
                         f"连续失败：{state.get('fail_count',0)}/3个签到周期\n"
                         f"系统停用：{'连续三天失败' if state.get('auto_disabled') else '无'}\n"
                         f"点赞：{'开启' if state['likes'] else '关闭'}\n"
@@ -60,23 +62,22 @@ class CommunityCommands:
                         f"命令：{command_prefix()}自动社区 开启/关闭/状态；点赞开启/点赞关闭。")
             if option in {"关闭", "关"}:
                 self.service.configure(client, actor_id, bot_id, binding.revision, enabled=False)
-                return "自动社区已关闭（签到、浏览及点赞均关闭）。"
+                return titled('自动社区', "自动社区已关闭（签到、浏览及点赞均关闭）。")
             if option == '点赞关闭':
                 self.service.disable_likes(client, actor_id, bot_id, binding.revision)
-                return '自动点赞已关闭；已有暂停状态保持不变。'
+                return titled('自动社区', '自动点赞已关闭；已有暂停状态保持不变。')
             if not self.enabled():
-                return "社区模块处于全局紧急暂停，请联系管理员。"
+                return titled('自动社区', "社区模块处于全局紧急暂停，请联系管理员。")
             if option in {"开启", "开"}:
-                from ..nikke_message.persona import community_enable_text
                 self.service.configure(client, actor_id, bot_id, binding.revision, enabled=True)
                 return community_enable_text(normalized_time(self.sign_time()), command_prefix())
             if not state["enabled"]:
-                return f"请先发送 {command_prefix()}自动社区 开启，授权当前账号。"
+                return titled('自动社区', f"请先发送 {command_prefix()}自动社区 开启，授权当前账号。")
             if state["paused"]:
-                return f"任务已暂停，请人工检查后发送 {command_prefix()}自动社区 开启。"
+                return titled('自动社区', f"任务已暂停，请人工检查后发送 {command_prefix()}自动社区 开启。")
             self.service.configure(client, actor_id, bot_id, binding.revision, enabled=True,
                                    likes=option == "点赞开启")
-            return "已授权每日最多点赞5帖。" if option == "点赞开启" else "自动点赞已关闭。"
+            return titled('自动社区', "已授权每日最多点赞5帖。" if option == "点赞开启" else "自动点赞已关闭。")
         except CommunityError as exc:
             return str(exc)
         finally:

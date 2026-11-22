@@ -28,16 +28,30 @@ sv_account = SV("妮姬账号", pm=6, priority=4)
 sv_account_admin = SV("妮姬账号管理", pm=0, priority=4)
 
 
+async def _login_reply(bot, ev, text):
+    try:
+        from ..nikke_message.persona import send_reply
+    except (ImportError, KeyError):
+        return await bot.send(text, at_sender=True)
+    return await send_reply(bot, ev, text, at_sender=True)
+
+
 def account_errors(func):
     @wraps(func)
     async def guarded(bot, ev):
+        async def reply(msg):
+            try:
+                from ..nikke_message.persona import send_reply
+            except (ImportError, KeyError):
+                return await bot.send(msg, at_sender=True)
+            return await send_reply(bot, ev, msg, at_sender=True)
         try:
             return await func(bot, ev)
         except LoginAddressError as exc:
-            await bot.send(str(exc), at_sender=True)
+            await reply(str(exc))
         except Exception as exc:
             logger.error(f"[AliceUID] 账号命令失败 command={func.__name__} error_type={type(exc).__name__}")
-            await bot.send("账号操作失败，未确认完成，请稍后重试并请管理员检查日志。", at_sender=True)
+            await reply("账号操作失败，未确认完成，请稍后重试并请管理员检查日志。")
     return guarded
 
 
@@ -65,13 +79,13 @@ def _make_qr_png(url: str) -> bytes | None:
 async def nikke_login_cmd(bot: Bot, ev: Event):
     area_id = REGION_ALIASES.get((ev.text or "").strip())
     if area_id is None:
-        await bot.send(REGION_HELP, at_sender=True)
+        await _login_reply(bot, ev, REGION_HELP)
         return
     bind = await AliceBind.get_bind(ev.user_id, ev.bot_id)
     if bind:
-        await bot.send(
+        await _login_reply(
+            bot, ev,
             f"你已经绑定过「{bind.nickname or '未知'}」。\n更新Cookie请发 {command_prefix()}重新登录；如需换号，先发 {command_prefix()} 解绑。",
-            at_sender=True,
         )
         return
 
@@ -109,10 +123,10 @@ async def nikke_login_cmd(bot: Bot, ev: Event):
 async def nikke_relogin_cmd(bot: Bot, ev: Event):
     bind = await AliceBind.get_bind(ev.user_id, ev.bot_id)
     if bind is None:
-        await bot.send(f"还没有绑定账号，请先发送 {command_prefix()}登录 选择区服。", at_sender=True)
+        await _login_reply(bot, ev, f"还没有绑定账号，请先发送 {command_prefix()}登录 选择区服。")
         return
     if bind.area_id not in REGIONS:
-        await bot.send("原绑定区服暂不支持网页登录，请联系Bot主检查绑定。", at_sender=True)
+        await _login_reply(bot, ev, "原绑定区服暂不支持网页登录，请联系Bot主检查绑定。")
         return
     active = sessions.active(ev.user_id, ev.bot_id)
     if active is not None:
@@ -201,10 +215,16 @@ async def _notify_login(bot: Bot, ev: Event, token: str):
 @sv_account.on_fullmatch(("解绑", "删除绑定"))
 @account_errors
 async def nikke_unbind_cmd(bot: Bot, ev: Event):
+    async def reply(msg):
+        try:
+            from ..nikke_message.persona import send_reply
+        except (ImportError, KeyError):
+            return await bot.send(msg, at_sender=True)
+        return await send_reply(bot, ev, msg, at_sender=True)
     try:
         bind = await AliceBind.get_bind(ev.user_id, ev.bot_id)
         if not bind:
-            await bot.send(f"你还没有绑定登录账号。如只登记了UID，请发送 {command_prefix()}解绑UID 清除登记。", at_sender=True)
+            await reply(f"你还没有绑定登录账号。如只登记了UID，请发送 {command_prefix()}解绑UID 清除登记。")
             return
         result = await AliceBind.delete_bind(ev.user_id, ev.bot_id)
         if result != 0:
@@ -213,7 +233,7 @@ async def nikke_unbind_cmd(bot: Bot, ev: Event):
         # Exception messages / model repr may contain cookies. Log the stage
         # and exception type only, never account data or database parameters.
         logger.error(f"[AliceUID] 解绑失败 stage=delete_bind error_type={type(exc).__name__}")
-        await bot.send("解绑失败，本地绑定删除未确认，请稍后重试并请管理员检查日志。", at_sender=True)
+        await reply("解绑失败，本地绑定删除未确认，请稍后重试并请管理员检查日志。")
         return
     sessions.clear_owner(ev.user_id, ev.bot_id)
     from ..nikke_user.panel_refresh import cancel_prefetch
@@ -268,36 +288,36 @@ async def nikke_account_cmd(bot: Bot, ev: Event):
 async def nikke_cookie_cmd(bot: Bot, ev: Event):
     """高级用法：直接粘贴 Cookie。仅私聊，避免在群里泄露。"""
     if ev.group_id:
-        await bot.send("Cookie 含账号凭证，请私聊我发送。", at_sender=True)
+        await _login_reply(bot, ev, "Cookie 含账号凭证，请私聊我发送。")
         return
     if await AliceBind.get_bind(ev.user_id, ev.bot_id):
-        await bot.send(f"已有绑定，请先 {command_prefix()}解绑；不会自动覆盖。", at_sender=True)
+        await _login_reply(bot, ev, f"已有绑定，请先 {command_prefix()}解绑；不会自动覆盖。")
         return
     area_text, _, cookie = (ev.text or "").strip().partition(" ")
     area_id = REGION_ALIASES.get(area_text)
     if area_id is None:
-        await bot.send(f"请显式选择区服，例如：{command_prefix()}导入cookie 日服 game_openid=...; game_token=...; ...\n" + REGION_HELP, at_sender=True)
+        await _login_reply(bot, ev, f"请显式选择区服，例如：{command_prefix()}导入cookie 日服 game_openid=...; game_token=...; ...\n" + REGION_HELP)
         return
     if not cookie:
-        await bot.send(f"用法：{command_prefix()}导入cookie 日服 game_openid=...; game_token=...; ...", at_sender=True)
+        await _login_reply(bot, ev, f"用法：{command_prefix()}导入cookie 日服 game_openid=...; game_token=...; ...")
         return
     try:
         cred = credentials_from_cookie(cookie, 0)
     except ValueError as exc:
-        await bot.send(str(exc), at_sender=True)
+        await _login_reply(bot, ev, str(exc))
         return
     if cred is None:
-        await bot.send("Cookie 里缺少 game_openid / game_token。", at_sender=True)
+        await _login_reply(bot, ev, "Cookie 里缺少 game_openid / game_token。")
         return
 
     try:
         async with NikkeClient(cred, REGIONS[area_id]) as client:
             if not await client.check_login():
-                await bot.send("Cookie 无效或已过期。", at_sender=True)
+                await _login_reply(bot, ev, "Cookie 无效或已过期。")
                 return
         region, role = await selected_role(cred, area_id)
         if await AliceBind.get_bind(ev.user_id, ev.bot_id):
-            await bot.send("已有绑定，已停止覆盖；换号请先解绑。", at_sender=True)
+            await _login_reply(bot, ev, "已有绑定，已停止覆盖；换号请先解绑。")
             return
         await save_login(
             ev.user_id,
@@ -311,38 +331,38 @@ async def nikke_cookie_cmd(bot: Bot, ev: Event):
             uid=str(role.get("role_id") or ""),
             expire_at=cred.expire_at,
         )
-        await bot.send(
+        await _login_reply(
+            bot, ev,
             f"绑定成功：{role.get('role_name') or '未知'}（{region.label}）\n"
             + _login_guidance() + "\n"
             + "正在后台准备本人资料、角色练度与皮肤缓存。\n"
             "提醒：这条消息里的 Cookie 请自行撤回。",
-            at_sender=True,
         )
     except BindingPersistenceError:
-        await bot.send(f"绑定保存未确认，请发送 {command_prefix()}我的账号 检查后重试。", at_sender=True)
+        await _login_reply(bot, ev, f"绑定保存未确认，请发送 {command_prefix()}我的账号 检查后重试。")
     except ValueError as exc:
-        await bot.send(str(exc), at_sender=True)
+        await _login_reply(bot, ev, str(exc))
     except Exception:  # noqa: BLE001
         logger.warning("[AliceUID] 导入 Cookie 失败（详情已省略以保护凭证）")
-        await bot.send("Cookie 校验失败，请重新从浏览器复制。", at_sender=True)
+        await _login_reply(bot, ev, "Cookie 校验失败，请重新从浏览器复制。")
 
 
 @sv_account.on_fullmatch(("公开", "公开账号"))
 @account_errors
 async def nikke_public_cmd(bot: Bot, ev: Event):
     if not await set_public(ev.user_id, ev.bot_id, True):
-        await bot.send("还没有绑定账号。", at_sender=True)
+        await _login_reply(bot, ev, "还没有绑定账号。")
         return
-    await bot.send("已开启插件本地排行预留标记；群排行尚未开放，不修改官网隐私。官网妮姬资料请用妮姬公开命令。", at_sender=True)
+    await _login_reply(bot, ev, "已开启插件本地排行预留标记；群排行尚未开放，不修改官网隐私。官网妮姬资料请用妮姬公开命令。")
 
 
 @sv_account.on_fullmatch(("隐藏", "隐藏账号"))
 @account_errors
 async def nikke_private_cmd(bot: Bot, ev: Event):
     if not await set_public(ev.user_id, ev.bot_id, False):
-        await bot.send("还没有绑定账号。", at_sender=True)
+        await _login_reply(bot, ev, "还没有绑定账号。")
         return
-    await bot.send("已关闭插件本地排行预留标记，不修改官网隐私。官网妮姬资料请用妮姬隐藏命令。", at_sender=True)
+    await _login_reply(bot, ev, "已关闭插件本地排行预留标记，不修改官网隐私。官网妮姬资料请用妮姬隐藏命令。")
 
 
 def _account_admin(ev):
@@ -414,7 +434,7 @@ def _account_list_pages(binds, *, masked):
 @account_errors
 async def nikke_list_cmd(bot: Bot, ev: Event):
     if not _account_admin(ev):
-        await bot.send('这个命令只有 Bot 主可以使用。', at_sender=True)
+        await _login_reply(bot, ev, '这个命令只有 Bot 主可以使用。')
         return
     binds = await AliceBind.get_all_binds()
     summary, pages = _account_list_pages(binds, masked=bool(getattr(ev, 'group_id', None)))

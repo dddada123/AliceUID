@@ -83,18 +83,24 @@ def register_commands(commands, *, permission_of=None):
     group_sv = SV("妮姬本群查询管理", pm=3, priority=3)
     owner_sv = SV("妮姬群名单管理", pm=0, priority=3)
 
+    try:
+        from ..nikke_message.persona import send_reply
+    except ImportError:
+        async def send_reply(b, e, p, *, at_sender=True, newline=False, sep=None):
+            return await b.send(p, at_sender=at_sender)
+
     @group_sv.on_command("群查询")
     async def group_query(bot, ev):
-        await bot.send(await commands.group_query(ev.group_id, ev.text or "状态", permission=permission_of(ev)), at_sender=True)
+        await send_reply(bot, ev, await commands.group_query(ev.group_id, ev.text or "状态", permission=permission_of(ev)), at_sender=True)
 
     @owner_sv.on_command("群策略")
     async def group_mode(bot, ev):
-        await bot.send(await commands.group_mode(ev.text or "状态", permission=permission_of(ev)), at_sender=True)
+        await send_reply(bot, ev, await commands.group_mode(ev.text or "状态", permission=permission_of(ev)), at_sender=True)
 
     def register(name, list_name):
         @owner_sv.on_command(name)
         async def manage(bot, ev):
-            await bot.send(await commands.manage_list(list_name, ev.text or "状态", permission=permission_of(ev)), at_sender=True)
+            await send_reply(bot, ev, await commands.manage_list(list_name, ev.text or "状态", permission=permission_of(ev)), at_sender=True)
     for name, list_name in (("群黑名单", "blacklist"), ("群白名单", "whitelist"),
                             ("用户黑名单", "user_blacklist"), ("用户白名单", "user_whitelist")):
         register(name, list_name)

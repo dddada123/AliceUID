@@ -89,9 +89,26 @@ async def send_reply(bot, ev, payload, *, at_sender: bool = True, newline: bool 
     if at_sender and is_group and uid:
         tailed = with_tail_at(payload, uid, is_group=True, newline=newline, sep=sep)
         if tailed is None:
+            _log_plain_send(is_group, at_sender=True, payload=payload)
             return await bot.send(payload, at_sender=True)
         payload = tailed
+    _log_plain_send(is_group, at_sender=False, payload=payload)
     return await bot.send(payload, at_sender=False)
+
+
+def _log_plain_send(is_group: bool, *, at_sender: bool, payload) -> None:
+    try:
+        from gsuid_core.logger import logger
+        from ..nikke_logs.store import describe_payload
+    except ImportError:
+        return
+    try:
+        logger.info(
+            f'[AliceUID] 发送结构 route={"group" if is_group else "dm"} mode=plain '
+            f'at_sender={at_sender} segments={describe_payload(payload)}'
+        )
+    except Exception:
+        pass
 
 
 # --- 1. 收菜提醒 (nikke_harvest) ---
@@ -290,3 +307,29 @@ def wait_export_public(*, style: str | None = None) -> str:
     if is_alice_style(style):
         return titled('练度导出', '遵命！爱丽丝正在帮兔子先生整理全部角色的完整练度信息，数据量比较大可能会慢一点，请耐心等我一下哦～')
     return titled('练度导出', '正在获取全部角色的完整练度信息，数据量较大，可能需要较长时间，请耐心等待。')
+
+
+def wait_profile_refresh(*, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return titled('刷新信息', '好，爱丽丝正在帮兔子先生快速刷新一下名片资料，很快就好哦～')
+    return titled('刷新信息', '正在轻量刷新本人名片资料，不读取全部角色装备详情。')
+
+
+def solo_wait_text(ahead: int = 0, *, style: str | None = None) -> str:
+    if ahead > 0:
+        if is_alice_style(style):
+            return titled('个人突袭', f'兔子先生，现在还有 {ahead} 位小伙伴在前面排队测算呢，爱丽丝已经帮您占好位置啦，稍等一下就轮到您哦～')
+        return titled('个人突袭', f'当前正在处理其他用户的单人突袭推荐，已为你排队，前方还有{ahead}个任务。')
+    if is_alice_style(style):
+        return titled('个人突袭', '遵命！爱丽丝正在帮兔子先生从 DILDORO 测算个人突袭推荐阵容，大概需要几十秒，稍微等我一下哦～')
+    return titled('个人突袭', '正在从 https://dildoro.com/ 查询并生成个人突袭推荐，请稍候；更为详细的计算请直接访问该网站。')
+
+
+def solo_privacy_text(label: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return titled(
+            '个人突袭',
+            f'嗯……兔子先生的官网妮姬资料现在是「{label}」状态。为了完成这次推荐，'
+            '爱丽丝会先临时帮您设为所有人可见，查询可能稍慢一点，完成后会恢复原状的（期间其他访问者也能看到资料哦）。',
+        )
+    return titled('个人突袭', f'你的官网妮姬资料当前为{label}。为本次推荐将临时设为所有人可见，查询可能较慢；期间其他访问者也可读取资料。')

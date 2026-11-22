@@ -382,7 +382,8 @@ async def _refresh_worker(bot, ev, policy, *, expected=None, automatic=False, no
         if client is None:
             bot, ev, policy = await notification_target()
             if bot is not None:
-                await bot.send(unavailable_message(bind), at_sender=True)
+                from ..nikke_message.persona import send_reply
+                await send_reply(bot, ev, unavailable_message(bind), at_sender=True)
             return False
         if expected is not None and _revision(bind) != expected:
             return False
@@ -399,10 +400,12 @@ async def _refresh_worker(bot, ev, policy, *, expected=None, automatic=False, no
             try:
                 sent = await send_profile_image(notify_bot, notify_ev, client, bind, data, policy=notify_policy)
                 if not sent:
-                    await notify_bot.send('绑定、权限或资料已变化，已停止发送旧信息图，请重新查询。', at_sender=True)
+                    from ..nikke_message.persona import send_reply
+                    await send_reply(notify_bot, notify_ev, '绑定、权限或资料已变化，已停止发送旧信息图，请重新查询。', at_sender=True)
             except Exception as exc:
                 logger.warning(f'[AliceUID] refresh completion image failed error_type={type(exc).__name__}')
-                await notify_bot.send('资料、全部角色练度与皮肤缓存已刷新，但信息图生成或发送失败；请使用信息命令重试。', at_sender=True)
+                from ..nikke_message.persona import send_reply
+                await send_reply(notify_bot, notify_ev, '资料、全部角色练度与皮肤缓存已刷新，但信息图生成或发送失败；请使用信息命令重试。', at_sender=True)
         return True
     except (RosterCooldown, CharacterDataError) as exc:
         bot, ev, policy = await notification_target()

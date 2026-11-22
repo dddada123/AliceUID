@@ -56,7 +56,7 @@ async def execute(bot, ev, action):
                     if not current or not current['enabled'] or current['generation'] != sub['generation'] or not await allowed(current, acc):
                         return
                     message = [MessageSegment.image(image), text] if image is not None else text
-                    await bot.send(message, at_sender=route['kind'] == 'group')
+                    await send_reply(bot, ev, message, at_sender=route['kind'] == 'group')
             return
         if action == 'disable':
             from ..nikke_message.persona import harvest_disable_text

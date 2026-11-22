@@ -73,11 +73,9 @@ async def _solo_command(bot,ev,state=None):
         if state.admission is not None:
             return
         async def queued(ahead):
-            text = (f'当前正在处理其他用户的单人突袭推荐，已为你排队，前方还有{ahead}个任务。'
-                    if ahead else NOTICE)
             try:
-                from ..nikke_message.persona import send_reply
-                await send_reply(bot, ev, text, at_sender=True)
+                from ..nikke_message.persona import send_reply, solo_wait_text
+                await send_reply(bot, ev, solo_wait_text(ahead), at_sender=True)
             except Exception as exc:
                 record_failure('个人突袭', '排队或等待提示发送', exc)
                 raise RetryAborted() from None
@@ -163,8 +161,8 @@ async def _solo_command(bot,ev,state=None):
                         account = await owned_account(client,bind)
                         async def opening(original):
                             try:
-                                from ..nikke_message.persona import send_reply
-                                await send_reply(bot, ev, '你的官网妮姬资料当前为'+LABELS[original]+'。为本次推荐将临时设为所有人可见，查询可能较慢；期间其他访问者也可读取资料。', at_sender=True)
+                                from ..nikke_message.persona import send_reply, solo_privacy_text
+                                await send_reply(bot, ev, solo_privacy_text(LABELS[original]), at_sender=True)
                             except Exception as exc:
                                 record_failure('个人突袭', '临时公开提示发送', exc)
                                 raise RetryAborted() from None

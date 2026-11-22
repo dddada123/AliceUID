@@ -53,7 +53,8 @@ def event(operation, stage, result, **metrics):
 def redact(text):
     # Preserve Windows paths: backslash-n in a filename is not a newline.
     text = str(text)
-    # Keep public diagnostic routes, but never query values, credentials or private hosts.
+    safe_urls = []
+    # Keep public diagnostic routes, but never query values, credentials, login tokens or private hosts.
     def url(match):
         try:
             parts = urlsplit(match[0].rstrip(').,;'))
@@ -62,13 +63,15 @@ def redact(text):
             path = parts.path
             if not re.fullmatch(r'/[A-Za-z0-9_./-]*', path):
                 path = '/[路径已脱敏]'
-            path = re.sub(r'(?<=/)[A-Za-z0-9_-]{20,}', '[标识已脱敏]', path)
-            return f'{parts.scheme}://{parts.hostname}{path}' + ('?[参数已脱敏]' if parts.query else '')
+            path = re.sub(r'(?<=/nikke/i/)[A-Za-z0-9_-]+', '[标识已脱敏]', path)
+            cleaned = f'{parts.scheme}://{parts.hostname}{path}' + ('?[参数已脱敏]' if parts.query else '')
+            safe_urls.append(cleaned)
+            return f'ALICESAFEURL{len(safe_urls)-1}END'
         except ValueError:
             return '[链接已脱敏]'
     text = re.sub(r'https?://[^\s<>\x22\x27\\]+', url, text)
     # Credential values can include spaces/semicolons: mask their whole line.
-    text = re.sub(r'(?i)(cookie|authorization|password|passwd|(?:access_|refresh_)?token|secret|验证码|密码)[\s\x22\x27]*[:=][^\n]*', r'\1=[已脱敏]', text)
+    text = re.sub(r'(?i)(cookie|authorization|password|passwd|(?:access_|refresh_|game_)?token|api[_-]?key|secret|验证码|密码)[\s\x22\x27]*[:=][^\n]*', r'\1=[已脱敏]', text)
     text = re.sub(r'(?i)(email|account|(?:intl_)?openid|nickname|user_id|group_id|uid|qq|昵称)[\s\x22\x27]*[:=]\s*(?:\x22[^\x22]*\x22|\x27[^\x27]*\x27|[^\s,;]+)', r'\1=[已脱敏]', text)
     text = re.sub(r'[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}', '[邮箱已脱敏]', text)
     # Only known measurement fields may retain large numbers; bare IDs remain masked.
@@ -77,12 +80,74 @@ def redact(text):
         metrics.append(m[0])
         return f'ALICEMETRIC{len(metrics)-1}END'
     text = re.sub(r'\bline \d+\b', metric, text)
-    text = re.sub(r'\b(?:input_bytes|output_bytes|bytes|elapsed_ms|queue_wait_ms|pace_wait_ms|network_ms|http_status|business_code|interval_ms|retry_after|timeout|timeout_ms|wait_seconds|width|height|status|count|line|lineno)=\d+(?:\.\d+)?\b', metric, text)
+    text = re.sub(r'\b(?:input_bytes|output_bytes|bytes|elapsed_ms|queue_wait_ms|pace_wait_ms|network_ms|http_status|business_code|interval_ms|retry_after|timeout|timeout_ms|wait_seconds|width|height|status|count|line|lineno|len)=\d+(?:\.\d+)?\b', metric, text)
     text = re.sub(r'\b\d{5,}\b', '[编号已脱敏]', text)
     text = re.sub(r'\b[A-Za-z0-9_-]{28,}\b', '[标识已脱敏]', text)
     for i, value in enumerate(metrics):
         text = text.replace(f'ALICEMETRIC{i}END', value)
+    for i, value in enumerate(safe_urls):
+        text = text.replace(f'ALICESAFEURL{i}END', value)
     return text.replace('```', '[代码围栏]').replace('\x1b', '')[:16384]
+
+
+def describe_payload(payload) -> str:
+    """Summarize message segments/nodes (types, sizes, sanitized head) without leaking credentials."""
+    import base64
+    from io import BytesIO
+    try:
+        from PIL import Image
+    except ImportError:
+        Image = None
+
+    items = payload if isinstance(payload, list) else [payload]
+    parts = []
+    for item in items[:20]:
+        if isinstance(item, str):
+            head = redact(item.replace('\r', ' ').replace('\n', ' '))[:36]
+            parts.append(f'text(len={len(item)},head="{head}")')
+            continue
+        seg_type = getattr(item, 'type', None) or 'unknown'
+        data = getattr(item, 'data', None)
+        if seg_type == 'node' and isinstance(data, list):
+            parts.append(f'node({describe_payload(data)})')
+        elif seg_type == 'text':
+            s = str(data or '')
+            head = redact(s.replace('\r', ' ').replace('\n', ' '))[:36]
+            parts.append(f'text(len={len(s)},head="{head}")')
+        elif seg_type == 'image':
+            if isinstance(data, bytes):
+                info = f'bytes={len(data)}'
+                if Image is not None:
+                    try:
+                        with Image.open(BytesIO(data)) as im:
+                            info = f'{im.format},{im.width}x{im.height},bytes={len(data)}'
+                    except Exception:
+                        pass
+                parts.append(f'image({info})')
+            elif isinstance(data, str) and data.startswith('base64://'):
+                try:
+                    raw = base64.b64decode(data[9:], validate=False)
+                    info = f'bytes={len(raw)}'
+                    if Image is not None:
+                        try:
+                            with Image.open(BytesIO(raw)) as im:
+                                info = f'{im.format},{im.width}x{im.height},bytes={len(raw)}'
+                        except Exception:
+                            pass
+                    parts.append(f'image({info})')
+                except Exception:
+                    parts.append(f'image(b64_len={len(data)-9})')
+            else:
+                parts.append('image(ref)')
+        elif seg_type in ('at', 'at_all'):
+            parts.append(f'{seg_type}()')
+        elif seg_type == 'file':
+            parts.append('file()')
+        else:
+            parts.append(str(seg_type))
+    if len(items) > 20:
+        parts.append(f'...+{len(items)-20}')
+    return '[' + ', '.join(parts) + ']'
 
 
 def record_failure(operation, stage, exc):

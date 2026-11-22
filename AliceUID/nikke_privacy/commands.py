@@ -13,6 +13,7 @@ sv_privacy = SV('官网妮姬隐私', priority=3)
 
 
 async def execute(bot, ev, value=None):
+    from ..nikke_message.persona import send_reply, titled
     policy = get_policy()
     if not policy.user_allowed(ev.user_id) or not await policy.query_allowed(getattr(ev, 'group_id', None)):
         return
@@ -21,7 +22,7 @@ async def execute(bot, ev, value=None):
         try:
             client, bind = await load_client(ev.user_id, ev.bot_id)
             if client is None:
-                await bot.send(unavailable_message(bind), at_sender=True)
+                await send_reply(bot, ev, unavailable_message(bind), at_sender=True)
                 return
             async with binding_lock(ev.user_id, ev.bot_id):
                 current = await AliceBind.get_bind(ev.user_id, ev.bot_id)
@@ -41,10 +42,10 @@ async def execute(bot, ev, value=None):
                 else:
                     await service.manual(client, bind, share, value)
                     text = '已将Blablalink「显示我的妮姬」设为' + LABELS[value] + '；持续生效。'
-                await bot.send(text, at_sender=True)
+                await send_reply(bot, ev, titled('官网隐私', text), at_sender=True)
         except Exception as exc:
             record_failure('官网妮姬隐私', '命令', exc)
-            await bot.send('官网隐私读取或修改未确认，请稍后用'+command_prefix()+'妮姬公开状态检查，或到官网设置页核对。', at_sender=True)
+            await send_reply(bot, ev, '官网隐私读取或修改未确认，请稍后用'+command_prefix()+'妮姬公开状态检查，或到官网设置页核对。', at_sender=True)
         finally:
             if client is not None:
                 await client.close()

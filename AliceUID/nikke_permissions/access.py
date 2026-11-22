@@ -29,7 +29,11 @@ def require_user_access(policy):
         async def guarded(bot, ev):
             # Framework-authenticated sender; never ev.at / target QQ.
             if not policy.user_allowed(getattr(ev, "user_id", None)):
-                await bot.send(DENIED, at_sender=True)
+                try:
+                    from ..nikke_message.persona import send_reply
+                    await send_reply(bot, ev, DENIED, at_sender=True)
+                except ImportError:
+                    await bot.send(DENIED, at_sender=True)
                 return None
             # Authenticated group presence is local metadata, never a member-list claim.
             if _group_observer is not None:

@@ -10,11 +10,32 @@ from PIL import Image
 MAX_INPUT_BYTES = 32 * 1024 * 1024
 MAX_PIXELS = 64_000_000
 MAX_OUTPUT_BYTES = 8 * 1024 * 1024
+TARGET_FORWARD_BYTES = 1_200_000
+AUTO_COMPRESS_RAW_BYTES = 1_500_000
 JPEG_QUALITY = 95
 
 
 class ForwardImageError(ValueError):
     pass
+
+
+def _save_jpeg(image, quality: int, *, subsampling: int, metadata: dict) -> bytes:
+    for optimize in (True, False):
+        output = BytesIO()
+        try:
+            image.save(
+                output,
+                format='JPEG',
+                quality=quality,
+                subsampling=subsampling,
+                optimize=optimize,
+                progressive=False,
+                **metadata,
+            )
+            return output.getvalue()
+        except OSError:
+            if not optimize:
+                raise
 
 
 def encode_forward_pages(data, quality=JPEG_QUALITY):
@@ -28,7 +49,7 @@ def encode_forward_pages(data, quality=JPEG_QUALITY):
             raise ForwardImageError('forward image geometry out of bounds')
         if getattr(source, 'n_frames', 1) != 1:
             raise ForwardImageError('animated cards are unsupported')
-        if source.format == 'JPEG' and len(data) <= MAX_OUTPUT_BYTES:
+        if source.format == 'JPEG' and len(data) <= min(MAX_OUTPUT_BYTES, TARGET_FORWARD_BYTES):
             source.verify()
             return [data]
         source.load()
@@ -42,22 +63,27 @@ def encode_forward_pages(data, quality=JPEG_QUALITY):
         transparent = ('transparency' in source.info or
                        ('A' in source.getbands() and source.getchannel('A').getextrema()[0] < 255))
         image = source.convert('RGBA' if transparent else 'RGB')
-        output = BytesIO()
         if transparent:
+            output = BytesIO()
             image.save(output, format='PNG', optimize=True, **metadata)
+            encoded = output.getvalue()
         else:
             if width > 65500 or height > 65500:
                 raise ForwardImageError('complete image exceeds JPEG dimensions')
-            image.save(output, format='JPEG', quality=quality, subsampling=0,
-                       optimize=True, progressive=False, **metadata)
-        encoded = output.getvalue()
+            encoded = _save_jpeg(image, quality, subsampling=0, metadata=metadata)
+            if len(encoded) > TARGET_FORWARD_BYTES and MAX_OUTPUT_BYTES >= TARGET_FORWARD_BYTES:
+                for step_q in [min(quality, q) for q in (90, 84, 78, 72)]:
+                    candidate = _save_jpeg(image, step_q, subsampling=2, metadata=metadata)
+                    encoded = candidate
+                    if len(encoded) <= TARGET_FORWARD_BYTES:
+                        break
         if len(encoded) > MAX_OUTPUT_BYTES:
             raise ForwardImageError('complete image exceeds transport bounds')
         return [encoded]
 
 
 def prepare_forward_content(content):
-    """Snapshot inline cards before standard nodes; preserve original bytes by default."""
+    """Snapshot inline cards before standard nodes; adaptively compress oversized PNGs for reliable forwarding."""
     from gsuid_core.segment import MessageSegment
     from gsuid_core.logger import logger
     from ..nikke_config.config import AliceUIDConfig
@@ -75,8 +101,15 @@ def prepare_forward_content(content):
         if len(data) > MAX_INPUT_BYTES * 4 // 3 + 32:
             raise ForwardImageError('inline image is too large')
         raw = base64.b64decode(data[9:], validate=True)
-        if reencode:
-            pages = encode_forward_pages(raw, quality=quality)
+        oversized_non_transparent = False
+        if not reencode and len(raw) > AUTO_COMPRESS_RAW_BYTES:
+            with Image.open(BytesIO(raw)) as probe:
+                has_alpha = ('transparency' in probe.info or
+                             ('A' in probe.getbands() and probe.getchannel('A').getextrema()[0] < 255))
+                if probe.format != 'JPEG' and not has_alpha:
+                    oversized_non_transparent = True
+        if reencode or oversized_non_transparent:
+            pages = encode_forward_pages(raw, quality=quality if reencode else min(int(quality or JPEG_QUALITY), 88))
         else:
             # The old roster path read a cached JPG straight into image(data).
             # Keep the exact bytes for PNG/JPEG/WEBP alike, including metadata.
@@ -90,7 +123,7 @@ def prepare_forward_content(content):
                 original.verify()
             pages = [raw]
         with Image.open(BytesIO(raw)) as source, Image.open(BytesIO(pages[0])) as encoded:
-            strategy = 'jpeg_optional' if reencode else 'classic_original'
+            strategy = 'jpeg_optional' if reencode else ('jpeg_auto_large' if oversized_non_transparent else 'classic_original')
             logger.info(f'[AliceUID] 转发图片 strategy={strategy} source_format={source.format} '
                         f'output_format={encoded.format} width={encoded.width} height={encoded.height} '
                         f'input_bytes={len(raw)} output_bytes={len(pages[0])}')
