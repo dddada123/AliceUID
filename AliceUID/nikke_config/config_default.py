@@ -109,10 +109,10 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         "全局卡片主题", "默认random随机亮暗；dark暗色、light亮色。只在新渲染时随机，已有缓存图片直接复用，保留已有自定义值", "random", options=["dark", "light", "random"],
     ),
     'AliceUID_CharacterCardStyle': GsStrConfig(
-        "角色练度卡片主题", "compact_light=窄版亮色；compact_dark=窄版暗色；wide_light=宽版亮色；wide_dark=宽版暗色。默认宽版亮色；仅影响角色练度卡", "wide_light", options=["compact_light", "compact_dark", "wide_light", "wide_dark"],
+        "角色练度卡片主题", "默认横版亮色；可选横版亮色、横版暗色、纵版亮色、纵版暗色（兼容旧英文配置自动迁移）。", "横版亮色", options=["横版亮色", "横版暗色", "纵版亮色", "纵版暗色"],
     ),
     'AliceUID_CharacterRandomTheme': GsStrConfig(
-        "角色练度卡随机主题", "off=关闭随机（使用上方固定主题）；wide=宽版亮暗随机；compact=窄版亮暗随机；all=四种全部随机。默认关闭，仅新渲染时选择，缓存命中直接复用", "off", options=["off", "wide", "compact", "all"],
+        "角色练度卡随机主题", "关闭随机=使用上方固定样式；横版随机=横版亮暗随机；纵版随机=纵版亮暗随机；全部随机=四种全部随机。默认关闭随机，仅新渲染时选择，缓存命中直接复用。", "关闭随机", options=["关闭随机", "横版随机", "纵版随机", "全部随机"],
     ),
     'AliceUID_SoloCardTheme': GsStrConfig(
         "个人突袭推荐卡片主题（独立）", "只影响个人突袭推荐卡片，默认暗色；可选亮色或随机，不跟随其他卡片主题。查询时可用亮色/暗色/随机参数临时指定。毛玻璃强度仍使用全局设置。", "dark", options=["light","dark","random"],

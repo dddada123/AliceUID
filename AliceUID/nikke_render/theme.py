@@ -42,38 +42,155 @@ def card_theme(theme: str | None = None) -> dict:
     return dict(resolved['theme'], card_theme=resolved['card_theme'])
 
 
-CHARACTER_THEMES=('compact_light','compact_dark','wide_light','wide_dark')
+CHARACTER_THEMES = ('纵版亮色', '纵版暗色', '横版亮色', '横版暗色')
+LEGACY_STYLE_MAP = {
+    'compact_light': '纵版亮色',
+    'compact_dark': '纵版暗色',
+    'wide_light': '横版亮色',
+    'wide_dark': '横版暗色',
+}
+STYLE_LAYOUT_THEME = {
+    '纵版亮色': ('compact', 'light'),
+    '纵版暗色': ('compact', 'dark'),
+    '横版亮色': ('wide', 'light'),
+    '横版暗色': ('wide', 'dark'),
+}
+CHARACTER_RANDOM_MODES = ('关闭随机', '横版随机', '纵版随机', '全部随机')
+LEGACY_RANDOM_MAP = {
+    'off': '关闭随机',
+    'wide': '横版随机',
+    'compact': '纵版随机',
+    'all': '全部随机',
+}
+
+
+def normalize_character_style(value: object, *, default: str = '横版亮色') -> str:
+    text = str(value or '').strip()
+    if text in STYLE_LAYOUT_THEME:
+        return text
+    return LEGACY_STYLE_MAP.get(text, default)
+
+
+def normalize_character_random(value: object, *, default: str = '关闭随机') -> str:
+    text = str(value or '').strip()
+    if text in CHARACTER_RANDOM_MODES:
+        return text
+    return LEGACY_RANDOM_MAP.get(text, default)
 
 
 def character_presentation_mode():
-    return dict(fixed=_configured('AliceUID_CharacterCardStyle',CHARACTER_THEMES,'wide_light'),
-                random=_configured('AliceUID_CharacterRandomTheme',('off','wide','compact','all'),'off'))
+    try:
+        from ..nikke_config.config import AliceUIDConfig
+        fixed_raw = AliceUIDConfig.get_config('AliceUID_CharacterCardStyle').data
+        random_raw = AliceUIDConfig.get_config('AliceUID_CharacterRandomTheme').data
+    except (ImportError, AttributeError, KeyError, RuntimeError):
+        fixed_raw, random_raw = '横版亮色', '关闭随机'
+    return dict(
+        fixed=normalize_character_style(fixed_raw),
+        random=normalize_character_random(random_raw),
+    )
 
 
 def get_character_style(default='wide'):
-    return character_presentation_mode()['fixed'].split('_')[0]
+    fixed = character_presentation_mode()['fixed']
+    return STYLE_LAYOUT_THEME.get(fixed, (default, 'light'))[0]
 
 
-def resolve_character_presentation(style=None,theme=None):
+def resolve_character_presentation(style=None, theme=None):
     """Choose once per new paint; the image cache keys the stable mode, not a random draw."""
     import random
     from .layouts import character_layout_keys
-    mode=character_presentation_mode()
-    if style in CHARACTER_THEMES:
-        layout,color=style.split('_')
+    mode = character_presentation_mode()
+    if style in STYLE_LAYOUT_THEME:
+        layout, color = STYLE_LAYOUT_THEME[style]
+    elif style in LEGACY_STYLE_MAP:
+        layout, color = STYLE_LAYOUT_THEME[LEGACY_STYLE_MAP[style]]
     elif style in character_layout_keys():
-        layout,color=style,mode['fixed'].split('_')[1]
+        layout = style
+        color = STYLE_LAYOUT_THEME[mode['fixed']][1]
     elif style:
-        layout,color='compact',mode['fixed'].split('_')[1]
+        layout = 'compact'
+        color = STYLE_LAYOUT_THEME[mode['fixed']][1]
     else:
-        choices=CHARACTER_THEMES
-        if mode['random']=='wide':choices=tuple(x for x in choices if x.startswith('wide_'))
-        elif mode['random']=='compact':choices=tuple(x for x in choices if x.startswith('compact_'))
-        selected=mode['fixed'] if mode['random']=='off' else random.choice(choices)
-        layout,color=selected.split('_')
-    if theme in ('light','dark'):color=theme
-    elif theme=='random':color=random.choice(('light','dark'))
-    return layout,color
+        choices = CHARACTER_THEMES
+        if mode['random'] == '横版随机':
+            choices = ('横版亮色', '横版暗色')
+        elif mode['random'] == '纵版随机':
+            choices = ('纵版亮色', '纵版暗色')
+        selected = mode['fixed'] if mode['random'] == '关闭随机' else random.choice(choices)
+        layout, color = STYLE_LAYOUT_THEME[selected]
+    if theme in ('light', 'dark'):
+        color = theme
+    elif theme == 'random':
+        color = random.choice(('light', 'dark'))
+    return layout, color
+
+
+V2_ELEMENT_ACCENTS = {
+    'Fire': {'light': '#C93B4B', 'dark': '#FF7B89', 'soft_light': 'rgba(201,59,75,0.12)', 'soft_dark': 'rgba(255,123,137,0.16)', 'border_light': 'rgba(201,59,75,0.32)', 'border_dark': 'rgba(255,123,137,0.38)'},
+    'Electronic': {'light': '#6D44C4', 'dark': '#BA94FF', 'soft_light': 'rgba(109,68,196,0.12)', 'soft_dark': 'rgba(186,148,255,0.16)', 'border_light': 'rgba(109,68,196,0.32)', 'border_dark': 'rgba(186,148,255,0.38)'},
+    'Electric': {'light': '#6D44C4', 'dark': '#BA94FF', 'soft_light': 'rgba(109,68,196,0.12)', 'soft_dark': 'rgba(186,148,255,0.16)', 'border_light': 'rgba(109,68,196,0.32)', 'border_dark': 'rgba(186,148,255,0.38)'},
+    'Water': {'light': '#1668B8', 'dark': '#6BC4FF', 'soft_light': 'rgba(22,104,184,0.12)', 'soft_dark': 'rgba(107,196,255,0.16)', 'border_light': 'rgba(22,104,184,0.32)', 'border_dark': 'rgba(107,196,255,0.38)'},
+    'Wind': {'light': '#147D64', 'dark': '#5CE0B8', 'soft_light': 'rgba(20,125,100,0.12)', 'soft_dark': 'rgba(92,224,184,0.16)', 'border_light': 'rgba(20,125,100,0.32)', 'border_dark': 'rgba(92,224,184,0.38)'},
+    'Iron': {'light': '#B4690E', 'dark': '#F6C15C', 'soft_light': 'rgba(180,105,14,0.12)', 'soft_dark': 'rgba(246,193,92,0.16)', 'border_light': 'rgba(180,105,14,0.32)', 'border_dark': 'rgba(246,193,92,0.38)'},
+}
+
+V2_PALETTES = {
+    'light': {
+        'page_bg': '#E9EFF6',
+        'ink': '#152233',
+        'muted': '#4A5E78',
+        'line': 'rgba(30,52,82,0.14)',
+        'glass_bg': 'rgba(252,254,255,0.78)',
+        'glass_border': 'rgba(255,255,255,0.92)',
+        'glass_shadow': '0 6px 20px rgba(15,35,62,0.11)',
+        'inner_top': 'rgba(255,255,255,0.75)',
+        'slot_bg': 'rgba(18,38,68,0.055)',
+        'empty_slot_bg': 'rgba(18,38,68,0.025)',
+        'icon_stage_bg': 'rgba(255,255,255,0.62)',
+        'portrait_stage_bg': 'rgba(252,254,255,0.52)',
+        'sub_border': 'rgba(25,50,82,0.11)',
+        'pill_bg': 'rgba(252,254,255,0.82)',
+        'pill_inner_bg': 'rgba(255,255,255,0.78)',
+        'line_normal_bg': 'rgba(255,255,255,0.58)',
+        'line_normal_border': 'rgba(25,50,82,0.09)',
+        'stage_tag': '#1C304A',
+        'credit_ink': '#364A63',
+    },
+    'dark': {
+        'page_bg': '#0B1320',
+        'ink': '#F1F6FD',
+        'muted': '#A6BCD4',
+        'line': 'rgba(170,200,235,0.18)',
+        'glass_bg': 'rgba(8,16,30,0.78)',
+        'glass_border': 'rgba(166,198,232,0.28)',
+        'glass_shadow': '0 8px 24px rgba(2,6,14,0.42)',
+        'inner_top': 'rgba(255,255,255,0.14)',
+        'slot_bg': 'rgba(255,255,255,0.06)',
+        'empty_slot_bg': 'rgba(255,255,255,0.025)',
+        'icon_stage_bg': 'rgba(255,255,255,0.075)',
+        'portrait_stage_bg': 'rgba(8,16,30,0.56)',
+        'sub_border': 'rgba(170,200,235,0.16)',
+        'pill_bg': 'rgba(8,16,30,0.76)',
+        'pill_inner_bg': 'rgba(255,255,255,0.08)',
+        'line_normal_bg': 'rgba(255,255,255,0.055)',
+        'line_normal_border': 'rgba(170,200,235,0.12)',
+        'stage_tag': '#DCE8F7',
+        'credit_ink': '#BDCCE0',
+    },
+}
+
+
+def v2_theme_tokens(element_key: str | None = None, theme: str = 'light') -> dict:
+    """Return shared Bento v2 palette and element accent tokens."""
+    color = 'dark' if theme == 'dark' else 'light'
+    acc = V2_ELEMENT_ACCENTS.get(str(element_key or ''), V2_ELEMENT_ACCENTS['Water'])
+    return {
+        'palette': V2_PALETTES[color],
+        'element_accent': acc[color],
+        'element_accent_soft': acc[f'soft_{color}'],
+        'element_accent_border': acc[f'border_{color}'],
+    }
 
 
 @lru_cache(maxsize=1)

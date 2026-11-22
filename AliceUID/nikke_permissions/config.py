@@ -106,8 +106,17 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
 
             def write_config(self):
                 from ..nikke_user.pacing import STRATEGY_KEY, normalize_strategy
+                from ..nikke_render.theme import normalize_character_style, normalize_character_random
                 if STRATEGY_KEY in self.config:
                     self.config[STRATEGY_KEY].data = normalize_strategy(self.config[STRATEGY_KEY].data)
+                if 'AliceUID_CharacterCardStyle' in self.config:
+                    self.config['AliceUID_CharacterCardStyle'].data = normalize_character_style(
+                        self.config['AliceUID_CharacterCardStyle'].data
+                    )
+                if 'AliceUID_CharacterRandomTheme' in self.config:
+                    self.config['AliceUID_CharacterRandomTheme'].data = normalize_character_random(
+                        self.config['AliceUID_CharacterRandomTheme'].data
+                    )
                 # Reconcile/serialize in the same UI order, retaining unknown user keys.
                 ordered = {key: self.config[key] for key in self.config_list if key in self.config}
                 ordered.update({key: value for key, value in self.config.items() if key not in ordered})

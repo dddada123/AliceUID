@@ -6,10 +6,10 @@ import re
 class CharacterLayout:
     key: str
     template: str
-    width: int=660
+    width: int=570
 
-_LAYOUTS={'compact':CharacterLayout('compact','character_compact.html',660),
-          'wide':CharacterLayout('wide','character_wide.html',1228)}
+_LAYOUTS={'compact':CharacterLayout('compact','character_compact.html',570),
+          'wide':CharacterLayout('wide','character_wide.html',1280)}
 
 
 def character_layout_keys():return tuple(_LAYOUTS)
@@ -18,7 +18,7 @@ def character_layout_keys():return tuple(_LAYOUTS)
 def resolve_character_layout(key=None):return _LAYOUTS.get(key,_LAYOUTS['compact'])
 
 
-def register_character_layout(key,template,*,width=660):
+def register_character_layout(key,template,*,width=570):
     """Future trusted-code layout extension. Selection/UI interfaces stay intact."""
     if not isinstance(key,str) or not re.fullmatch('[a-z][a-z0-9_-]{0,31}',key):raise ValueError('invalid layout key')
     if not isinstance(template,str) or not re.fullmatch('[A-Za-z0-9_-]+[.]html',template):raise ValueError('invalid template name')
