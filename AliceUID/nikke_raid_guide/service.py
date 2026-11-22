@@ -30,7 +30,7 @@ class Guide:
         name = ' '.join(str(self.author_name or AUTHOR_NAME).split())[:100]
         url = POST_URL + self.post_id if self.post_id else AUTHOR_URL
         status = '\n休赛期 · 最近一期攻略' if self.historical else ''
-        return f'{self.title}\n攻略作者：{name}\n原帖：{url}{status}'
+        return f'[AliceUID·会战阵容]\n{self.title}\n攻略作者：{name}\n原帖：{url}{status}'
 
 
 class GuideService:

@@ -1,0 +1,264 @@
+"""Dual-style user notice templates: '爱丽丝风格' (default) and '默认说明文'."""
+from __future__ import annotations
+
+NOTICE_STYLE_KEY = 'AliceUID_NoticeStyle'
+SIGN_FORWARD_KEY = 'AliceUID_SignNoticeForward'
+NOTICE_STYLES = ('爱丽丝风格', '默认说明文')
+_LEGACY_STYLE_MAP = {
+    'alice': '爱丽丝风格',
+    'plain': '默认说明文',
+    'default': '默认说明文',
+    '说明文': '默认说明文',
+    '爱丽丝': '爱丽丝风格',
+}
+
+
+def normalize_notice_style(value) -> str:
+    text = str(value or '').strip()
+    if text in NOTICE_STYLES:
+        return text
+    if text in _LEGACY_STYLE_MAP:
+        return _LEGACY_STYLE_MAP[text]
+    return '爱丽丝风格'
+
+
+def get_notice_style() -> str:
+    try:
+        from ..nikke_config.config import AliceUIDConfig
+        raw = AliceUIDConfig.get_config(NOTICE_STYLE_KEY).data
+        return normalize_notice_style(raw)
+    except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+        return '爱丽丝风格'
+
+
+def is_alice_style(style: str | None = None) -> bool:
+    resolved = normalize_notice_style(style) if style is not None else get_notice_style()
+    return resolved == '爱丽丝风格'
+
+
+def sign_notice_forward_enabled() -> bool:
+    try:
+        from ..nikke_config.config import AliceUIDConfig
+        return bool(AliceUIDConfig.get_config(SIGN_FORWARD_KEY).data)
+    except (ImportError, AttributeError, KeyError, TypeError, ValueError, RuntimeError):
+        return True
+
+
+def titled(tag: str, body: str) -> str:
+    """Format a structured message with a unified [AliceUID·tag] header."""
+    return f'[AliceUID·{tag}]\n{body}'
+
+
+def with_tail_at(payload, user_id, *, is_group: bool, newline: bool = False):
+    """Append @user_id to the tail of text/mixed group replies; leave single images and DMs untouched."""
+    if not is_group or not user_id:
+        return payload
+    uid = str(user_id).strip()
+    if not uid:
+        return payload
+    try:
+        from gsuid_core.segment import MessageSegment
+    except ImportError:
+        return None
+    if not (hasattr(MessageSegment, 'text') and hasattr(MessageSegment, 'at')):
+        return None
+    sep = '\n' if newline else ' '
+    if isinstance(payload, str):
+        return [MessageSegment.text(payload + sep), MessageSegment.at(uid)]
+    if isinstance(payload, list):
+        if len(payload) == 1 and getattr(payload[0], 'type', None) == 'image':
+            return payload
+        items = list(payload)
+        items.extend([MessageSegment.text(sep), MessageSegment.at(uid)])
+        return items
+    if getattr(payload, 'type', None) == 'image':
+        return payload
+    return [payload, MessageSegment.text(sep), MessageSegment.at(uid)]
+
+
+async def send_reply(bot, ev, payload, *, at_sender: bool = True, newline: bool = False):
+    """Send a reply with @sender placed at the tail in group chats and at_sender=False."""
+    is_group = bool(getattr(ev, 'group_id', None))
+    uid = getattr(ev, 'user_id', None)
+    if at_sender and is_group and uid:
+        tailed = with_tail_at(payload, uid, is_group=True, newline=newline)
+        if tailed is None:
+            return await bot.send(payload, at_sender=True)
+        payload = tailed
+    return await bot.send(payload, at_sender=False)
+
+
+# --- 1. 收菜提醒 (nikke_harvest) ---
+
+def harvest_body(kind: str, pct: str, full_moment: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        if kind == 'stop':
+            return '兔子先生连续两天晚上都没来收菜，保管箱一直是满的（MAX），爱丽丝先帮您把收菜提醒静悄悄关掉啦，不打扰您休息。'
+        if kind == 'full':
+            return '啊，兔子先生！资源保管箱已经装得满满的（MAX）啦，再不收就要溢出来咯，快上线查收吧！'
+        if kind == 'bed':
+            return f'嗯……兔子先生，保管箱当前容量是{pct}%，预计{full_moment}就会装满（MAX）哦。'
+        return f'兔子先生，资源保管箱容量已经达到{pct}%啦，预计{full_moment}达到MAX，有空记得上线把资源收走哦～'
+    if kind == 'stop':
+        return '指挥官，您的资源保管箱在连续两天23点检查时均为MAX，已自动关闭该账号在所有会话中的收菜提醒，并停止后台检查。'
+    if kind == 'full':
+        return '指挥官，您的资源保管箱容量已达到MAX，请及时上线收取资源。'
+    text = f'指挥官，您的资源保管箱{"当前容量为" if kind == "bed" else "容量已达到"}{pct}%，预计{full_moment}达到MAX'
+    return text + ('。' if kind == 'bed' else '，请及时上线收取资源。')
+
+
+def harvest_footer(kind: str, quiet_period: str, prefix: str, *, style: str | None = None) -> str:
+    if kind == 'stop':
+        if is_alice_style(style):
+            return f'想重新开启时，在群聊或私聊里发送“{prefix}开启收菜提醒”叫爱丽丝就可以啦。'
+        return f'如需恢复，请在需要接收提醒的群聊或私聊中发送“{prefix}开启收菜提醒”。'
+    if kind == 'bed':
+        base = f'收菜提醒免打扰时段：北京时间{quiet_period.replace("-", "—")}。\n建议睡前上线收取资源。'
+        return base + ('嘿嘿，兔子先生今晚也要做个好梦哦～' if is_alice_style(style) else '')
+    return ''
+
+
+def harvest_enable_text(where: str, created: bool, *, at_str: str = '', pct: str = '',
+                        is_full: bool = False, t90_str: str = '', full_str: str = '',
+                        quiet_str: str = '关闭', style: str | None = None) -> str:
+    if not created:
+        if is_alice_style(style):
+            return f'[AliceUID·收菜提醒已开启]\n兔子先生，{where}的收菜提醒已经开着啦，爱丽丝正替您盯着呢。'
+        return f'[AliceUID·收菜提醒已开启]\n指挥官，{where}已开启，无需重复操作。'
+    if is_alice_style(style):
+        detail = ('资源保管箱已经达到满仓提醒线（99%及以上）啦，快去收一下吧！\n' if is_full else
+                  f'预计{t90_str}达到90%，{full_str}装满（MAX）。\n')
+        return (
+            f'[AliceUID·收菜提醒已开启]\n'
+            f'遵命！爱丽丝会在{where}替兔子先生看管保管箱的。\n'
+            f'当前容量（{at_str}）：{pct}%。\n'
+            + detail
+            + f'免打扰时段：{quiet_str}（北京时间）。\n'
+            + '到90%和装满时爱丽丝都会提醒您（如果连续两晚都没来收取，会自动帮您暂停提醒）。'
+        )
+    detail = ('资源保管箱已达到满仓提醒阈值（99%及以上）。\n' if is_full else
+              f'预计{t90_str}达到90%，{full_str}达到MAX。\n')
+    return (
+        f'[AliceUID·收菜提醒已开启]\n指挥官，已在{where}开启您的收菜提醒。\n'
+        f'最近查询容量（{at_str}）：{pct}%。\n'
+        + detail
+        + f'收菜提醒免打扰时段：{quiet_str}（北京时间）。\n'
+        + '将在90%和满仓时分别提醒一次（连续两晚未收取将自动暂停提醒）。'
+    )
+
+
+def harvest_disable_text(where: str, all_stopped: bool, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        text = f'[AliceUID·收菜提醒已关闭]\n好，爱丽丝已经帮兔子先生关掉{where}的收菜提醒啦（其他会话里的提醒不受影响）。'
+        if all_stopped:
+            text += '\n目前所有会话都已关闭，爱丽丝先停下后台检查咯。'
+        return text
+    text = f'[AliceUID·收菜提醒已关闭]\n指挥官，已关闭{where}中的收菜提醒，您在其他会话中开启的提醒不受影响。'
+    if all_stopped:
+        text += '\n该账号已无开启的提醒会话，后台检查已停止。'
+    return text
+
+
+def harvest_quiet_text(period: str | None, *, style: str | None = None) -> str:
+    val = period or '关闭'
+    if is_alice_style(style):
+        return f'[AliceUID·收菜免打扰已设置]\n遵命！当前会话免打扰已设为：{val}（北京时间），休息时间爱丽丝不会吵醒兔子先生的。'
+    return f'[AliceUID·收菜免打扰已设置]\n当前会话：{val}（北京时间）。仅影响收菜提醒。'
+
+
+# --- 2. 兑换码 (nikke_cdk) ---
+
+def cdk_already_redeemed_text(code: str, when: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return (
+            f'[AliceUID·兑换结果]\n嘿嘿，兔子先生，这个兑换码（{code}）爱丽丝已经在 {when} 帮你悄悄兑好啦！'
+            '礼物已经在游戏邮箱里乖乖等着你，快上线查收吧～'
+        )
+    return f'[AliceUID·兑换结果]\n兑换码 {code} 已于 {when}（北京时间）兑换过，请前往游戏邮箱查收。'
+
+
+def cdk_all_claimed_note(*, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return '兔子先生，当前所有有效兑换码爱丽丝都帮你领完啦，快去游戏邮箱看看吧～'
+    return '当前所有有效兑换码均已领取，请前往游戏邮箱查看。'
+
+
+def cdk_auto_start_notice(source_text: str, codes: str, *, only_user: bool = False, style: str | None = None) -> str:
+    if only_user:
+        if is_alice_style(style):
+            return titled('自动兑换', '好，检测到兔子先生刚绑定好账号，爱丽丝正在帮您核对当前全部有效的兑换码哦～')
+        return titled('自动兑换', '新绑定账号，正在核对当前有效兑换码。')
+    if is_alice_style(style):
+        return titled(
+            '自动兑换',
+            f'啊，兔子先生！爱丽丝在 {source_text} 发现了新的兑换码小礼物：\n{codes}\n正在帮大家执行自动兑换任务，稍微等我一下哦～',
+        )
+    return titled('自动兑换', f'在 {source_text} 发现新增兑换码：\n{codes}\n正在执行自动兑换任务。')
+
+
+def cdk_auto_group_summary(total: int, bad_count: int, *, only_user: bool = False, style: str | None = None) -> str:
+    ok_count = total - bad_count
+    if only_user:
+        if is_alice_style(style):
+            head = '嘿嘿，兔子先生，新绑定账号的兑换码爱丽丝已经帮您核对完啦～' if not bad_count else '兔子先生，新绑定账号的兑换码核对未全部完成。'
+            return titled('自动兑换结果', f'{head}（成功{ok_count}人｜未完成{bad_count}人）')
+        head = '新绑定账号兑换码核对完成。' if not bad_count else '新绑定账号兑换码核对未全部完成。'
+        return titled('自动兑换结果', f'{head}\n成功{ok_count}人｜未完成{bad_count}人')
+    if is_alice_style(style):
+        if not bad_count:
+            return titled('自动兑换结果', f'嘿嘿，兔子先生，这次的新兑换码爱丽丝已经帮本群全员成功领好啦，记得去游戏邮箱查收礼物哦～（成功{ok_count}人｜未完成0人）')
+        return titled('自动兑换结果', f'兔子先生，新增兑换码自动兑换已结束，部分用户未能完成（成功{ok_count}人｜未完成{bad_count}人）。')
+    head = ('本群参与本次自动兑换的绑定用户已全员成功兑换（含已领取）。' if not bad_count else
+            '新增兑换码自动兑换已结束，部分用户未能完成。')
+    return titled('自动兑换结果', f'{head}\n成功{ok_count}人｜未完成{bad_count}人')
+
+
+# --- 3. 社区签到 (nikke_community) ---
+
+def community_enable_text(sign_time: str, prefix: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return titled(
+            '自动社区',
+            f'遵命！爱丽丝每天北京时间{sign_time}起会替兔子先生自动签到与浏览社区帖子。'
+            f'（如需自动点赞，可另发 {prefix}自动社区 点赞开启；连续三天失败会自动暂停）',
+        )
+    return titled(
+        '自动社区',
+        f'已授权当前账号每日自动签到及浏览；每天北京时间{sign_time}开始按账号依次执行。'
+        f'如需点赞可另发 {prefix}自动社区 点赞开启；连续三个签到周期失败后自动关闭。',
+    )
+
+
+def community_group_summary_header(counts, day: str, today: bool, complete: bool, *, style: str | None = None) -> str:
+    prefix_day = '今日' if today else day + '周期'
+    status_icon = '✅' if complete else '⚠️'
+    if is_alice_style(style):
+        title = prefix_day + ('自动签到全部办妥啦！' if complete else '自动签到处理结束。')
+        text = f'[AliceUID·社区自动签到] {status_icon} {title}'
+        if complete:
+            text += f'\n📝 嘿嘿，兔子先生，今天的社区签到爱丽丝已经帮大家办好啦～（本群签到成功{counts["成功"]}人，签到失败{counts["失败"]}人，{counts["未开启"]}人尚未开启自动签到）'
+        else:
+            text += f'\n📝 兔子先生，本轮自动签到已处理完毕（本群签到成功{counts["成功"]}人，签到失败{counts["失败"]}人，{counts["未开启"]}人尚未开启自动签到）。'
+        return text
+    title = prefix_day + ('自动签到已完成！' if complete else '自动签到处理结束。')
+    text = f'[AliceUID·社区自动签到] {status_icon} {title}'
+    text += f'\n📝 本群共签到成功{counts["成功"]}人，共签到失败{counts["失败"]}人，{counts["未开启"]}人尚未开启自动签到。'
+    return text
+
+
+# --- 4. 耗时等待提示 (roster / export / profile / character) ---
+
+def wait_roster_generating(*, merged: bool = False, style: str | None = None) -> str:
+    if is_alice_style(style):
+        if merged:
+            return titled('完整卡片', '兔子先生，完整卡片正在为您加紧绘制中，稍微等爱丽丝一小会儿哦～')
+        return titled('完整卡片', '好，爱丽丝正在核对兔子先生的阵容并绘制完整卡片，首次准备头像可能会稍久一点哦～')
+    if merged:
+        return titled('完整卡片', '你的完整卡片正在生成，请稍候。')
+    return titled('完整卡片', '正在核对本人阵容并生成完整卡片，首次准备肖像可能稍久。')
+
+
+def wait_export_running(*, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return titled('练度导出', '兔子先生，您的练度表正在整理发送中，请稍微等爱丽丝一下哦～')
+    return titled('练度导出', '你的练度表正在生成或发送，请稍候；本次不会重复导出。')

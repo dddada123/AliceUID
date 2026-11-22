@@ -10,15 +10,25 @@ class StatusDataError(ValueError):
 
 
 CURRENCIES = (
-    ('钻石',(98,99),'icon-res-pic1.png'),
-    ('芯尘',(3000,),'icon-res-pic6.png'),
-    ('高级招募券',(5200,),'icon-res-pic8.png'),
-    ('招募券',(5100,),'icon-res-pic7.png'),
-    ('信用点',(2000,),'icon-res-pic2.png'),
-    ('战斗数据辑',(1000,),'icon-res-pic5.png'),
-    ('黄金积分券',(12000,),'icon-res-pic3.png'),
-    ('白银积分券',(11000,),'icon-res-pic4.png'),
+    ('钻石',(98,99)),
+    ('芯尘',(3000,)),
+    ('高级招募券',(5200,)),
+    ('招募券',(5100,)),
+    ('信用点',(2000,)),
+    ('战斗数据辑',(1000,)),
+    ('黄金积分券',(12000,)),
+    ('白银积分券',(11000,)),
 )
+CURRENCY_ICONS = {
+    '钻石': 'icon-res-pic1.png',
+    '信用点': 'icon-res-pic2.png',
+    '黄金积分券': 'icon-res-pic3.png',
+    '白银积分券': 'icon-res-pic4.png',
+    '战斗数据辑': 'icon-res-pic5.png',
+    '芯尘': 'icon-res-pic6.png',
+    '招募券': 'icon-res-pic7.png',
+    '高级招募券': 'icon-res-pic8.png',
+}
 HIDDEN = {-1,-99,-9999}
 
 
@@ -77,13 +87,13 @@ def build_resources(basic, daily, *, bind, region, fetched_at, ttl):
         if kind in rows:raise StatusDataError('资源类型重复，无法可靠合计。')
         rows[kind]=integer(row.get('value'),'资源数量')
     items=[]
-    for name,kinds,icon_name in CURRENCIES:
+    for index,(name,kinds) in enumerate(CURRENCIES,1):
         values=[rows.get(kind) for kind in kinds]
         known=all(value is not None and value>=0 for value in values)
         value=sum(values) if known else None
         items.append(dict(name=name,value=compact_number(value) if known else '—',
                           exact=f'{value:,}' if known else '未提供或已隐藏',known=known,
-                          icon_name=icon_name))
+                          icon_name=CURRENCY_ICONS.get(name, f'icon-res-pic{index}.png')))
     return dict(identity(bind,region,fetched_at,ttl),kind='resources',title='我的资源',items=items,
                 fetched_at_epoch=fetched_at,
                 **storage_fields(daily, fetched_at),

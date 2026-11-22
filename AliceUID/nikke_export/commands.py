@@ -102,17 +102,19 @@ async def _thread_render(snapshot, bind, options=None):
 async def _export(bot, ev, options=None):
     options = options or ExportOptions()
     at_sender = bool(getattr(ev, 'group_id', None))
+    from ..nikke_message.persona import send_reply
     if not await access(ev):
-        await bot.send('当前用户或群未开放妮姬练度导出，请联系管理员。', at_sender=at_sender)
+        await send_reply(bot, ev, '当前用户或群未开放妮姬练度导出，请联系管理员。', at_sender=at_sender)
         return
     try:
         require_available(options)
     except ExportError as exc:
-        await bot.send(str(exc).replace('nk', command_prefix()), at_sender=at_sender)
+        await send_reply(bot, ev, str(exc).replace('nk', command_prefix()), at_sender=at_sender)
         return
     owner = (str(ev.user_id), str(ev.bot_id))
     if owner in _active:
-        await bot.send('你的练度表正在生成或发送，请稍候；本次不会重复导出。', at_sender=at_sender)
+        from ..nikke_message.persona import wait_export_running
+        await send_reply(bot, ev, wait_export_running(), at_sender=at_sender)
         return
     _active.add(owner)
     client = None

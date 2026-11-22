@@ -58,8 +58,7 @@ async def _query(bot,ev,kind):
                     prepared=await resource_status.prepare_image(client,bind,refresh=text=='刷新',
                         actor=(ev.user_id,ev.bot_id),still_current=lambda:_current(ev,bind),
                         on_snapshot=lambda context:_observe_harvest(bind,context))
-                    result=[MessageSegment.image(prepared.image),
-                            '成功出图后5分钟内复用缓存图片；没有可用缓存图时重新同步并生成。']
+                    result=[MessageSegment.image(prepared.image)]
                 else:
                     context=await union_queries.query_bosses(client,bind,refresh=text=='刷新')
                     if not await _current(ev,bind):return

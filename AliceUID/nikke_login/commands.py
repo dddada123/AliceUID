@@ -79,7 +79,7 @@ async def nikke_login_cmd(bot: Bot, ev: Event):
     if active is not None:
         url = f"{get_base_url()}/nikke/i/{active.token}"
         await _send_login_link(bot,
-            f"已有「{REGIONS[active.area_id].label}」登录正在处理，请继续原链接完成验证：\n{url}\n"
+            f"[AliceUID·账号绑定]\n已有「{REGIONS[active.area_id].label}」登录正在处理，请继续原链接完成验证：\n{url}\n"
             "本次未更换区服；完成或超时后再重新选择。",
             url, ev=ev,
         )
@@ -91,7 +91,7 @@ async def nikke_login_cmd(bot: Bot, ev: Event):
     session.mode = "cookie" if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" else "password"
     url = f"{base_url}/nikke/i/{session.token}"
     text = (
-        f"NIKKE 账号绑定 · {REGIONS[area_id].label}\n"
+        f"[AliceUID·账号绑定]\n区服：{REGIONS[area_id].label}\n"
         f"请在{ttl // 60}分钟内打开下一条链接，登录账号或导入Cookie。\n"
         f"{url}\n\n"
         "仅绑定所选区服，不自动换区。\n"
@@ -127,7 +127,7 @@ async def nikke_relogin_cmd(bot: Bot, ev: Event):
     session.mode = "cookie" if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" else "password"
     url = f"{base_url}/nikke/i/{session.token}"
     method = "导入新Cookie" if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" else "登录原blablalink账号或导入其Cookie"
-    text = (f"NIKKE 重新登录 · {REGIONS[bind.area_id].label}\n请在{ttl // 60}分钟内打开链接，{method}：\n{url}\n"
+    text = (f"[AliceUID·重新登录]\n区服：{REGIONS[bind.area_id].label}\n请在{ttl // 60}分钟内打开链接，{method}：\n{url}\n"
             "仅更新本人同账号同区服的Cookie；失败保留原绑定。链接仅供本人使用，请勿转发。\n"
             "更新后自动社区授权需重新开启，每日预算不会重置。\n" + expiry_notice(bind.cookie_expire))
     await _send_login_link(bot, text, url, ev=ev)
@@ -170,20 +170,21 @@ async def _notify_login(bot: Bot, ev: Event, token: str):
             return
         if session.status == "success":
             text = (
-                f"{'重新登录' if session.replace_revision else '绑定'}成功：{session.nickname or '未知'}（{session.area_label}）\n"
+                f"[AliceUID·账号绑定]\n{'重新登录' if session.replace_revision else '绑定'}成功：{session.nickname or '未知'}（{session.area_label}）\n"
                 f"回到聊天窗口发送 {command_prefix()}我的账号 查看绑定。\n"
                 + _login_guidance() + "\n"
                 "正在后台准备本人资料、角色练度与皮肤缓存，完成后自动发送最新信息卡。\n" + expiry_notice(session.cookie_expire)
             )
         elif session.status == "failed" and failed_generation != session.generation:
             failed_generation = session.generation
-            text = (f"{'重新登录' if session.replace_revision else '绑定'}失败：{session.error or '未知错误'}\n"
+            text = (f"[AliceUID·账号绑定]\n{'重新登录' if session.replace_revision else '绑定'}失败：{session.error or '未知错误'}\n"
                     "若链接仍有效，可在原页面重试；成功后会再次通知。")
         else:
             continue
         completed = session.status == "success"
         try:
-            await bot.send(text, at_sender=True)
+            from ..nikke_message.persona import send_reply
+            await send_reply(bot, ev, text, at_sender=True)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -243,17 +244,23 @@ async def nikke_unbind_cmd(bot: Bot, ev: Event):
     except Exception as exc:
         logger.error(f'[AliceUID] 登录绑定已解除但突袭缓存清理未确认 error_type={type(exc).__name__}')
         cache_notice += '\n登录绑定已解除；个人突袭缓存清理未确认，请管理员检查日志。'
-    await bot.send(f"已解绑「{bind.nickname or '未知'}」，本地 Cookie 已删除。" + cache_notice, at_sender=True)
+    try:
+        from ..nikke_message.persona import send_reply, titled
+    except (ImportError, KeyError):
+        await bot.send(f"[AliceUID·账号绑定]\n已解绑「{bind.nickname or '未知'}」，本地 Cookie 已删除。" + cache_notice, at_sender=True)
+        return
+    await send_reply(bot, ev, titled('账号绑定', f"已解绑「{bind.nickname or '未知'}」，本地 Cookie 已删除。" + cache_notice), at_sender=True)
 
 
 @sv_account.on_fullmatch(("我的账号", "账号信息"))
 @account_errors
 async def nikke_account_cmd(bot: Bot, ev: Event):
+    from ..nikke_message.persona import send_reply, titled
     bind = await AliceBind.get_bind(ev.user_id, ev.bot_id)
     if not bind:
-        await bot.send(f"还没有绑定登录账号。UID登记请发送 {command_prefix()}我的UID 查看；本人练度查询需先发送 {command_prefix()}登录 选择区服。", at_sender=True)
+        await send_reply(bot, ev, f"还没有绑定登录账号。UID登记请发送 {command_prefix()}我的UID 查看；本人练度查询需先发送 {command_prefix()}登录 选择区服。", at_sender=True)
         return
-    await bot.send(bind_summary(bind), at_sender=True)
+    await send_reply(bot, ev, titled('账号绑定', bind_summary(bind)), at_sender=True)
 
 
 @sv_account.on_command(("导入cookie", "导入Cookie", "绑定cookie"))
@@ -384,7 +391,7 @@ def _account_list_pages(binds, *, masked):
     for bind in binds:
         groups.update((str(getattr(bind, 'bot_id', '')), group)
                       for group in str(getattr(bind, 'group_id', '') or '').split('_') if group)
-    summary = f'账号绑定概览\n当前绑定覆盖 {len(groups)} 个群组，共 {len(ordered)} 个账号。'
+    summary = f'[AliceUID·账号列表]\n当前绑定覆盖 {len(groups)} 个群组，共 {len(ordered)} 个账号。'
     if masked:
         summary += '\nQQ号仅保留前后两位。'
     lines = []

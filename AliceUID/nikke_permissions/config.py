@@ -126,6 +126,11 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                     self.config[WIDE_ART_SCALE_KEY].data = normalize_wide_art_scale_offset(
                         self.config[WIDE_ART_SCALE_KEY].data
                     )
+                from ..nikke_message.persona import NOTICE_STYLE_KEY, normalize_notice_style
+                if NOTICE_STYLE_KEY in self.config:
+                    self.config[NOTICE_STYLE_KEY].data = normalize_notice_style(
+                        self.config[NOTICE_STYLE_KEY].data
+                    )
                 # Reconcile/serialize in the same UI order, retaining unknown user keys.
                 ordered = {key: self.config[key] for key in self.config_list if key in self.config}
                 ordered.update({key: value for key, value in self.config.items() if key not in ordered})
@@ -175,6 +180,11 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                             value = str(parse_wide_art_scale_offset(value))
                         except ValueError:
                             return False
+                    from ..nikke_message.persona import NOTICE_STYLES, NOTICE_STYLE_KEY, normalize_notice_style
+                    if key == NOTICE_STYLE_KEY:
+                        if not isinstance(value, str) or value not in (*NOTICE_STYLES, 'alice', 'plain'):
+                            return False
+                        value = normalize_notice_style(value)
                     if key == 'AliceUID_ForwardReceiptSeconds':
                         if type(value) is not int or not 5 <= value <= 300:
                             return False

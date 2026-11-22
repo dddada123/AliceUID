@@ -61,31 +61,34 @@ async def nikke_bind_uid_cmd(bot: Bot, ev: Event):
     except Exception as exc:  # noqa: BLE001
         await bot.send(_failure("bind", exc), at_sender=True)
         return
-    await bot.send("UID登记已保存。\n" + format_summary(record), at_sender=True)
+    from ..nikke_message.persona import send_reply, titled
+    await send_reply(bot, ev, titled("UID信息", "UID登记已保存。\n" + format_summary(record)), at_sender=True)
 
 
 @sv_uid.on_command(("我的UID", "我的uid"), block=True)
 async def nikke_my_uid_cmd(bot: Bot, ev: Event):
+    from ..nikke_message.persona import send_reply, titled
     if (ev.text or "").strip():
-        await bot.send(f"直接发送 {command_prefix()}我的UID 即可查看自己的登记，无需附加UID。", at_sender=True)
+        await send_reply(bot, ev, f"直接发送 {command_prefix()}我的UID 即可查看自己的登记，无需附加UID。", at_sender=True)
         return
     try:
         record = get_uid_store().get(ev.user_id, ev.bot_id)
     except Exception as exc:  # noqa: BLE001
-        await bot.send(_failure("get", exc), at_sender=True)
+        await send_reply(bot, ev, _failure("get", exc), at_sender=True)
         return
-    await bot.send(format_summary(record), at_sender=True)
+    await send_reply(bot, ev, titled("UID信息", format_summary(record)), at_sender=True)
 
 
 @sv_uid.on_command(("解绑UID", "解绑uid"), block=True)
 async def nikke_clear_uid_cmd(bot: Bot, ev: Event):
+    from ..nikke_message.persona import send_reply, titled
     if (ev.text or "").strip():
-        await bot.send(f"直接发送 {command_prefix()}解绑UID 即可清除自己的登记，无需附加UID。", at_sender=True)
+        await send_reply(bot, ev, f"直接发送 {command_prefix()}解绑UID 即可清除自己的登记，无需附加UID。", at_sender=True)
         return
     try:
         removed = get_uid_store().clear(ev.user_id, ev.bot_id)
     except Exception as exc:  # noqa: BLE001
-        await bot.send(_failure("clear", exc), at_sender=True)
+        await send_reply(bot, ev, _failure("clear", exc), at_sender=True)
         return
     text = "已清除你的UID登记。" if removed else "你还没有登记UID。"
-    await bot.send(text + f"账号登录请使用 {command_prefix()}登录日服 等区服命令；退出登录请使用 {command_prefix()}解绑。", at_sender=True)
+    await send_reply(bot, ev, titled("UID信息", text + f"账号登录请使用 {command_prefix()}登录日服 等区服命令；退出登录请使用 {command_prefix()}解绑。"), at_sender=True)

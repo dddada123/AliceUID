@@ -168,16 +168,38 @@ async def _summary_allowed(route):
 
 async def _send_summary(route, text):
     from gsuid_core.gss import gss
+    from ..nikke_message.persona import sign_notice_forward_enabled
     transport = gss.active_bot.get(route['ws_id'])
     if transport is None or not await _summary_allowed(route):
         return None
+    raw_text = text.get('text', '') if isinstance(text, dict) else (text if isinstance(text, str) else '')
+    if isinstance(raw_text, str) and '\n\n异常详情' in raw_text and sign_notice_forward_enabled():
+        from gsuid_core.segment import MessageSegment
+        if hasattr(MessageSegment, 'node'):
+            parts = raw_text.split('\n\n', 1)
+            node = MessageSegment.node([MessageSegment.text(p) for p in parts if p])
+            try:
+                res = await transport.target_send(
+                    node, 'group', route['group_id'], route['bot_id'], route['self_id'],
+                    group_id=route['group_id'], at_sender=False, wait_recall=True,
+                )
+                if res is not None and res is not False:
+                    return res
+            except Exception:
+                pass
     if isinstance(text, dict):
         from gsuid_core.segment import MessageSegment
-        content = []
-        for actor in dict.fromkeys(text.get('mentions', [])):
-            if isinstance(actor, str) and actor.isascii() and actor.isdigit() and 0 < len(actor) <= 20:
-                content.extend([MessageSegment.at(actor), MessageSegment.text(' ')])
-        content.append(MessageSegment.text(text['text']))
+        content = [MessageSegment.text(text['text'])]
+        mentions = [
+            actor for actor in dict.fromkeys(text.get('mentions', []))
+            if isinstance(actor, str) and actor.isascii() and actor.isdigit() and 0 < len(actor) <= 20
+        ]
+        if mentions:
+            content.append(MessageSegment.text('\n'))
+            for idx, actor in enumerate(mentions):
+                if idx:
+                    content.append(MessageSegment.text(' '))
+                content.append(MessageSegment.at(actor))
         text = content
     return await transport.target_send(text, 'group', route['group_id'], route['bot_id'],route['self_id'],
                                        group_id=route['group_id'],at_sender=False,wait_recall=True)

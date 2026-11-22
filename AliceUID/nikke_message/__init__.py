@@ -4,8 +4,12 @@ import asyncio
 from collections import OrderedDict
 from time import monotonic
 
-from gsuid_core.logger import logger
-from gsuid_core.segment import MessageSegment
+try:
+    from gsuid_core.logger import logger
+    from gsuid_core.segment import MessageSegment
+except ImportError:  # Standalone tests import submodules without Core runtime.
+    logger = None
+    MessageSegment = None
 from .images import prepare_forward_content
 
 # Connection metadata only, no image/user content. Bound storage and give a stuck

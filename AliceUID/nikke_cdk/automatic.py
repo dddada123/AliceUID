@@ -196,8 +196,12 @@ class Automatic:
             labels = {'official': '官方', 'gamewith': 'GameWith', 'member': '群友贡献'}
             sources = sorted({labels[x] for item in items for x in item.get('sources', []) if x in labels})
             codes = '\n'.join(dict.fromkeys(item['code'] for item in items))
-            notice = ('新绑定账号，正在核对当前有效兑换码。' if only_user is not None else
-                      f'在 {" / ".join(sources) or "共享库存"} 发现新增兑换码：\n{codes}\n正在执行自动兑换任务。')
+            from ..nikke_message.persona import cdk_auto_start_notice
+            notice = cdk_auto_start_notice(
+                ' / '.join(sources) or '共享库存',
+                codes,
+                only_user=only_user is not None,
+            )
             for ev in groups.values():
                 await self.safe_notify(ev, ev.group_id, notice)
             outcomes = defaultdict(list)
@@ -282,13 +286,9 @@ class Automatic:
             for target, results in outcomes.items():
                 if not target[2] and only_user is None:
                     continue
+                from ..nikke_message.persona import cdk_auto_group_summary
                 bad = [(row, state) for row, state in results if state != 'ok']
-                text = ('本群参与本次自动兑换的绑定用户已全员成功兑换（含已领取）。' if not bad else
-                        '新增兑换码自动兑换已结束，部分用户未能完成。')
-                if only_user is not None:
-                    text = '新绑定账号兑换码核对完成。' if not bad else '新绑定账号兑换码核对未全部完成。'
-                text += f'\n成功{len(results)-len(bad)}人｜未完成{len(bad)}人'
-                text += '\n已静默核对当前全部有效兑换码，结果已记录。'
+                text = cdk_auto_group_summary(len(results), len(bad), only_user=only_user is not None)
                 if abort:
                     text += '\n' + abort
                 for row, state in bad:

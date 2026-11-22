@@ -65,7 +65,7 @@ async def _roster_worker(bot, event, policy):
             diagnostic_event('完整卡片','发送','START',bytes=len(data))
             result = await send_with_forward(bot, event, MessageSegment.image(data),
                                              config_key='AliceUID_RosterForward',
-                                             title=f'AliceUID·{display_name(getattr(bind, "nickname", ""), "未知指挥官")}·图鉴展示')
+                                             title=f'[AliceUID·图鉴展示·{display_name(getattr(bind, "nickname", ""), "未知指挥官")}]')
             diagnostic_event('完整卡片','发送','OK' if result is not False else 'FAILED')
             if result is not False:
                 service.mark_sent(prepared)
@@ -96,12 +96,19 @@ async def queue_roster(bot, event, policy):
     if not await allowed(policy, event):
         await bot.send('当前用户或群未开放妮姬查询，请联系管理员。', at_sender=True)
         return
+    try:
+        from ..nikke_message.persona import send_reply, wait_roster_generating
+    except ImportError:
+        async def send_reply(b, e, p, *, at_sender=True, newline=False):
+            return await b.send(p, at_sender=at_sender)
+        def wait_roster_generating(*, merged=False, style=None):
+            return '[AliceUID·完整卡片]\n' + ('正在合并重复请求，完整卡片生成中，请稍候。' if merged else '正在准备完整卡片，请稍候。')
     key = (str(event.user_id), str(event.bot_id))
     async with _queue_locks.setdefault(key, asyncio.Lock()):
         if key in _tasks and not _tasks[key].done():
-            await bot.send('你的完整卡片正在生成，请稍候；已合并重复请求。', at_sender=True)
+            await send_reply(bot, event, wait_roster_generating(merged=True), at_sender=True)
             return
-        await bot.send('正在核对本人阵容并生成完整卡片，首次准备肖像可能稍久。', at_sender=True)
+        await send_reply(bot, event, wait_roster_generating(merged=False), at_sender=True)
         task = asyncio.create_task(roster_worker(bot, event, policy))
         _tasks[key] = task
     def done(completed):

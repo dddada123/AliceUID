@@ -1,4 +1,10 @@
-﻿# 1.2.18 · 2026-11-22
+﻿# 1.2.19 · 2026-11-22
+
+- 新增 `nikke_message/persona.py` 统一管理 `AliceUID_NoticeStyle`（`爱丽丝风格` 默认 / `默认说明文`）双文风渲染，接入 `nikke_harvest`、`nikke_cdk`、`nikke_community`、`nikke_roster`、`nikke_export`。
+- `nikke_status/commands.py` 移除 `nk资源查询` 出图后附带的冗余缓存规则文本（保留单元素 `[MessageSegment.image(...)]` 列表）。
+- `nikke_community/notifications.py` 的 `messages()` 按 `(reason, attempts, signed, stopped, streak)` 合并同原因异常人员列表（每批最多 10 人共用一条原因与处理说明）；`nikke_community/runtime.py` `_send_summary` 新增 `AliceUID_SignNoticeForward`（默认 `True`）合并转发支持与普通发送回退。
+
+# 1.2.18 · 2026-11-22
 
 - 全量剩余卡片（`help.html`、`aliases.html`、`status.html` bosses 分支、`union.html`、`solo.html`、`roster.html`）接入 `alice_v2_tokens.css` 与 `v2_theme_tokens`（暗版 `#F6C15C`、亮版 `#D43D51`）及 `apply_font_html(..., embed=False)`。
 - `nikke_status/builder.py` 的 `CURRENCIES` 重排并显式绑定图标文件名；`nikke_status/draw.py` 配置 8 色条纹（`blue`/`red`/`gold`/`silver`/`rainbow`）与 `_chevron_pattern_uri()` 保管箱充能纹理，`bosses` 渲染宽度收窄至 `800px`，`render_version` 升级为 `alice-v1218-bento-status-1`。

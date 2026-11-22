@@ -135,55 +135,87 @@ def summarize(service, rows, route, day, processed, *, allowed=lambda _:True, in
         return None
     return counts
 
-def message(counts, day, now):
+def message(counts, day, now, *, style=None):
+    from ..nikke_message.persona import community_group_summary_header
     complete = not any(counts[k] for k in ('失败','未确认','暂停','未执行'))
     today = cycle_day(now) == day
-    title = ('今日' if today else day+'周期') + ('自动签到已完成！' if complete else '自动签到处理结束。')
-    text = ('✅' if complete else '⚠️') + ' [AliceUID] NIKKE' + title
-    text += f'\n📝 本群共签到成功{counts["成功"]}人，共签到失败{counts["失败"]}人，{counts["未开启"]}人尚未开启自动签到。'
+    text = community_group_summary_header(counts, day, today, complete, style=style)
     extra = '，'.join(f'{label}{counts[label]}人' for label in ('未确认','暂停','未执行','未绑定','权限受限','绑定冲突','后续任务暂停') if counts[label])
     if extra:
         text += '\n' + extra + '。'
-    text += f'\n统计范围：本群绑定或近30天使用过{command_prefix()}命令的已知用户。'
     if not today:
         text += '\n' + cycle_label(day)
     return text
 
-def messages(counts, day, now, *, structured=False):
-    header=message(counts,day,now)
-    details=getattr(counts,'details',[])
-    if not details:
-        return [header]
-    blocks=[]
-    for item in details:
-        name=(item['nickname']+' ' if item['nickname'] else '')+f'（QQ：{item["actor"]}）'
-        text=name+'\n原因：'+item['reason']
-        if item['attempts']:
-            text+=f'；共尝试{item["attempts"]}轮。'
-        if not item['signed']:
-            if item['stopped']:
-                text+=f'\n处理：连续{item["streak"]}个周期未能确认成功，已自动关闭自动签到。'
-                text+=f'请本人{command_prefix()}重新登录以恢复此前授权；网络恢复后也可{command_prefix()}自动社区 开启。'
-            elif item['streak']:
-                text+=f'\n处理：连续失败{item["streak"]}/3天，自动签到保持开启，下个周期继续。'
-        mentions = []
-        if not item['signed']:
-            text += f'\nCOOKIE 可能已过期，请发送 {command_prefix()}重新登录；如为网络或服务异常，请稍后检查。'
+
+def _format_merged_error_group(items, sig):
+    reason, attempts, signed, stopped, streak = sig
+    member_lines = [
+        (item['nickname'] + ' ' if item['nickname'] else '') + f'（QQ：{item["actor"]}）'
+        for item in items
+    ]
+    text = '、'.join(member_lines) if len(member_lines) > 1 else member_lines[0]
+    text += '\n原因：' + reason
+    if attempts:
+        text += f'；共尝试{attempts}轮。'
+    mentions = []
+    if not signed:
+        if stopped:
+            text += f'\n处理：连续{streak}个周期未能确认成功，已自动关闭自动签到。'
+            text += f'请本人{command_prefix()}重新登录以恢复此前授权；网络恢复后也可{command_prefix()}自动社区 开启。'
+        elif streak:
+            text += f'\n处理：连续失败{streak}/3天，自动签到保持开启，下个周期继续。'
+        text += f'\nCOOKIE 可能已过期，请发送 {command_prefix()}重新登录；如为网络或服务异常，请稍后检查。'
+        for item in items:
             actor = str(item['actor'])
             if actor.isascii() and actor.isdigit() and 0 < len(actor) <= 20:
                 mentions.append(actor)
-        blocks.append((text, mentions))
-    pages=[]
-    chunk=[];length=0;mentions=[]
-    for block, actors in blocks:
-        if chunk and (len(chunk)>=10 or length+len(block)>1800):
-            pages.append(('\n\n'.join(chunk),mentions));chunk=[];length=0;mentions=[]
-        chunk.append(block);length+=len(block);mentions.extend(actors)
-    if chunk:pages.append(('\n\n'.join(chunk),mentions))
-    output=[]
-    for i,(page,actors) in enumerate(pages):
-        text=(header if i==0 else '[AliceUID] 签到异常明细')+f'\n\n异常详情（{i+1}/{len(pages)}）：\n'+page
-        output.append(dict(text=text,mentions=list(dict.fromkeys(actors))) if structured and actors else text)
+    return text, mentions
+
+
+def messages(counts, day, now, *, structured=False, style=None):
+    header = message(counts, day, now, style=style)
+    details = getattr(counts, 'details', [])
+    if not details:
+        return [header]
+    grouped = {}
+    for item in details:
+        sig = (
+            item['reason'],
+            item.get('attempts', 0),
+            bool(item.get('signed')),
+            bool(item.get('stopped')),
+            item.get('streak', 0),
+        )
+        grouped.setdefault(sig, []).append(item)
+    blocks = []
+    for sig, group_items in grouped.items():
+        for start in range(0, len(group_items), 10):
+            batch = group_items[start:start + 10]
+            block_text, batch_mentions = _format_merged_error_group(batch, sig)
+            blocks.append((block_text, batch_mentions, len(batch)))
+    pages = []
+    chunk = []
+    length = 0
+    count_members = 0
+    mentions = []
+    for block, actors, member_cnt in blocks:
+        if chunk and (count_members + member_cnt > 10 or length + len(block) > 1800):
+            pages.append(('\n\n'.join(chunk), mentions))
+            chunk = []
+            length = 0
+            count_members = 0
+            mentions = []
+        chunk.append(block)
+        length += len(block)
+        count_members += member_cnt
+        mentions.extend(actors)
+    if chunk:
+        pages.append(('\n\n'.join(chunk), mentions))
+    output = []
+    for i, (page, actors) in enumerate(pages):
+        text = (header if i == 0 else '[AliceUID·签到异常明细]') + f'\n\n异常详情（{i+1}/{len(pages)}）：\n' + page
+        output.append(dict(text=text, mentions=list(dict.fromkeys(actors))) if structured and actors else text)
     return output
 
 

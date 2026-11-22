@@ -117,9 +117,10 @@ def segments(batch, now):
     kind = batch[0][0]['kind']
     message = [MessageSegment.text(title(kind)+'\n')]
     for note, sub in batch:
+        message.append(MessageSegment.text(body(kind, note['snapshot'], now)))
         if sub['route']['kind'] == 'group':
-            message.extend([MessageSegment.at(sub['route']['user']), MessageSegment.text('  ')])
-        message.append(MessageSegment.text(body(kind, note['snapshot'], now)+'\n'))
+            message.extend([MessageSegment.text(' '), MessageSegment.at(sub['route']['user'])])
+        message.append(MessageSegment.text('\n'))
     end = footer(kind, batch[0][1]['quiet'], command_prefix())
     if end:
         message.append(MessageSegment.text(end))

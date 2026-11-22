@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.2.18-ff69b4?style=flat-square" alt="Version: 1.2.18"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.2.19-ff69b4?style=flat-square" alt="Version: 1.2.19"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
@@ -37,9 +37,10 @@
 
 ---
 
-> **当前版本：1.2.18**
+> **当前版本：1.2.19**
 >
-> - **全卡片 Bento 战术玻璃 v2 大统一**：`nk帮助`、`nk别名查询`、`nk会战血量`、`nk出刀`（速查/详情/缺刀/尾刀）、`nk个人突袭推荐` 与 `nk卡片`（平直无缝一体卡）全面升级为暗版琥珀金 / 亮版珊瑚红统一视觉；`nk资源查询` 重排资源顺序并新增 8 色顶部条纹（含高级招募券彩虹条）与保管箱 `>>>>>>` 充能进度条。
+> - **爱丽丝 / 说明文双风格通知与签到异常合并转发**：后台支持一键切换 `爱丽丝风格`（默认）与 `默认说明文`，覆盖收菜提醒、签到、兑换码、群播报与等待提示；每日签到异常名单自动按报错原因合并人员并默认以合并转发消息发送（`AliceUID_SignNoticeForward`），同时清理 `nk资源查询` 等多处冗余规则说明。
+> - **全卡片 Bento 战术玻璃 v2 大统一**：全量卡片统一为暗版琥珀金 / 亮版珊瑚红视觉，支持横版大立绘 `-100%` ~ `+100%` 自定义缩放；`nk资源查询` 配备 8 色顶部条纹与保管箱 `>>>>>>` 充能进度条。
 > - **爱丽丝专属兑换码提醒与结果标识**：使用 `nk兑换码ABCDEFG` 命中本地已有兑换记录时，爱丽丝将用专属口吻告知兔子先生已兑换时间；批量兑换汇总行非零项自动附带状态 Emoji（`✅`/`❗`/`❌`/`❓`）。
 > - **稳定三档串行查询**：游戏查询提供高速（1 秒）/ 中速（推荐，默认 2 秒）/ 缓速（5 秒）三档串行速率；默认指令前缀为 `nk`，可在 Core 插件管理中自定义。
 

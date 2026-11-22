@@ -39,7 +39,7 @@ def listing(report, prefix, *, include_summary=True):
 
 
 def quick_listing(report, prefix):
-    lines = ['[AliceUID]兑换码速查']
+    lines = ['[AliceUID·兑换码速查]']
     lines.extend(item['code'] for item in report['items'])
     if not report['items']:
         lines.append('当前暂无可用兑换码' if report.get('complete') else '暂时没有可用兑换码，请稍后再查')
@@ -56,16 +56,14 @@ def alice_redeemed_time_text(updated) -> str:
     return '此前'
 
 
-def alice_already_redeemed_text(code: str, updated) -> str:
+def alice_already_redeemed_text(code: str, updated, *, style: str | None = None) -> str:
+    from ..nikke_message.persona import cdk_already_redeemed_text
     when = alice_redeemed_time_text(updated)
-    return (
-        f'[AliceUID] 兔子先生，这个兑换码（{code}）爱丽丝已经在 {when} 帮你悄悄兑好啦！'
-        '礼物已经在游戏邮箱里乖乖等着你，快上线查收吧～'
-    )
+    return cdk_already_redeemed_text(code, when, style=style)
 
 
 def result_text(results, *, all_claimed_note: bool = False):
-    lines = ['兑换结果']
+    lines = ['[AliceUID·兑换结果]']
     for row in results:
         label = {'success': '兑换成功✅', 'claimed': '已领取✅'}.get(row['status'], row['result'])
         if row['status'] != 'claimed':
@@ -88,7 +86,8 @@ def result_text(results, *, all_claimed_note: bool = False):
         ]
     ))
     if all_claimed_note and results and counts['success'] == 0 and counts['claimed'] > 0 and counts['failed'] == 0 and counts['uncertain'] == 0:
-        lines.append('兔子先生，当前所有有效兑换码爱丽丝都帮你领完啦，快去游戏邮箱看看吧～')
+        from ..nikke_message.persona import cdk_all_claimed_note
+        lines.append(cdk_all_claimed_note())
     return '\n'.join(lines)
 
 
@@ -106,7 +105,7 @@ def detail_header(kind, bind):
     name = label(getattr(bind, 'nickname', ''), '未知指挥官' if bind else '未绑定')
     area = region.label if region else ('未知区服' if bind else '未绑定')
     uid = label(getattr(bind, 'uid', ''), '未取得' if bind else '未绑定')
-    return f'[AliceUID]{kind}\n指挥官：{name}\n区服：{area}｜UID：{uid}'
+    return f'[AliceUID·{kind}]\n指挥官：{name}\n区服：{area}｜UID：{uid}'
 
 
 class _DeliveryBot:
@@ -206,10 +205,11 @@ class Commands:
         return result is not False
 
     async def send(self, bot, ev, text, bind=None, *, at_sender=True):
+        from ..nikke_message.persona import send_reply
         for page in pages(text):
             if not await self.allowed(ev) or (bind is not None and not await self.current(ev, bind)):
                 return False
-            if await bot.send(page, at_sender=at_sender) is False:
+            if await send_reply(bot, ev, page, at_sender=at_sender) is False:
                 return False
         return True
 

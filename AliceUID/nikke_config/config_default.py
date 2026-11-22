@@ -119,6 +119,12 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         "以新版默认比例为 0 基准，支持填写 -100 到 +100（可带 %，如 -10、+15、-20%），正数放大、负数缩小；仅影响横版角色练度卡片大立绘，保存后新查询自动生效。",
         "0",
     ),
+    'AliceUID_NoticeStyle': GsStrConfig(
+        "通知与提示文案风格",
+        "控制收菜提醒、社区签到、兑换码回执、群播报及等待提示的说话口吻；登录说明、安全提示、报错与管理命令始终保持清晰说明文。默认爱丽丝风格，保存后立即生效。",
+        "爱丽丝风格",
+        options=["爱丽丝风格", "默认说明文"],
+    ),
     'AliceUID_SoloCardTheme': GsStrConfig(
         "个人突袭推荐卡片主题（独立）", "只影响个人突袭推荐卡片，默认暗色；可选亮色或随机，不跟随其他卡片主题。查询时可用亮色/暗色/随机参数临时指定。毛玻璃强度仍使用全局设置。", "dark", options=["light","dark","random"],
     ),
@@ -161,6 +167,11 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
     'AliceUID_AccountListForward': GsBoolConfig(
         "账号列表用转发消息",
         "默认开启。Bot管理员查看绑定概览与编号列表；群内QQ仅保留前后两位，中间****。转发不可用时分页普通发送，保持同样脱敏。",
+        True,
+    ),
+    'AliceUID_SignNoticeForward': GsBoolConfig(
+        "每日签到异常名单用转发消息",
+        "默认开启。当每日自动签到出现报错或异常人员时，合并相同报错原因的人员列表并以合并转发消息发送；关闭或转发不可用时回退普通消息。",
         True,
     ),
     'AliceUID_CDKForward': GsBoolConfig(

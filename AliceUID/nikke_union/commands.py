@@ -34,9 +34,16 @@ async def _send(bot, ev, message, *, title=None, caption=None):
         from ..nikke_message import send_with_forward
         await send_with_forward(bot, ev, [message, caption] if caption else message,
                                 config_key='AliceUID_UnionForward', at_sender=False,
-                                title=title or 'AliceUID·当前公会-出刀统计')
+                                title=title or '[AliceUID·出刀统计·当前公会]')
     else:
-        await bot.send(message, at_sender=True)
+        try:
+            from ..nikke_message.persona import send_reply
+        except ImportError:
+            send_reply = None
+        if send_reply is not None:
+            await send_reply(bot, ev, message, at_sender=True)
+        else:
+            await bot.send(message, at_sender=True)
 
 
 def parse_arguments(text):
@@ -116,7 +123,7 @@ async def nikke_union_cmd(bot, ev):
                 context.update(_cache_scope=panel_identity(bind), _current=current_card)
                 from .draw import draw_union
                 from ..nikke_message import display_name
-                forward_title = f'AliceUID·{display_name(context.get("guild_name"), "当前公会")}-出刀统计'
+                forward_title = f'[AliceUID·出刀统计·{display_name(context.get("guild_name"), "当前公会")}]'
                 result = MessageSegment.image(await draw_union(context))
     except (UnionDataError, UnionCooldown) as exc:
         result = str(exc)
