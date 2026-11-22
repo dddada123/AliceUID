@@ -76,7 +76,11 @@
     <div class="track-outer">
       <span class="mark-90-label">90%</span>
       <div class="track">
-        <div class="fill" style="width:{{ storage_width }}%;background:{{ storage_fill_gradient }}"></div>
+        <div class="fill" style="width:{{ storage_width }}%;background:{{ storage_fill_gradient }}">
+          {% if chevron_pattern_uri %}
+          <div class="fill-chevrons" style="background:url('{{ chevron_pattern_uri }}') repeat-x left center"></div>
+          {% endif %}
+        </div>
         <div class="mark-90"></div>
       </div>
     </div>
@@ -111,30 +115,88 @@
 </div>
 </body>
 {% else %}
+<title>{{ title }} · AliceUID</title>
 <style>
-*{box-sizing:border-box}body{margin:0;width:1000px;color:{{ theme.ink }};font:16px 'Microsoft YaHei','Noto Sans CJK SC',sans-serif}
-.status-page{width:1000px;padding:24px;background-color:{{ theme.page }};background-image:url('{{ frost_scene_uri }}');background-size:cover;background-repeat:no-repeat;background-position:center top}
-.hero,.resource,.storage,.boss,.notice{border:1px solid {{ theme.line }};border-radius:20px;background:{{ theme.surface_glass }};background-image:none;box-shadow:0 6px 20px #0812201a,inset 0 1px #ffffff26}
-.hero{padding:24px;margin-bottom:16px}.hero-top{display:flex;justify-content:space-between;align-items:center;gap:20px}.brand{text-align:right;flex:none;color:{{ theme.accent }};font-size:14px;letter-spacing:1px}.brand span{display:block;font-size:12px;color:{{ theme.muted }};letter-spacing:0;margin-top:4px}
-h1{font-size:32px;line-height:1.25;margin:6px 0 10px}h2{font-size:21px;margin:0}.eyebrow{font-size:12px}.subtitle,.muted{color:{{ theme.muted }};line-height:1.7;font-size:14px}
-.track{height:12px;border-radius:8px;overflow:hidden;background:{{ theme.soft }}}.fill{height:12px;border-radius:8px;background:{{ theme.accent }}}
-.boss-list{display:flex;flex-direction:column;gap:12px}.boss{padding:22px 24px}.boss-head{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:10px}.boss h2{font-size:23px;max-width:720px;overflow-wrap:anywhere}.boss-index{color:{{ theme.accent }};margin-right:10px}.hp-value{font-size:16px;text-align:right;line-height:24px;font-weight:700;font-variant-numeric:tabular-nums;margin:0 0 12px;overflow-wrap:anywhere}.phase{display:flex;gap:12px;margin-top:12px;flex-wrap:wrap}.phase span{padding:8px 14px;background:{{ theme.container_glass }};border:1px solid {{ theme.line }};border-radius:10px}
-.phase{align-items:center}.phase span{display:flex;align-items:center;justify-content:center;text-align:center;align-self:center;min-height:42px;height:auto;line-height:24px}
-.notice{padding:18px 24px;margin-top:16px;font-size:13px;color:{{ theme.muted }};line-height:1.8}.notice p{margin:0}.snapshot{font-size:12px;line-height:1.8;color:{{ theme.muted }};text-align:center;margin-top:16px}
-{% include 'glass_finish.css' %}
-.raid-state{font-size:15px;font-weight:700;margin:10px 0 6px;color:{{ '#8de0bc' if card_theme=='dark' else '#187255' }}}
-.raid-state.history{color:{{ theme.accent }}}
-.season-dates{font-size:12px;color:{{ theme.muted }};margin:4px 0 10px}
-h1,h2,.amount,.hp-value,.phase span{color:{{ theme.ink }}}
-.snapshot{padding:12px;border-radius:14px;background:{{ theme.surface_glass }}}
-{% include 'avatar_glass.css' %}{% include 'commander_header.css' %}
-</style></head><body><main class="status-page">
-<header class="hero"><div class="hero-top"><div><div class="eyebrow">NIKKE / UNION RAID STATUS</div><h1>{{title}}</h1></div><div class="brand">NIKKE<span>AliceUID</span></div></div>
-{% if kind=='bosses' %}<div class="subtitle">{{ guild_name }}</div><div class="phase"><span>{{ phase }}</span>{% if available %}<span>本阶段已削减 {{ progress_text }}</span>{% endif %}</div>{% endif %}
-{% if raid_status %}<div class="raid-state{% if not raid_active %} history{% endif %}">{{ raid_status }}</div><div class="season-dates">{{ season_label }} · {{ season_dates }}</div>{% if official_season_dates %}<div class="season-dates">{{ official_season_dates }}</div>{% endif %}{% endif %}{% include 'commander.html' %}</header>
-<div class="boss-list">{% for boss in bosses %}<section class="boss"><div class="boss-head"><h2><span class="boss-index">{{ '%02d'|format(loop.index) }}</span>{{ boss.name }}</h2><strong class="percent">{{ '∞' if boss.infinite else boss.percent+'%' }}</strong></div><div class="hp-value">{{ boss.hp_text }}</div>{% if not boss.infinite %}<div class="track"><div class="fill" style="width:{{ boss.percent }}%"></div></div>{% else %}<div class="muted">无限血量阶段 · 无有限最大血量</div>{% endif %}</section>{% else %}<section class="notice">{{ phase }}</section>{% endfor %}</div>
-<section class="notice">{% for note in notes %}<p>{{ note }}</p>{% endfor %}</section>
-<div class="snapshot">{{ source }}<br>数据时间 {{ fetched_at }} · 缓存上限 {{ cache_seconds }} 秒{% if preview_notice %}<br>{{ preview_notice }}{% endif %}</div>
-{% include 'brand_credit.html' %}</main></body>
+{% include 'alice_v2_tokens.css' %}
+{% include 'status_bosses_v2.css' %}
+.avatar-empty{font-weight:800;color:{{ element_accent }};font-size:20px}
+</style>
+</head>
+<body>
+<main class="page status-page">
+  <header class="bento-card hero">
+    <div class="hero-top">
+      <div class="hero-id">
+        <div class="avatar-glass">
+          {% if commander_avatar_url %}
+          <img src="{{ commander_avatar_url }}" alt="指挥官游戏头像">
+          {% else %}
+          <span class="avatar-empty">{{ (commander_name or '指')[:1] }}</span>
+          {% endif %}
+          <span class="avatar-glass-edge"></span>
+        </div>
+        <div class="id-copy">
+          <div class="eyebrow-row">
+            <span class="eyebrow">NIKKE / UNION RAID STATUS</span>
+            {% if raid_status %}
+            <span class="ui-pill state-pill{% if raid_active %} active{% endif %}">{{ raid_status }}</span>
+            {% endif %}
+          </div>
+          <h1>{{ guild_name }} · {{ title }}</h1>
+          <div class="hero-meta">{{ commander_name }} · {{ commander_region }} · UID {{ commander_uid }}{% if season_label %} · {{ season_label }}{% endif %}{% if season_dates %}（{{ season_dates }}）{% endif %}</div>
+          {% if official_season_dates %}<div class="hero-meta">{{ official_season_dates }}</div>{% endif %}
+        </div>
+      </div>
+      <div class="brand-right">
+        <strong>NIKKE</strong>
+        <span>AliceUID</span>
+      </div>
+    </div>
+    {% if kind=='bosses' %}
+    <div class="phase-grid">
+      <div class="phase-slot"><span>当前阶段</span><b>{{ phase }}</b></div>
+      <div class="phase-slot"><span>本阶段已削减</span><b>{{ progress_text if available else '—' }}</b></div>
+    </div>
+    {% endif %}
+  </header>
+
+  <section class="boss-list">
+    {% for boss in bosses %}
+    <article class="bento-card boss-card boss">
+      <div class="boss-head">
+        <div class="boss-title-wrap">
+          <span class="ui-pill boss-idx">{{ '%02d'|format(loop.index) }}</span>
+          <h2>{{ boss.name }}</h2>
+        </div>
+        <strong class="boss-pct percent">{{ '∞' if boss.infinite else boss.percent ~ '%' }}</strong>
+      </div>
+      {% if not boss.infinite %}
+      <div class="track"><div class="fill" style="width:{{ boss.percent }}%"></div></div>
+      {% endif %}
+      <div class="boss-foot">
+        <span>{{ '无限血量阶段 · 无有限最大血量' if boss.infinite else '剩余血量 / 总血量' }}</span>
+        <b>{{ boss.hp_text }}</b>
+      </div>
+    </article>
+    {% else %}
+    <section class="bento-card boss-card notice">{{ phase }}</section>
+    {% endfor %}
+  </section>
+
+  <footer class="bento-card footer-card notice">
+    <div class="footer-notes">
+      {% for note in notes %}<div>• {{ note }}</div>{% endfor %}
+    </div>
+    <div class="footer-snap snapshot">
+      <div>{{ source }}</div>
+      <div>数据时间 {{ fetched_at }} · 缓存上限 {{ cache_seconds }} 秒{% if preview_notice %} · {{ preview_notice }}{% endif %}</div>
+    </div>
+  </footer>
+
+  <div class="credit-row">
+    <span class="brand-credit-pill">Powered By GsCore &amp; Created By AliceUID · {{ credit_timestamp }}（北京时间）</span>
+  </div>
+</main>
+</body>
 {% endif %}
 </html>

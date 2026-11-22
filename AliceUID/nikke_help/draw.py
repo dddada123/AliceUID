@@ -104,8 +104,8 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
                 {'command': '后台：AliceUID 用户绑定管理', 'description': '查看绑定摘要与脱敏导出；修改凭据需通过登录流程，解绑走专用接口'},
                 {'command': f'{command_prefix()}红莲：暗影新增别名黑莲', 'description': f'添加全局角色别名；可省略符号，如 {command_prefix()}红莲暗影新增别名黑莲'},
                 {'command': f'{command_prefix()}红莲暗影注册别名黑莲', 'description': '与新增别名相同；旧的「角色名别名别名」写法已停用'},
-                {'command': '后台：主题与卡片语言', 'description': '亮色/暗色/随机毛玻璃，简繁可选；出刀缓存按秒调整'},
-                {'command': '后台：全局毛玻璃强度', 'description': '0～100%，默认20%；只模糊背景，修改后下次出图生效'},
+                {'command': '后台：角色练度样式与缩放', 'description': '横版亮暗/纵版亮暗及随机模式；横版大立绘支持 -100%～+100% 微调'},
+                {'command': '后台：主题与卡片语言', 'description': 'Bento 亮红/暗金玻璃风格，简繁可选；出刀缓存按秒调整'},
             ]},
             {'title': '群组查询与管理', 'tag': '仅 Bot 主', 'description': '群查询、签到通知、自动兑换与群名单维护。', 'items': [
                 {'command': f'{command_prefix()}群查询 状态', 'description': '查看本群实际查询权限，不能绕过Bot主名单'},
@@ -176,10 +176,17 @@ def section_bands(sections: list[dict]) -> list[list[dict]]:
 
 
 def render_help_html(context: dict) -> str:
+    from datetime import datetime, timedelta, timezone
+    from ..nikke_render.fonts import apply_font_html
+    from ..nikke_render.theme import v2_theme_tokens
     items=sum(len(section.get('items',[])) for section in context.get('sections',[]))
     scene_height=max(2200,900+items*90)
     prepared = dict(context, section_bands=section_bands(context['sections']))
-    return _ENV.get_template('help.html').render(**apply_theme(prepared, context.get("card_theme"),scene_height=scene_height))
+    themed = apply_theme(prepared, context.get("card_theme"),scene_height=scene_height)
+    themed.update(v2_theme_tokens(None, themed['card_theme']))
+    themed['font_family'] = 'MiSans'
+    themed['credit_timestamp'] = datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d·%H:%M')
+    return apply_font_html(_ENV.get_template('help.html').render(**themed), embed=False)
 
 
 async def draw_help(context: dict) -> bytes:

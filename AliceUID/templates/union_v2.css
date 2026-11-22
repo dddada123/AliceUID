@@ -1,0 +1,121 @@
+/* nk出刀 / 出刀详情 Bento v2 样式 (1000px) */
+html,body{width:1000px;margin:0;padding:0}
+.union-page{
+  width:1000px;padding:24px;color:{{ palette.ink }};
+  background:{{ palette.page_bg }} url('{{ frost_scene_uri }}') center top/100% auto no-repeat;
+  display:flex;flex-direction:column;gap:14px;
+}
+.hero{padding:20px 24px;display:flex;flex-direction:column;gap:14px}
+.union-hero-top{display:flex;align-items:stretch;gap:22px}
+.union-hero-left{width:410px;flex:none;display:flex;flex-direction:column;justify-content:space-between;gap:10px}
+.union-commander{display:flex;align-items:center;gap:13px}
+.union-commander .avatar-glass,.union-commander .avatar-glass>img{width:68px;height:68px;border-radius:16px}
+.union-commander-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.eyebrow{font-size:10px;font-weight:800;letter-spacing:1.4px;color:{{ element_accent }}}
+.union-commander-name{margin:0;font-size:22px;line-height:28px;font-weight:800;color:{{ palette.ink }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.union-commander-meta{display:flex;gap:10px;font-size:11px;font-weight:600;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
+.union-dates{display:flex;flex-direction:column;gap:3px;font-size:11px;line-height:16px;color:{{ palette.muted }}}
+
+.union-hero-right{
+  flex:1;min-width:0;border-left:1px solid {{ palette.line }};padding-left:22px;
+  display:flex;flex-direction:column;justify-content:space-between;gap:6px;
+}
+.hero-title-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.union-hero-right h1{margin:2px 0 0;font-size:23px;line-height:28px;font-weight:800;color:{{ palette.ink }};overflow-wrap:anywhere}
+.season-pill{
+  height:20px;padding:2px 8px 0;border-radius:6px;flex:none;
+  background:{{ element_accent_soft }};border:1px solid {{ element_accent_border }};
+  color:{{ element_accent }};font-size:10px;font-weight:800;
+}
+.raid-state{
+  font-size:12px;font-weight:800;
+  color:{{ '#5CE0B8' if card_theme=='dark' else '#147D64' }};
+}
+.raid-state.history{color:{{ element_accent }}}
+.union-record-meta,.union-day1-note{font-size:11px;line-height:16px;color:{{ palette.muted }}}
+
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.stat-slot{
+  border-radius:12px;padding:9px 12px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.stat-slot b{font-size:23px;font-weight:800;line-height:26px;color:{{ element_accent }};font-variant-numeric:tabular-nums}
+.stat-slot span{font-size:12px;font-weight:700;color:{{ palette.muted }}}
+
+.panel{padding:18px 22px;display:flex;flex-direction:column;gap:12px}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.panel-head h2{margin:0;font-size:19px;line-height:24px;font-weight:800;color:{{ palette.ink }}}
+.panel-head-sub{font-size:11px;font-weight:700;color:{{ palette.muted }}}
+
+.rank-table{width:100%;border-collapse:separate;border-spacing:0 5px}
+.rank-table th{
+  text-align:left;font-size:11px;font-weight:800;color:{{ palette.muted }};
+  padding:6px 12px;background:{{ palette.slot_bg }};
+}
+.rank-table th:first-child{border-radius:8px 0 0 8px}
+.rank-table th:last-child{border-radius:0 8px 8px 0}
+.rank-table td{
+  padding:9px 12px;font-size:13px;color:{{ palette.ink }};
+  background:{{ palette.line_normal_bg }};border-top:1px solid {{ palette.line_normal_border }};border-bottom:1px solid {{ palette.line_normal_border }};
+}
+.rank-table td:first-child{border-left:1px solid {{ palette.line_normal_border }};border-radius:8px 0 0 8px;width:46px}
+.rank-table td:last-child{border-right:1px solid {{ palette.line_normal_border }};border-radius:0 8px 8px 0}
+.rank-table tr.own td{
+  background:{{ element_accent_soft }};border-color:{{ element_accent_border }};font-weight:700;
+}
+.rank-num{
+  height:20px;min-width:22px;padding:2px 6px 0;border-radius:6px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  font-size:11px;font-weight:800;color:{{ palette.muted }};
+}
+.rank-num.top1{background:{{ element_accent_soft }};border-color:{{ element_accent_border }};color:{{ element_accent }}}
+.own-pill{
+  height:18px;padding:2px 7px 0;border-radius:5px;margin-left:8px;
+  background:{{ element_accent_soft }};border:1px solid {{ element_accent_border }};
+  color:{{ element_accent }};font-size:10px;font-weight:800;
+}
+.damage{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:800}
+.ok{color:{{ '#5CE0B8' if card_theme=='dark' else '#147D64' }};font-weight:700}
+.bad{color:{{ '#FF7B89' if card_theme=='dark' else '#C93B4B' }};font-weight:700}
+.warm{color:{{ '#F6C15C' if card_theme=='dark' else '#B4690E' }};font-weight:700}
+
+/* 缺刀双列槽位 */
+.missing-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.missing-member{
+  border-radius:10px;padding:9px 13px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;
+}
+
+/* 出刀详情内槽与 5 人头像（复用 squad_badges.css） */
+.member-summary-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 12px;border-radius:10px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  font-size:12px;color:{{ palette.muted }};font-variant-numeric:tabular-nums;
+}
+.member-summary-bar b{color:{{ palette.ink }};font-size:14px}
+.team-slot{
+  border-radius:14px;padding:14px 16px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;flex-direction:column;gap:12px;
+}
+.teamhead{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:14px}
+.teamhead strong{color:{{ palette.ink }}}
+.team-dmg{font-size:16px;font-weight:800;color:{{ element_accent }};font-variant-numeric:tabular-nums}
+.squad{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.character{display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center}
+.character .member-thumb,.character .member-thumb>img.member-icon{width:112px;height:112px;border-radius:14px}
+.character .member-thumb .game-left-badges,.character .member-thumb .game-element,.character .member-thumb .corner-rank,.character .member-thumb .member-level{z-index:4}
+.char-name{font-size:13px;font-weight:800;color:{{ palette.ink }};line-height:17px}
+.char-combat{font-size:11px;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
+
+.footer-card{padding:12px 16px;font-size:11px;line-height:17px;color:{{ palette.muted }}}
+.credit-row{display:flex;justify-content:center}
+.brand-credit-pill{
+  display:inline-flex;align-items:center;justify-content:center;line-height:1;
+  height:22px;padding:2px 14px 0;border-radius:999px;
+  background:{{ palette.pill_bg }};border:1px solid {{ palette.glass_border }};
+  font-size:10px;font-weight:600;color:{{ palette.credit_ink }};
+}

@@ -19,15 +19,34 @@ _epochs = {}
 MAX_BYTES = 24 * 1024 * 1024
 
 _RESOURCE_META = {
-    '钻石': ('核心抽卡资产', 'gacha'),
-    '信用点': ('基础养成货币', ''),
+    '钻石': ('核心抽卡资产', 'blue'),
+    '芯尘': ('核心突破材料', 'red'),
+    '高级招募券': ('限定招募道具', 'rainbow'),
+    '招募券': ('常规招募道具', 'blue'),
+    '信用点': ('基础养成货币', 'gold'),
+    '战斗数据辑': ('同步等级升级', 'blue'),
     '黄金积分券': ('里程商店兑换', 'gold'),
-    '白银积分券': ('躯体标签兑换', ''),
-    '战斗数据辑': ('同步等级升级', ''),
-    '芯尘': ('核心突破材料', ''),
-    '招募券': ('常规招募道具', ''),
-    '高级招募券': ('限定招募道具', 'gacha'),
+    '白银积分券': ('躯体标签兑换', 'silver'),
 }
+
+
+def _chevron_pattern_uri() -> str:
+    """Crisp repeating '>' charge chevrons (22x14) for the storage progress fill."""
+    import io
+    from functools import lru_cache
+    from PIL import Image, ImageDraw
+    w, h = 22, 14
+    im = Image.new('RGBA', (w * 3, h * 3), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(im)
+    pts = [(6, 4), (24, h * 3 // 2), (6, h * 3 - 4)]
+    draw.line(pts, fill=(255, 255, 255, 210), width=6, joint='curve')
+    out = im.resize((w, h), Image.Resampling.LANCZOS)
+    buf = io.BytesIO()
+    out.save(buf, format='PNG')
+    return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+
+
+_CHEVRON_PATTERN_URI = ''
 
 
 def _resource_store():
@@ -77,6 +96,10 @@ def status_html(context, theme=None):
         context['background_uri'] = context.get('frost_scene_uri', '')
         context['font_family'] = 'MiSans'
         context['credit_timestamp'] = datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d·%H:%M')
+        global _CHEVRON_PATTERN_URI
+        if not _CHEVRON_PATTERN_URI:
+            _CHEVRON_PATTERN_URI = _chevron_pattern_uri()
+        context['chevron_pattern_uri'] = _CHEVRON_PATTERN_URI
 
         raw_color = str(context.get('storage_color') or '').lower()
         if not context.get('storage_known'):
@@ -107,9 +130,12 @@ def status_html(context, theme=None):
             context['storage_fill_gradient'] = 'linear-gradient(90deg, #1E7AD4, #4CA5F5)'
         return apply_font_html(ENV.get_template('status.html').render(**context), embed=False)
 
-    height = max(900, 520 + 155 * len(context.get('bosses', [])))
-    context = apply_theme(context, resolved_theme, scene_width=1000, scene_height=height)
-    return ENV.get_template('status.html').render(**context)
+    height = max(760, 440 + 118 * len(context.get('bosses', [])))
+    context = apply_theme(context, resolved_theme, scene_width=800, scene_height=height)
+    context.update(v2_theme_tokens(None, context['card_theme']))
+    context['font_family'] = 'MiSans'
+    context['credit_timestamp'] = datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d·%H:%M')
+    return apply_font_html(ENV.get_template('status.html').render(**context), embed=False)
 
 
 async def draw_status(context, *, owner_key):
@@ -121,7 +147,7 @@ async def draw_status(context, *, owner_key):
     mode = get_card_theme_mode()
     font = resolve_font()
     stable = dict(
-        context, render_version='alice-v1216-bento-status-1', theme_mode=mode,
+        context, render_version='alice-v1218-bento-status-1', theme_mode=mode,
         language=get_card_language(), font=font.fingerprint, owner=owner_key,
     )
     stable['presentation'] = status_style_key()
@@ -138,7 +164,7 @@ async def draw_status(context, *, owner_key):
             return cached
 
     async def render():
-        root_width = 730 if context.get('kind') == 'resources' else 1000
+        root_width = 730 if context.get('kind') == 'resources' else 800
         png = await render_html(status_html(context, get_card_theme(mode)), root_width=root_width)
         if _epochs.get(owner, 0) != epoch:
             raise ValueError('绑定已更新，旧状态图已失效。')

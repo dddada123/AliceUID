@@ -1,25 +1,105 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>
-*{box-sizing:border-box}body{margin:0;width:1072px;font:16px 'Microsoft YaHei',sans-serif;color:{{theme.ink}}}
-.solo-page{width:1072px;padding:30px 40px;background:{{theme.page}} url('{{frost_scene_uri}}') center top/cover}
-{% include 'glass_finish.css' %}
-.hero,.notes,.shot-panel{border:1px solid {{theme.line}};background:{{theme.container_glass}};background-image:none;box-shadow:0 6px 20px #0812201a,inset 0 1px #ffffff26}
-.hero,.notes{border-radius:22px;padding:24px}
-.shot-panel{width:992px;border-radius:28px;padding:15px;margin:20px 0}
-.eyebrow{font-size:13px;letter-spacing:2px;color:{{theme.accent}}}.experimental{display:inline-block;width:110px;white-space:nowrap;text-align:center;margin-left:12px;letter-spacing:0;border-radius:7px;padding:4px 9px;background:#664b27;color:#ffe2a7}
-h1{font-size:32px;margin:10px 0;color:{{theme.ink}}}.source{font-size:15px;color:{{theme.accent}};line-height:1.8;overflow-wrap:anywhere}
-.meta{font-size:13px;color:{{theme.muted}};line-height:1.9;margin-top:12px}
-.shot{width:960px;border-radius:22px;overflow:hidden;margin:0;background:transparent;line-height:0}
-.shot img{display:block;width:960px;height:{{image_height}}px;border-radius:22px;object-fit:contain}
-.notes{font-size:14px;line-height:1.8;color:{{theme.muted}}}.notes p{margin:3px 0}.disclaimer{color:{{theme.ink}};font-weight:700}
-.credit{white-space:pre-wrap;font-size:14px;text-align:center;color:{{theme.muted}};padding:20px 0 4px;line-height:1.8}
-.hero-top{display:flex;align-items:center;justify-content:space-between;gap:24px}.hero-title{flex:1;min-width:0}.hero-title h1{font-size:30px}.hero-title .eyebrow{letter-spacing:1px}.identity{display:flex;align-items:center;justify-content:flex-end;gap:14px;width:310px;flex:none}.identity-copy{min-width:0;text-align:right;flex:1}.identity-copy strong{color:{{theme.ink}};font-size:18px;line-height:1.4;display:block;max-height:54px;overflow:hidden;overflow-wrap:anywhere}.identity-id{font-size:12px;line-height:1.8;color:{{theme.muted}}}.commander-avatar{width:72px;height:72px;object-fit:contain;flex:none;border-radius:17px;border:1px solid {{theme.line}};background:transparent}.metrics{display:flex;margin-top:22px;padding:16px 0;border-top:1px solid {{theme.line}};border-bottom:1px solid {{theme.line}}}.metric{width:33.333%;min-width:0;padding:0 18px;border-left:1px solid {{theme.line}}}.metric:first-child{border-left:0;padding-left:0}.metric-label{font-size:12px;color:{{theme.muted}};margin-bottom:8px}.metric-value{font-size:24px;font-weight:700;line-height:1.4;color:{{theme.ink}}}.element-value{display:flex;align-items:center;gap:9px}.element-icon{width:28px;height:28px;object-fit:contain}.metric-detail{font-size:12px;line-height:1.7;margin-top:5px;color:{{theme.muted}};overflow-wrap:anywhere}.season-warning{margin-top:16px;padding:12px 15px;border:1px solid #bd873a;border-radius:12px;background:{{'#fff4dd' if card_theme=='light' else '#3b3020'}};color:{{'#714c0c' if card_theme=='light' else '#ffe0a2'}};font-size:14px;line-height:1.8}.times{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:13px;font-size:11px;line-height:1.8;color:{{theme.muted}}}
-{% include 'avatar_glass.css' %}</style></head><body><main class="solo-page"><header class="hero">
-<div class="hero-top"><div class="hero-title"><div class="eyebrow">NIKKE / SOLO RAID</div><h1>个人突袭推荐 <span class="experimental" style="font-size:13px;vertical-align:middle">实验性功能</span></h1><div class="source" style="font-size:12px">数据与推荐来自dildoro.com 妮姬伤害计算器·DILDORO</div></div>
-<div class="identity"><div class="identity-copy"><strong>{{commander_name}}</strong><div class="identity-id">{{commander_region}}<br>UID {{commander_uid}}</div></div>{% from 'avatar_glass.html' import commander %}{{commander(avatar_url,avatar_hint)}}</div></div>
-<div class="metrics"><div class="metric"><div class="metric-label">查询弱点</div><div class="metric-value element-value">{% if element_icon %}<img class="element-icon" src="{{element_icon}}" alt="{{weakness}}">{% endif %}<span>{{weakness}}</span></div><div class="metric-detail">{{query_mode}}</div></div><div class="metric"><div class="metric-label">网站赛季</div><div class="metric-value element-value">{% if current_element_icon %}<img class="element-icon" src="{{current_element_icon}}" alt="{{current_element_label}}">{% endif %}<span>{% if site_current_raid %}第{{site_current_raid}}期{% else %}尚未确认{% endif %}</span></div><div class="metric-detail">{{current_element_label}} · 网站当前赛季标识</div></div><div class="metric"><div class="metric-label">阵容参考</div><div class="metric-value element-value">{% if reference_element_icon %}<img class="element-icon" src="{{reference_element_icon}}" alt="{{reference_element_label}}">{% endif %}<span>{% if rank_season %}第{{rank_season}}期{% else %}尚未确认{% endif %}</span></div><div class="metric-detail">{{reference_element_label}}{% if boss %} · {{boss}}{% endif %}</div></div></div>
-{% if season_notice %}<div class="season-warning">{{season_notice}}</div>{% endif %}
-<div style="margin-top:13px;font-size:12px;line-height:1.8;color:{{theme.muted}}">模拟配置：{{simulation_settings}}</div>
-<div class="times"><span>网站数据时间：{{source_time or '未确认'}}</span><span>结果生成时间：{{captured_at}}（北京时间）</span></div></header>
-<section class="shot-panel"><div class="shot"><img src="{{image_uri}}" alt="DILDORO排行玩家编队推荐与模拟伤害"></div></section>
-<section class="notes"><p class="disclaimer">伤害预估仅为模拟计算值参考，详细数据敬请访问dildoro.com获取。</p>{% for note in notes %}<p>{{note}}</p>{% endfor %}<p>实验性功能，网站更新可能影响导入、推荐或截图。</p></section>
-<footer class="credit">Powered By GsCore &amp; Created By AliceUID &amp; dildoro</footer></main></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+{% include 'alice_v2_tokens.css' %}
+{% include 'solo_v2.css' %}
+</style>
+</head>
+<body>
+<main class="page solo-page">
+  <header class="bento-card hero">
+    <div class="hero-top">
+      <div class="hero-title">
+        <span class="eyebrow">NIKKE / SOLO RAID</span>
+        <div class="title-line">
+          <h1>个人突袭推荐</h1>
+          <span class="ui-pill exp-pill">实验性功能</span>
+        </div>
+        <div class="source">数据与推荐来自 dildoro.com 妮姬伤害计算器 · DILDORO</div>
+      </div>
+      <div class="identity">
+        <div class="identity-copy">
+          <strong>{{ commander_name }}</strong>
+          <div class="identity-id">{{ commander_region }} · UID {{ commander_uid }}</div>
+        </div>
+        <div class="avatar-glass">
+          <img src="{{ avatar_url }}" alt="指挥官头像">
+          <span class="avatar-glass-edge"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric-slot">
+        <span class="metric-label">查询弱点</span>
+        <div class="metric-value">
+          {% if element_icon %}
+          <span class="element-icon-box">
+            <span class="icon-stack">
+              {% if element_shadow_url %}<img class="icon-shadow" src="{{ element_shadow_url }}" alt="">{% endif %}
+              <img class="alpha-effect" src="{{ element_icon }}" alt="{{ weakness }}">
+            </span>
+          </span>
+          {% endif %}
+          <span>{{ weakness }}</span>
+        </div>
+        <span class="metric-detail">{{ query_mode }}</span>
+      </div>
+      <div class="metric-slot">
+        <span class="metric-label">网站赛季</span>
+        <div class="metric-value">
+          {% if current_element_icon %}
+          <span class="element-icon-box">
+            <span class="icon-stack">
+              {% if current_element_shadow_url %}<img class="icon-shadow" src="{{ current_element_shadow_url }}" alt="">{% endif %}
+              <img class="alpha-effect" src="{{ current_element_icon }}" alt="{{ current_element_label }}">
+            </span>
+          </span>
+          {% endif %}
+          <span>{% if site_current_raid %}第{{ site_current_raid }}期{% else %}尚未确认{% endif %}</span>
+        </div>
+        <span class="metric-detail">{{ current_element_label }} · 网站当前赛季标识</span>
+      </div>
+      <div class="metric-slot">
+        <span class="metric-label">阵容参考</span>
+        <div class="metric-value">
+          {% if reference_element_icon %}
+          <span class="element-icon-box">
+            <span class="icon-stack">
+              {% if reference_element_shadow_url %}<img class="icon-shadow" src="{{ reference_element_shadow_url }}" alt="">{% endif %}
+              <img class="alpha-effect" src="{{ reference_element_icon }}" alt="{{ reference_element_label }}">
+            </span>
+          </span>
+          {% endif %}
+          <span>{% if rank_season %}第{{ rank_season }}期{% else %}尚未确认{% endif %}</span>
+        </div>
+        <span class="metric-detail">{{ reference_element_label }}{% if boss %} · {{ boss }}{% endif %}</span>
+      </div>
+    </div>
+
+    {% if season_notice %}<div class="season-warning">{{ season_notice }}</div>{% endif %}
+
+    <div class="times-row">
+      <span>模拟配置：{{ simulation_settings }}</span>
+      <span>网站时间：{{ source_time or '未确认' }} · 生成：{{ captured_at }}（北京时间）</span>
+    </div>
+  </header>
+
+  <section class="bento-card shot-panel">
+    <div class="shot"><img src="{{ image_uri }}" alt="DILDORO排行玩家编队推荐与模拟伤害"></div>
+  </section>
+
+  <section class="bento-card notes-card">
+    <p class="disclaimer">伤害预估仅为模拟计算值参考，详细数据敬请访问 dildoro.com 获取。</p>
+    {% for note in notes %}<p>{{ note }}</p>{% endfor %}
+    <p>实验性功能，网站更新可能影响导入、推荐或截图。</p>
+  </section>
+
+  <div class="credit-row">
+    <span class="brand-credit-pill">Powered By GsCore &amp; Created By AliceUID &amp; dildoro</span>
+  </div>
+</main>
+</body>
+</html>

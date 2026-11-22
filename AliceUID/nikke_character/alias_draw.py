@@ -8,9 +8,15 @@ _env = Environment(loader=FileSystemLoader(str(Path(__file__).resolve().parent.p
 
 
 def render_alias_html(context):
+    from datetime import datetime, timedelta, timezone
+    from ..nikke_render.fonts import apply_font_html
+    from ..nikke_render.theme import v2_theme_tokens
     height = max(800,450 + (len(context['aliases'])+len(context['automatic_aliases']))*44)
-    return _env.get_template('aliases.html').render(**apply_theme(
-        context,context.get('card_theme'),scene_width=760,scene_height=height))
+    themed = apply_theme(context, context.get('card_theme'), scene_width=640, scene_height=height)
+    themed.update(v2_theme_tokens(None, themed['card_theme']))
+    themed['font_family'] = 'MiSans'
+    themed['credit_timestamp'] = datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d·%H:%M')
+    return apply_font_html(_env.get_template('aliases.html').render(**themed), embed=False)
 
 
 async def draw_alias(context):
@@ -31,5 +37,5 @@ async def draw_alias(context):
                 prepared['icon_url'] = icon.source
         dependencies[:] = sorted(paths)
         dependency = key()
-        return await render_html(render_alias_html(prepared),root_width=760), dependency
+        return await render_html(render_alias_html(prepared),root_width=640), dependency
     return await cache.get(slot, key, build, ttl=30*86400, dependencies=dependencies)

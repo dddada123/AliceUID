@@ -73,13 +73,19 @@ async def prepare_images(context, images):
 
 
 def render_roster_html(context):
+    from datetime import datetime, timedelta, timezone
+    from ..nikke_render.fonts import apply_font_html
+    from ..nikke_render.theme import v2_theme_tokens
     width, height = expected_size(context)
     if width * height > MAX_PIXELS:
         raise ValueError('角色数量超出完整长图安全限制，未生成截断图片。')
     from .finish import joined_glass
     prepared=apply_theme(context,context.get("card_theme"),scene_width=width,scene_height=height)
+    prepared.update(v2_theme_tokens(None, prepared['card_theme']))
+    prepared['font_family'] = 'MiSans'
+    prepared['credit_timestamp'] = datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d·%H:%M')
     prepared["join_glass_url"]=joined_glass(prepared["card_theme"])
-    return _env.get_template("roster.html").render(**prepared,image_height=height)
+    return apply_font_html(_env.get_template("roster.html").render(**prepared,image_height=height), embed=False)
 
 
 def encode_complete(data, context):

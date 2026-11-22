@@ -1,58 +1,41 @@
-/* 资源查询 v2 样式 (730px 宽, 紧凑居中 Bento 战术玻璃, 100% pytakumi 兼容) */
-html,body{width:730px;height:680px;overflow:hidden}
+/* 资源查询 Bento v2 样式 (730 x 680 CSS px，8色条纹 + 保管箱充能箭头) */
+html,body{width:730px;margin:0;padding:0}
 .page{
-  position:relative;width:730px;height:680px;overflow:hidden;
-  padding:20px 22px 16px;
-  color:{{ palette.ink }};
+  position:relative;width:730px;padding:22px;color:{{ palette.ink }};
   background:{{ palette.page_bg }} url('{{ background_uri }}') center/cover no-repeat;
-  display:flex;flex-direction:column;gap:12px;
+  display:flex;flex-direction:column;gap:14px;
 }
 .page-scrim{
   position:absolute;inset:0;
-  background:{{ 'rgba(240,246,255,0.14)' if card_theme=='light' else 'rgba(4,10,20,0.32)' }};
+  background:{{ 'rgba(240,246,255,0.16)' if card_theme=='light' else 'rgba(4,10,20,0.34)' }};
   z-index:0;pointer-events:none;
 }
-.page>*:not(.page-scrim){position:relative;z-index:2}
+.page>.bento-card,.page>.res-grid,.page>.credit-row{position:relative;z-index:2}
 
-/* 1. 顶栏名片头 (686 x 94) */
-.res-hero{
-  width:686px;height:94px;padding:13px 18px;
-  display:flex;align-items:center;gap:14px;flex:none;
-}
-.res-hero .avatar-glass,.res-hero .avatar-glass>img{width:62px;height:62px;border-radius:14px}
-.res-id-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.res-hero{width:686px;height:94px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex:none}
+.res-hero .avatar-glass,.res-hero .avatar-glass>img{width:64px;height:64px;border-radius:15px}
+.res-id-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .res-eyebrow{font-size:9px;font-weight:800;letter-spacing:1.4px;color:{{ accent }}}
-.res-name{font-size:21px;font-weight:800;line-height:26px;color:{{ palette.ink }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.res-meta{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:600;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
-.res-summary{
-  width:166px;height:60px;flex:none;
-  padding-left:16px;border-left:1px solid {{ palette.line }};
-  display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:2px;
-}
-.res-summary h1{margin:0;font-size:24px;font-weight:800;line-height:30px;color:{{ palette.ink }}}
-.res-brand{font-size:9px;font-weight:800;letter-spacing:1px;color:{{ accent }}}
+.res-name{font-size:21px;font-weight:800;color:{{ palette.ink }};line-height:25px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res-meta{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
+.res-summary{display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding-left:16px;border-left:1px solid {{ palette.line }}}
+.res-summary h1{margin:0;font-size:23px;font-weight:800;color:{{ palette.ink }};line-height:27px}
+.res-brand{font-size:10px;font-weight:800;letter-spacing:1.2px;color:{{ accent }}}
 
-/* 2. 资源资产矩阵 (4 x 2, 每张 164 x 116, gap 10 -> 164*4 + 30 = 686) */
-.res-grid{
-  display:grid;grid-template-columns:repeat(4,164px);gap:10px;flex:none;
-}
+.res-grid{width:686px;display:grid;grid-template-columns:repeat(4,164px);gap:10px}
 .res-card{
-  width:164px;height:116px;padding:12px 10px 10px;
+  width:164px;height:120px;padding:13px 10px 11px;
   display:flex;flex-direction:column;align-items:center;justify-content:space-between;
-  overflow:hidden;
+  position:relative;overflow:hidden;
 }
-.res-top-bar{
-  position:absolute;left:14px;right:14px;top:0;height:3px;
-  border-radius:0 0 3px 3px;
-}
-.res-top-bar.gacha{background:{{ accent }}}
+.res-top-bar{position:absolute;left:14px;right:14px;top:0;height:3px;border-radius:0 0 3px 3px}
+.res-top-bar.blue{background:{{ '#1565B4' if card_theme=='light' else '#6BC4FF' }}}
+.res-top-bar.red{background:{{ '#D43D51' if card_theme=='light' else '#FF6E7A' }}}
 .res-top-bar.gold{background:{{ '#D4941A' if card_theme=='light' else '#F0C362' }}}
+.res-top-bar.silver{background:{{ '#6E7B8C' if card_theme=='light' else '#B4C2D4' }}}
+.res-top-bar.rainbow{background:linear-gradient(90deg,#FF5E7E 0%,#FFAE42 25%,#4CD97B 50%,#38BDF8 75%,#A855F7 100%)}
 
-/* 头部模块整体水平居中 */
-.res-card-head{
-  display:flex;align-items:center;justify-content:center;gap:8px;
-  max-width:146px;margin:0 auto;
-}
+.res-card-head{display:flex;align-items:center;justify-content:center;gap:8px;max-width:146px;margin:0 auto}
 .res-icon-stage{
   width:36px;height:36px;flex:none;border-radius:9px;
   background:{{ palette.icon_stage_bg }};border:1px solid {{ palette.sub_border }};
@@ -62,26 +45,11 @@ html,body{width:730px;height:680px;overflow:hidden}
 .res-head-copy{min-width:0;display:flex;flex-direction:column;gap:1px;text-align:left}
 .res-item-name{font-size:12px;font-weight:800;color:{{ palette.ink }};line-height:14px;white-space:nowrap}
 .res-item-tag{font-size:8px;font-weight:700;color:{{ palette.muted }};line-height:11px;white-space:nowrap}
+.res-amount-wrap{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center}
+.res-amount{font-size:24px;font-weight:800;line-height:27px;color:{{ palette.ink }};font-variant-numeric:tabular-nums;white-space:nowrap}
+.res-subnote{font-size:10px;font-weight:600;line-height:13px;color:{{ palette.muted }};font-variant-numeric:tabular-nums;white-space:nowrap}
 
-/* 数值模块整体居中 + 保留下方精确数字 */
-.res-amount-wrap{
-  width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-  text-align:center;
-}
-.res-amount{
-  font-size:24px;font-weight:800;line-height:27px;
-  color:{{ palette.ink }};font-variant-numeric:tabular-nums;white-space:nowrap;
-}
-.res-subnote{
-  font-size:10px;font-weight:600;line-height:13px;
-  color:{{ palette.muted }};font-variant-numeric:tabular-nums;white-space:nowrap;
-}
-
-/* 3. 前哨基地保管箱仪表盘 (686 x 158) */
-.storage-card{
-  width:686px;height:158px;padding:14px 18px;
-  display:flex;flex-direction:column;justify-content:space-between;flex:none;
-}
+.storage-card{width:686px;height:158px;padding:14px 18px;display:flex;flex-direction:column;justify-content:space-between;flex:none}
 .storage-head{display:flex;align-items:center;justify-content:space-between}
 .storage-left{display:flex;flex-direction:column;gap:3px}
 .storage-eyebrow{font-size:9px;font-weight:800;letter-spacing:1.3px;color:{{ palette.muted }}}
@@ -95,7 +63,8 @@ html,body{width:730px;height:680px;overflow:hidden}
   position:relative;width:100%;height:14px;border-radius:999px;overflow:hidden;
   background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
 }
-.fill{height:100%;border-radius:999px}
+.fill{position:relative;height:100%;border-radius:999px;overflow:hidden}
+.fill-chevrons{position:absolute;inset:0;opacity:0.42}
 .mark-90{
   position:absolute;left:90%;top:0;bottom:0;width:2px;
   background:{{ 'rgba(21,34,51,0.42)' if card_theme=='light' else 'rgba(255,255,255,0.55)' }};
@@ -105,7 +74,6 @@ html,body{width:730px;height:680px;overflow:hidden}
   position:absolute;left:90%;top:-12px;width:28px;margin-left:-14px;text-align:center;
   font-size:9px;font-weight:800;color:{{ palette.muted }};font-variant-numeric:tabular-nums;
 }
-
 .storage-estimates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .est-slot{
   height:36px;padding:0 12px;border-radius:10px;
@@ -115,20 +83,13 @@ html,body{width:730px;height:680px;overflow:hidden}
 .est-label{font-size:10px;font-weight:700;color:{{ palette.muted }}}
 .est-val{font-size:12px;font-weight:800;color:{{ palette.ink }};font-variant-numeric:tabular-nums}
 
-/* 4. 一体化说明与快照底栏 (686 x 62) */
-.footer-card{
-  width:686px;height:62px;padding:9px 16px;
-  display:flex;align-items:center;justify-content:space-between;gap:14px;flex:none;
+.footer-card{width:686px;height:62px;padding:9px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex:none}
+.footer-notes{flex:1;min-width:0;font-size:10px;line-height:15px;color:{{ palette.muted }}}
+.footer-snap{flex:none;text-align:right;font-size:10px;line-height:15px;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
+.credit-row{display:flex;align-items:center;justify-content:center}
+.brand-credit-pill{
+  display:inline-flex;align-items:center;justify-content:center;line-height:1;
+  height:22px;padding:2px 14px 0;border-radius:999px;
+  background:{{ palette.pill_bg }};border:1px solid {{ palette.glass_border }};
+  font-size:10px;font-weight:600;color:{{ palette.credit_ink }};
 }
-.footer-notes{
-  flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;
-  font-size:9px;font-weight:600;line-height:14px;color:{{ palette.muted }};
-}
-.footer-snap{
-  flex:none;padding-left:14px;border-left:1px solid {{ palette.line }};
-  text-align:right;display:flex;flex-direction:column;gap:2px;
-  font-size:9px;font-weight:600;line-height:13px;color:{{ palette.muted }};
-  font-variant-numeric:tabular-nums;
-}
-
-.credit-row{display:flex;align-items:center;justify-content:center;height:24px;flex:none}

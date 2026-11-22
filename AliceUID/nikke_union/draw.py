@@ -11,11 +11,18 @@ _env = Environment(loader=FileSystemLoader(str(Path(__file__).parent.parent / 't
 
 
 def render_union_html(context):
+    from datetime import datetime, timedelta, timezone
+    from ..nikke_render.fonts import apply_font_html
+    from ..nikke_render.theme import v2_theme_tokens
     detail_attacks=sum(len(member.get('attacks',[])) for member in context.get('details',[]))
     scene_height=max(1600,2000+72*len(context.get('rows',[]))+64*((len(context.get('missing',[]))+1)//2)
                      +80*len(context.get('tails',[]))+440*detail_attacks)
     scene_height=min(23000,scene_height)
-    return _env.get_template('union.html').render(**apply_theme(context, context.get("card_theme"),scene_height=scene_height))
+    themed = apply_theme(context, context.get("card_theme"),scene_height=scene_height)
+    themed.update(v2_theme_tokens(None, themed['card_theme']))
+    themed['font_family'] = 'MiSans'
+    themed['credit_timestamp'] = datetime.now(timezone(timedelta(hours=8))).strftime('%Y-%m-%d·%H:%M')
+    return apply_font_html(_env.get_template('union.html').render(**themed), embed=False)
 
 
 async def draw_union(context):

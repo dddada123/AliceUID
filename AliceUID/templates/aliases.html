@@ -1,13 +1,65 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>
-*{box-sizing:border-box}body{margin:0;width:760px;color:{{ theme.ink }};font:17px 'Microsoft YaHei',sans-serif}
-.page{padding:24px;background-color:{{ theme.page }};background-image:url('{{ frost_scene_uri }}');background-size:100% auto;background-repeat:no-repeat}
-.hero,.panel{background:{{ theme.surface_glass }};border:1px solid {{ theme.line }};border-radius:20px;padding:24px;box-shadow:0 6px 20px #08122026}
-.hero{display:flex;align-items:center;gap:22px}.avatar{width:120px;height:120px;border-radius:18px;object-fit:contain;background:{{ theme.container_glass }}}
-.eyebrow{font-size:12px}h1{font-size:28px;margin:10px 0;overflow-wrap:anywhere}.muted{font-size:13px;color:{{ theme.muted }}}
-.panel{margin-top:16px}h2{font-size:19px;margin:0 0 14px}.aliases{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.alias{display:flex;align-items:center;justify-content:center;align-self:center;text-align:center;line-height:24px;min-height:42px;height:auto;padding:8px 12px;background:{{ theme.container_glass }};border:1px solid {{ theme.line }};border-radius:10px;overflow-wrap:anywhere;max-width:100%}
-.tip{font-size:13px;line-height:1.7;margin-top:16px;color:{{ theme.muted }}}
-h1,h2,.alias{color:{{ theme.ink }}}
-{% include 'glass_finish.css' %}
-{% include 'avatar_glass.css' %}.avatar.avatar-glass,.avatar>.avatar-glass-edge{width:120px;height:120px;border-radius:18px}.avatar.avatar-glass>img{width:120px;height:120px}</style></head><body><main class="page"><header class="hero"><div class="avatar avatar-glass"><img src="{{ icon_url }}" alt="{{ name }}"><span class="avatar-glass-edge"></span></div><div><div class="eyebrow">NIKKE / CHARACTER ALIASES</div><h1>{{ name }}</h1><div class="muted">本名与别名均可用于角色查询</div></div></header>
-<section class="panel"><h2>已注册别名</h2><div class="aliases">{% for alias in aliases %}<span class="alias">{{ alias }}</span>{% else %}<span class="muted">暂无自定义别名</span>{% endfor %}</div>{% if automatic_aliases %}<h2 style="margin-top:20px">省略符号写法</h2><div class="aliases">{% for alias in automatic_aliases %}<span class="alias">{{ alias }}</span>{% endfor %}</div>{% endif %}<div class="tip">支持简繁体及省略符号；新增别名由 Bot 主使用「角色名新增别名别名」或「角色名注册别名别名」。</div></section>
-{% include 'brand_credit.html' %}</main></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+{% include 'alice_v2_tokens.css' %}
+{% include 'aliases_v2.css' %}
+</style>
+</head>
+<body>
+<main class="page">
+  <header class="bento-card hero">
+    <div class="avatar-glass">
+      <img src="{{ icon_url }}" alt="{{ name }}">
+      <span class="avatar-glass-edge"></span>
+    </div>
+    <div class="hero-copy">
+      <span class="hero-bar"></span>
+      <div class="eyebrow-row">
+        <span class="eyebrow">NIKKE / CHARACTER ALIASES</span>
+        <span class="ui-pill count-pill">{{ aliases|length + automatic_aliases|length }} 个可用称呼</span>
+      </div>
+      <h1>{{ name }}</h1>
+      <div class="muted">支持简繁体及省略符号；本名与下列别名均可用于角色面板查询</div>
+    </div>
+  </header>
+
+  <section class="bento-card panel">
+    <div class="group-block">
+      <div class="group-head">
+        <h2>已注册别名</h2>
+        <span class="group-sub">CUSTOM ALIASES</span>
+      </div>
+      <div class="aliases">
+        {% for alias in aliases %}
+        <span class="ui-pill alias-pill">{{ alias }}</span>
+        {% else %}
+        <span class="muted">暂无自定义别名</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if automatic_aliases %}
+    <div class="group-block">
+      <div class="group-head">
+        <h2>省略符号写法</h2>
+        <span class="group-sub">AUTO NORMALIZED</span>
+      </div>
+      <div class="aliases">
+        {% for alias in automatic_aliases %}
+        <span class="ui-pill auto-pill">{{ alias }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="tip-box">新增别名由 Bot 主使用「角色名新增别名别名」或「角色名注册别名别名」。</div>
+  </section>
+
+  <div class="credit-row">
+    <span class="brand-credit-pill">Powered By GsCore &amp; Created By AliceUID · {{ credit_timestamp }}（北京时间）</span>
+  </div>
+</main>
+</body>
+</html>

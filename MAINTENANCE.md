@@ -1,4 +1,12 @@
-﻿# 1.2.17 · 2026-11-22
+﻿# 1.2.18 · 2026-11-22
+
+- 全量剩余卡片（`help.html`、`aliases.html`、`status.html` bosses 分支、`union.html`、`solo.html`、`roster.html`）接入 `alice_v2_tokens.css` 与 `v2_theme_tokens`（暗版 `#F6C15C`、亮版 `#D43D51`）及 `apply_font_html(..., embed=False)`。
+- `nikke_status/builder.py` 的 `CURRENCIES` 重排并显式绑定图标文件名；`nikke_status/draw.py` 配置 8 色条纹（`blue`/`red`/`gold`/`silver`/`rainbow`）与 `_chevron_pattern_uri()` 保管箱充能纹理，`bosses` 渲染宽度收窄至 `800px`，`render_version` 升级为 `alice-v1218-bento-status-1`。
+- `roster.html` 采用方案 A 平直无缝一体卡（`border-radius:14px` 整卡、`game-avatar` 仅上圆角、`.card-info` 亮 `0.52`/暗 `0.56` 半透明底），严格保留 `WIDTH=1400 / HEADER=176 / FOOTER=32 / ROW=160` 尺寸契约。
+- `tools_alice/build_release.py` `REQUIRED_TEMPLATES` 补充 `help_v2.css`、`aliases_v2.css`、`status_bosses_v2.css`、`union_v2.css`、`solo_v2.css`。
+- 迭代归档约定：打包发布后，根 `dist/` 仅保留最新两代安装包，根目录旧版代码工作区移入 `回收站/` 仅保留最新版。
+
+# 1.2.17 · 2026-11-22
 
 - `nikke_render/theme.py` 移除属性自适应变色 `V2_ELEMENT_ACCENTS`，改为 `V2_UNIFIED_ACCENTS`（暗版 `#F6C15C`、亮版 `#D43D51`）；`nikke_profile/draw.py` 同步采用统一主题色。
 - `WIDE_ART_BASE_SCALE` 调整为 `0.825`（等效 1.2.16 下 `-3%` 比例），`nikke_character/draw.py` `render_version` 升级为 `alice-v1217-bento-1`。

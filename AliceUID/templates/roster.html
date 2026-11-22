@@ -1,30 +1,124 @@
-<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><style>
-*{box-sizing:border-box}html,body{margin:0;padding:0;width:1400px;font-family:'MiSans','Microsoft YaHei',sans-serif;color:{{ theme.ink }};background:{{ theme.page }}}
-.page{width:1400px;height:{{ image_height }}px;padding:0 24px;background-color:{{ theme.page }};background-image:url('{{ texture_uri }}');color:{{ theme.ink }}}
-.header{height:176px;padding-top:22px}.eyebrow{font-size:12px;color:{{ theme.accent }};letter-spacing:3px}.title-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px}.name{font-size:30px;line-height:40px;font-weight:800;max-width:1000px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.count{font-size:24px;font-weight:700;color:{{ theme.accent }}}.count-label{font-size:14px;color:{{ theme.muted }}}.identity{display:flex;gap:18px;font-size:16px;color:{{ theme.muted }};margin-top:7px}.section{border-top:1px solid {{ theme.line }};margin-top:16px;padding-top:10px;display:flex;justify-content:space-between;color:{{ theme.muted }};font-size:13px}
-.grid{display:flex;flex-wrap:wrap;gap:8px;width:1352px}.card{width:128px;height:180px;flex-shrink:0;overflow:hidden;border-radius:8px;background:{{ theme.glass }};box-shadow:0 2px 7px rgba(10,24,43,.10)}.icon{width:128px;height:128px;position:relative;background:{{ theme.soft }}}.icon img{display:block;width:128px;height:128px;object-fit:contain}.icon-badge{position:absolute;right:3px;bottom:3px;background:{{ theme.glass }};color:{{ theme.muted }};padding:2px 4px;border-radius:4px;font-size:10px}.card-name{height:32px;font-size:13px;line-height:16px;font-weight:600;padding:0 4px;text-align:center;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;word-break:break-word}.progression{height:20px;line-height:20px;text-align:center;color:{{ theme.accent }};font-size:12px;font-weight:700;white-space:nowrap}.core{margin-left:4px}.footer{height:48px;padding-top:15px;display:flex;justify-content:space-between;color:{{ theme.muted }};font-size:12px}
-.page{background-image:url('{{ frost_scene_uri }}');background-size:100% auto;background-position:center top;background-repeat:no-repeat}.card{border-radius:20px;background:{{ theme.surface_glass }};background-image:none;box-shadow:0 4px 12px #00000026}.card-name{padding-top:1px}.header{border-radius:20px}.icon{border-radius:20px 20px 0 0;overflow:hidden}.footer{font-size:12px;display:flex;flex-direction:column;justify-content:flex-start;gap:3px;padding-top:8px}.footer-meta{display:flex;justify-content:space-between}.footer .brand-credit{margin:0;font-size:10px;line-height:14px}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+{% include 'alice_v2_tokens.css' %}
+html,body{margin:0;padding:0;width:1400px;color:{{ palette.ink }}}
+.page{
+  width:1400px;height:{{ image_height }}px;padding:8px 24px 0;
+  background:{{ palette.page_bg }} url('{{ frost_scene_uri }}') center top/100% auto no-repeat;
+}
+/* 严格保留 HEADER=176px 尺寸契约：160px 卡片 + 8px 顶部页面留白 + 8px 下边距 = 176px */
+.header{
+  height:160px;margin:0 0 8px;padding:12px 18px;
+  display:flex;flex-direction:column;justify-content:space-between;
+}
+.roster-header-main{display:flex;align-items:center;gap:18px;height:94px}
+.roster-header-main .avatar-glass,.roster-header-main .avatar-glass>img{width:76px;height:76px;border-radius:16px}
+.avatar-empty{font-weight:800;color:{{ element_accent }};font-size:24px}
+.roster-header-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.eyebrow{font-size:10px;font-weight:800;letter-spacing:2px;color:{{ element_accent }}}
+.name{font-size:28px;line-height:34px;font-weight:800;color:{{ palette.ink }};max-width:760px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.identity{display:flex;gap:14px;font-size:13px;font-weight:600;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
+.roster-header-metrics{display:flex;align-items:center;flex:none;gap:12px}
+.header-metric{
+  min-width:146px;padding:8px 16px;border-radius:12px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+}
+.header-metric span{font-size:11px;font-weight:700;color:{{ palette.muted }}}
+.header-metric b{font-size:26px;line-height:32px;font-weight:800;color:{{ element_accent }};font-variant-numeric:tabular-nums}
+.header-metric small{font-size:14px;color:{{ palette.muted }}}
+.header-sub{
+  border-top:1px solid {{ palette.line }};padding-top:8px;
+  display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:{{ palette.muted }};
+}
 
-.page{padding-top:8px}
-.header{height:160px;margin:0 0 8px;padding:12px 18px;border:1px solid {{ theme.line }};background:{{ theme.surface_glass }};background-image:none;box-shadow:0 6px 20px #08122026,inset 0 1px #ffffff26}
-.title-row{margin-top:6px}.identity{margin-top:4px}.section{margin-top:10px;padding-top:8px;box-shadow:none;border-radius:0}
-{% include 'glass_finish.css' %}
-.header .section{box-shadow:none;border-radius:0}
-.card{background:{{ theme.container_glass }}}.icon{background:transparent}.card-info{height:52px;display:flex;flex-direction:column;justify-content:center;align-items:center;background:{{ theme.surface_glass }}}.card-name{height:auto;max-height:32px;min-height:0;flex-shrink:0;padding:0 4px;width:128px}.progression{flex-shrink:0;width:128px}
+.grid{display:flex;flex-wrap:wrap;gap:8px;width:1352px}
+.card{position:relative;width:128px;height:160px;border-radius:14px;overflow:hidden;display:block}
+.card>.avatar-glass-edge{width:128px;height:160px;border-radius:14px}
+.game-avatar{position:relative;z-index:1;width:128px;height:128px;border-radius:14px 14px 0 0;overflow:hidden}
+.member-icon{width:128px;height:128px;object-fit:contain;display:block}
+.icon-badge{position:absolute;left:3px;bottom:4px;background:{{ palette.pill_bg }};color:{{ palette.ink }};padding:2px 4px;border-radius:4px;font-size:10px;font-weight:700;z-index:4}
+.card-info{position:relative;z-index:1;height:32px;width:128px;display:flex;align-items:center;justify-content:center;padding:1px 4px;background:{{'rgba(16,28,46,0.56)' if card_theme=='dark' else 'rgba(248,251,255,0.52)'}};border-top:1px solid {{ palette.sub_border }}}
+.card-name{width:120px;max-height:30px;overflow:hidden;font-size:12px;line-height:14px;text-align:center;color:{{ palette.ink }};font-weight:700;word-break:break-word}
+.card-name.long-name{font-size:10px;line-height:13px}
 
+.game-left-badges{position:absolute;left:3px;top:4px;display:flex;flex-direction:column;gap:3px;z-index:4}
+.game-symbol{position:relative;width:22px;height:25px;display:flex;align-items:center;justify-content:center}
+.hex-frame{position:absolute;top:0;left:0;width:100%;height:100%;display:block}
+.symbol-icon{position:relative;width:16px;height:16px;object-fit:contain;display:block}
+.weapon-icon{width:17px;height:17px}
+.progress-badges{display:flex;align-items:center;justify-content:flex-end;gap:0;height:23px;z-index:4}
+.corner-stars{position:absolute;right:2px;top:3px;z-index:4}
+.star{display:block;width:13px;height:13px;object-fit:contain}
+.core-emblem{display:flex;align-items:center;justify-content:center;position:relative;width:23px;height:23px;margin-left:1px;flex:none}
+.core-emblem>img{position:absolute;left:0;top:0;width:23px;height:23px;object-fit:contain}
+.core-emblem>b{position:relative;color:#fff;font-size:9px;line-height:13px;font-weight:800;font-family:'Arial Narrow','Arial',sans-serif;letter-spacing:-.4px}
+.progression-unknown{font-size:12px;color:{{ palette.muted }}}
+.game-element{position:absolute;bottom:4px;right:4px;width:26px;height:29px;display:flex;align-items:center;justify-content:center;z-index:4}
+.game-element .symbol-icon{width:19px;height:19px}
 
+.footer{height:32px;padding-top:6px;display:flex;align-items:center;justify-content:space-between;font-size:10px;color:{{ palette.credit_ink }}}
+.footer-source{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:750px}
+.brand-credit-pill{
+  display:inline-flex;align-items:center;justify-content:center;line-height:1;
+  height:20px;padding:2px 12px 0;border-radius:999px;
+  background:{{ palette.pill_bg }};border:1px solid {{ palette.glass_border }};
+  font-size:10px;font-weight:600;color:{{ palette.credit_ink }};
+}
+</style>
+</head>
+<body>
+{% from 'card_badges.html' import progression as rank_badges, role_corners %}
+<div class="page">
+  <header class="bento-card header">
+    <div class="roster-header-main">
+      <div class="avatar-glass">
+        {% if commander_avatar_url %}
+        <img src="{{ commander_avatar_url }}" alt="指挥官游戏头像">
+        {% else %}
+        <span class="avatar-empty">{{ (nickname or '指')[:1] }}</span>
+        {% endif %}
+        <span class="avatar-glass-edge"></span>
+      </div>
+      <div class="roster-header-copy">
+        <span class="eyebrow">NIKKE / COMMANDER COLLECTION</span>
+        <div class="name">{{ nickname }}</div>
+        <div class="identity"><span>{{ area_label }}</span><span>·</span><span>游戏 UID {{ uid }}</span></div>
+      </div>
+      <div class="roster-header-metrics">
+        <div class="header-metric"><span>同步器等级</span><b>{{ synchro_text or '—' }}</b></div>
+        <div class="header-metric"><span>已持有妮姬</span><b>{{ count }}<small> / {{ total }}</small></b></div>
+      </div>
+    </div>
+    <div class="header-sub">
+      <span>全部已持有妮姬 · 10列 SI 图标</span>
+      <span>{{ '星级与核心 · 头像角标' if cards else '暂无已持有妮姬资料' }}</span>
+    </div>
+  </header>
 
-.card{height:160px;width:128px;border-radius:10px;background:{{theme.container_glass}};border:0;overflow:hidden}.game-avatar{width:128px;height:128px;position:relative;overflow:hidden;border-radius:10px 10px 0 0;background:transparent}.member-icon{width:128px;height:128px;object-fit:contain;display:block}.card-info{height:32px;width:128px;display:flex;align-items:center;justify-content:center;padding:1px 4px;background:{{theme.surface_glass}}}.card-name{height:auto;max-height:30px;min-height:0;width:120px;padding:0;display:block;overflow:hidden;font-size:12px;line-height:14px;text-align:center;color:{{theme.ink}};font-weight:600;word-break:break-word}.card-name.long-name{font-size:10px;line-height:13px}.game-left-badges{position:absolute;left:3px;top:4px;display:flex;flex-direction:column;gap:3px}.game-symbol{position:relative;width:22px;height:25px;display:flex;align-items:center;justify-content:center}.hex-frame{position:absolute;top:0;left:0;width:100%;height:100%;display:block}.symbol-icon{position:relative;width:16px;height:16px;object-fit:contain;display:block}.weapon-icon{width:17px;height:17px}.progress-badges{display:flex;align-items:center;justify-content:flex-end;gap:0;height:23px}.corner-stars{position:absolute;right:2px;top:3px}.star{display:block;width:13px;height:13px;object-fit:contain}.core-emblem{display:flex;align-items:center;justify-content:center;position:relative;width:23px;height:23px;margin-left:1px;flex:none}.core-emblem>img{position:absolute;left:0;top:0;width:23px;height:23px;object-fit:contain}.core-emblem>b{position:relative;color:#fff;font-size:9px;line-height:13px;font-weight:800;font-family:'Arial Narrow','Arial',sans-serif;letter-spacing:-.4px}.game-element{position:absolute;bottom:4px;right:4px;width:26px;height:29px;display:flex;align-items:center;justify-content:center}.game-element .symbol-icon{width:19px;height:19px}.footer{height:32px;padding-top:8px;display:flex;flex-direction:row;align-items:flex-start;justify-content:space-between;gap:8px;font-size:10px;line-height:16px}.footer .brand-credit{margin:0;font-size:10px;line-height:16px}.footer>span{color:{{theme.muted}}}
+  <div class="grid">
+    {% for n in cards %}
+    <div class="card avatar-glass" data-code="{{ n.name_code }}" title="{{ n.skin_notice }}">
+      <div class="game-avatar">
+        <img class="member-icon" src="{{ n.icon_source }}" alt="{{ n.name }}">
+        {{ role_corners(n, neutral_frame) }}
+        {{ rank_badges(n, star_on, star_off, core_icon, 'corner-stars') }}
+        {% if n.icon_badge %}<span class="icon-badge">{{ n.icon_badge }}</span>{% endif %}
+      </div>
+      <div class="card-info"><div class="card-name{% if n.name|length>18 %} long-name{% endif %}">{{ n.name }}</div></div>
+      <span class="avatar-glass-edge"></span>
+    </div>
+    {% endfor %}
+  </div>
 
-.name{color:{{theme.ink}}}
-
-
-.card{background:transparent}.card-info{background:{{'rgba(20,32,50,.50)' if card_theme=='dark' else 'rgba(248,251,255,.50)'}}}.card-name{text-shadow:{{'0 1px 2px rgba(0,0,0,.24)' if card_theme=='dark' else '0 1px 2px rgba(255,255,255,.35)'}}}
-
-.icon-badge{position:absolute;left:3px;right:auto;bottom:4px;background:{{theme.surface_glass}};color:{{theme.ink}};z-index:2}.progression-unknown{font-size:12px;color:{{theme.muted}}}.empty-roster{color:{{theme.muted}};font-size:12px}.footer-source{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:750px}
-{% include 'avatar_glass.css' %}
-.game-avatar.avatar-glass,.game-avatar>.avatar-glass-edge{border-radius:14px}.card{overflow:visible}.card-info{border-radius:0 0 10px 10px}.game-avatar>.avatar-glass-edge{width:128px;height:128px}
-/* The lower glass excludes the full rounded portrait via an alpha mask. */
-.card{position:relative;border-radius:14px;overflow:visible}.card-underlay{position:absolute;left:0;top:0;width:128px;height:160px;object-fit:fill;background:transparent;z-index:0}.card .game-avatar{position:relative;z-index:1}.card-info{position:relative;z-index:1;background:transparent;border-radius:0 0 14px 14px}
-.roster-header-main{display:flex;align-items:center;gap:18px;height:94px}.roster-header-copy{flex:1;min-width:0}.roster-header-copy .name{max-width:790px;font-size:28px;line-height:36px;margin-top:3px}.roster-header-copy .identity{font-size:13px;margin-top:2px}.roster-header-copy .eyebrow{font-size:10px;line-height:15px;letter-spacing:2px}.roster-header-metrics{display:flex;align-items:center;flex:none;gap:24px}.header-metric{min-width:130px;text-align:center;border-left:1px solid {{theme.line}};padding-left:24px}.header-metric span{display:block;font-size:12px;line-height:18px;color:{{theme.muted}}}.header-metric b{display:block;font-size:29px;line-height:38px;color:{{theme.accent}}}.header-metric small{font-size:15px;color:{{theme.muted}}}.header .section{margin-top:8px;padding-top:8px}
-</style></head><body>{% from 'card_badges.html' import progression as rank_badges, role_corners %}<div class="page"><div class="header"><div class="roster-header-main">{% from 'avatar_glass.html' import commander %}{{commander(commander_avatar_url,'指挥官游戏头像',(nickname or '指')[:1])}}<div class="roster-header-copy"><div class="eyebrow">NIKKE / COMMANDER COLLECTION</div><div class="name">{{nickname}}</div><div class="identity"><span>{{area_label}}</span><span>游戏 UID {{uid}}</span></div></div><div class="roster-header-metrics"><div class="header-metric"><span>同步器等级</span><b>{{synchro_text or '—'}}</b></div><div class="header-metric"><span>已持有妮姬</span><b>{{count}}<small> / {{total}}</small></b></div></div></div><div class="section"><span>全部已持有妮姬 · 10列 SI 图标</span><span>{{'星级与核心 · 头像角标' if cards else '暂无已持有妮姬资料'}}</span></div></div><div class="grid">{% for n in cards %}<div class="card" data-code="{{n.name_code}}" title="{{n.skin_notice}}"><img class="card-underlay" src="{{join_glass_url}}" alt="" aria-hidden="true"><div class="game-avatar avatar-glass"><img class="member-icon" src="{{n.icon_source}}" alt="{{n.name}}">{{role_corners(n,neutral_frame)}}{{rank_badges(n,star_on,star_off,core_icon,'corner-stars')}}{% if n.icon_badge %}<span class="icon-badge">{{n.icon_badge}}</span>{% endif %}<span class="avatar-glass-edge"></span></div><div class="card-info"><div class="card-name{% if n.name|length>18 %} long-name{% endif %}">{{n.name}}</div></div></div>{% endfor %}</div><div class="footer"><span class="footer-source">{{preview_notice or '皮肤依据本人接口 · 基图回退标注「基础」 · 未知突破标注「?」'}}</span>{% include 'brand_credit.html' %}<span>AliceUID / {{count}} 名完整展示</span></div></div></body></html>
+  <div class="footer">
+    <span class="footer-source">{{ preview_notice or '皮肤依据本人接口 · 基图回退标注「基础」 · 未知突破标注「?」' }}</span>
+    <span class="brand-credit-pill">Powered By GsCore &amp; Created By AliceUID · {{ credit_timestamp }}（北京时间）</span>
+    <span>AliceUID / {{ count }} 名完整展示</span>
+  </div>
+</div>
+</body>
+</html>
