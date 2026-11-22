@@ -51,18 +51,19 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
         name = _arguments(text)
         if not refresh and '全量导出' in name:
             return  # Reserved for the exact export command.
+        from ..nikke_message.persona import send_reply
         if not refresh and name.endswith(('刷新', '更新')):
-            await bot.send(f'单角色更新请使用 {command_prefix()}刷新爱丽丝面板（替换角色名）。', at_sender=True)
+            await send_reply(bot, ev, f'单角色更新请使用 {command_prefix()}刷新爱丽丝面板（替换角色名）。', at_sender=True)
             return
         if not name:
-            await bot.send(USAGE, at_sender=True)
+            await send_reply(bot, ev, USAGE, at_sender=True)
             return
         if not await get_policy().query_allowed(ev.group_id):
-            await bot.send('本群未开放妮姬查询，请联系群管理员或 Bot 主。', at_sender=True)
+            await send_reply(bot, ev, '本群未开放妮姬查询，请联系群管理员或 Bot 主。', at_sender=True)
             return
         client, bind = await load_client(ev.user_id, ev.bot_id)
         if client is None:
-            await bot.send(unavailable_message(bind), at_sender=True)
+            await send_reply(bot, ev, unavailable_message(bind), at_sender=True)
             return
         from ..nikke_user.service import binding_lock
         from ..nikke_user.models import AliceBind
@@ -81,7 +82,8 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
         equipment_items, skill_icons = await resources.ensure_character_tables()
         async def ownership_notice(role_name):
             if await current():
-                await bot.send(f'本地记录未持有「{role_name}」，正在单独查询该角色，请稍候。', at_sender=True)
+                from ..nikke_message.persona import send_reply, wait_character_single_query
+                await send_reply(bot, ev, wait_character_single_query(role_name), at_sender=True)
         from ..nikke_resource.attributes import prepare_character
         context = await character_queries.query(
             client, bind, name, resources.load_static(), refresh=refresh, ttl=_cache_ttl(),
@@ -94,18 +96,20 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
         ai_summary("character", context)
         png = await draw_character(context)
         if not character_queries.context_current(context,bind):
-            await bot.send('面板已更新，请重新查询；未发送旧卡片。',at_sender=True)
+            from ..nikke_message.persona import send_reply
+            await send_reply(bot, ev, '面板已更新，请重新查询；未发送旧卡片。', at_sender=True)
             return
         sent = False
         async with binding_lock(ev.user_id, ev.bot_id):
             if await current() and character_queries.context_current(context,bind):
                 from ..nikke_time import beijing_text
+                from ..nikke_message.persona import send_reply
                 stamp = context.get('_detail_checked_at')
                 canonical = context['name']  # Canonical static name, already resolved by name_code.
                 text = ('角色资料最近核对：'+beijing_text(stamp)+'\n') if stamp else ''
                 text += ('如卡片数据不是最新，请发送以下命令重新获取最新数据：\n'
                          f'{command_prefix()}刷新{canonical}面板')
-                result = await bot.send([MessageSegment.image(png), text], at_sender=True)
+                result = await send_reply(bot, ev, [MessageSegment.image(png), text], at_sender=True, newline=True)
                 sent = result is not False
         if sent and context.get('_needs_full_refresh'):
             try:
@@ -114,25 +118,29 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
             except Exception as exc:
                 logger.warning(f'[AliceUID] silent refresh scheduling failed error_type={type(exc).__name__}')
     except (CharacterLookupError, CharacterCooldown, CharacterNotOwned, CharacterDataError) as exc:
+        from ..nikke_message.persona import send_reply
         text = str(exc)
         if not isinstance(exc, (CharacterLookupError, CharacterNotOwned)):
             text += '\n' + refresh_hint()
-        await bot.send(text, at_sender=True)
+        await send_reply(bot, ev, text, at_sender=True)
     except NikkeLoginRequired:
-        await bot.send(RELOGIN, at_sender=True)
+        from ..nikke_message.persona import send_reply
+        await send_reply(bot, ev, RELOGIN, at_sender=True)
     except NikkeApiError as exc:
+        from ..nikke_message.persona import send_reply
         logger.warning(f'[AliceUID] 角色练度查询失败 code={exc.code}')
         if is_login_error(exc):
-            await bot.send(RELOGIN, at_sender=True)
+            await send_reply(bot, ev, RELOGIN, at_sender=True)
         elif exc.code == 403:
-            await bot.send('社区拒绝访问（403），请稍后重试或检查账号资料权限。' + refresh_hint(), at_sender=True)
+            await send_reply(bot, ev, '社区拒绝访问（403），请稍后重试或检查账号资料权限。' + refresh_hint(), at_sender=True)
         elif exc.code == 429:
-            await bot.send('社区请求较频繁，请稍后再查询练度。' + refresh_hint(), at_sender=True)
+            await send_reply(bot, ev, '社区请求较频繁，请稍后再查询练度。' + refresh_hint(), at_sender=True)
         else:
-            await bot.send(f'练度查询失败，暂时无法完成社区核实或详情查询（{exc.code}）。' + refresh_hint(), at_sender=True)
+            await send_reply(bot, ev, f'练度查询失败，暂时无法完成社区核实或详情查询（{exc.code}）。' + refresh_hint(), at_sender=True)
     except Exception as exc:
+        from ..nikke_message.persona import send_reply
         logger.error(f'[AliceUID] 角色练度异常 error_type={type(exc).__name__}')
-        await bot.send('练度查询失败，暂时无法完成社区核实或详情查询，请稍后重试并请管理员检查日志。' + refresh_hint(), at_sender=True)
+        await send_reply(bot, ev, '练度查询失败，暂时无法完成社区核实或详情查询，请稍后重试并请管理员检查日志。' + refresh_hint(), at_sender=True)
     finally:
         await views.aclose()
         if client is not None:

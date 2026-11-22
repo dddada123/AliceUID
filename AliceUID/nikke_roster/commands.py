@@ -43,12 +43,17 @@ async def _roster_worker(bot, event, policy):
     client, bind = None, None
     service = get_roster_service()
     try:
+        from ..nikke_message.persona import send_reply as _send_reply
+    except ImportError:
+        async def _send_reply(b, e, p, *, at_sender=True, newline=False, sep=None):
+            return await b.send(p, at_sender=at_sender)
+    try:
         if not await allowed(policy, event):
-            await bot.send('当前权限已关闭，已停止生成卡片。', at_sender=True)
+            await _send_reply(bot, event, '当前权限已关闭，已停止生成卡片。', at_sender=True)
             return
         client, bind = await load_client(event.user_id, event.bot_id)
         if client is None:
-            await bot.send(unavailable_message(bind), at_sender=True)
+            await _send_reply(bot, event, unavailable_message(bind), at_sender=True)
             return
         from ..nikke_logs.store import event as diagnostic_event
         async with asyncio.timeout(120):
@@ -58,7 +63,7 @@ async def _roster_worker(bot, event, policy):
         async with binding_lock(event.user_id, event.bot_id):
             if not await current_before_send(policy, event, bind, prepared, AliceBind):
                 service.cache.invalidate_key(prepared.key)
-                await bot.send('绑定或权限已变化，已停止发送旧账号卡片。', at_sender=True)
+                await _send_reply(bot, event, '绑定或权限已变化，已停止发送旧账号卡片。', at_sender=True)
                 return
             data = prepared.path.read_bytes()
             from ..nikke_message import send_with_forward, display_name
@@ -70,20 +75,20 @@ async def _roster_worker(bot, event, policy):
             if result is not False:
                 service.mark_sent(prepared)
     except TimeoutError:
-        await bot.send('完整卡片生成等待超时，已结束本次任务；资料缓存保留，请稍后重试。',at_sender=True)
+        await _send_reply(bot, event, '完整卡片生成等待超时，已结束本次任务；资料缓存保留，请稍后重试。', at_sender=True)
     except RosterCooldown as exc:
-        await bot.send(str(exc), at_sender=True)
+        await _send_reply(bot, event, str(exc), at_sender=True)
     except NikkeLoginRequired:
         if bind is not None:
             service.invalidate_binding(bind, event.user_id, event.bot_id)
-        await bot.send(RELOGIN, at_sender=True)
+        await _send_reply(bot, event, RELOGIN, at_sender=True)
     except NikkeApiError as exc:
         if bind is not None and exc.code in (401, 403, 300001):
             service.invalidate_binding(bind, event.user_id, event.bot_id)
-        await bot.send(RELOGIN if is_login_error(exc) else f'查询失败（{exc.code}），已停止请求，请稍后再试。', at_sender=True)
+        await _send_reply(bot, event, RELOGIN if is_login_error(exc) else f'查询失败（{exc.code}），已停止请求，请稍后再试。', at_sender=True)
     except Exception as exc:
         logger.error(f'[AliceUID] roster failed error_type={type(exc).__name__}')
-        await bot.send('无法安全生成或发送完整卡片，请稍后重试；不会发送截断图片。', at_sender=True)
+        await _send_reply(bot, event, '无法安全生成或发送完整卡片，请稍后重试；不会发送截断图片。', at_sender=True)
     finally:
         if client is not None:
             try:

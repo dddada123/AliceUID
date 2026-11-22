@@ -20,8 +20,9 @@ async def permitted(ev):
 
 
 async def execute(bot, ev, action):
+    from ..nikke_message.persona import send_reply
     if not await permitted(ev):
-        await bot.send('当前未开放收菜提醒，请联系管理员。', at_sender=True)
+        await send_reply(bot, ev, '当前未开放收菜提醒，请联系管理员。', at_sender=True)
         return
     try:
         route = route_from_event(ev)

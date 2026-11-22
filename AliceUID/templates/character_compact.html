@@ -201,10 +201,13 @@
         <div class="agg-header">
           <span class="agg-title">角色总数据</span>
           <div class="agg-badges">
-            <span class="ui-pill agg-pill">总阶 {{ aggregate.level }}{% if aggregate.level_partial and aggregate.known_lines %} + 未知{% endif %}</span>
             {% if max_line_count > 0 %}
-            <span class="ui-pill agg-pill gold">{{ max_line_count }} 满阶</span>
+            <span class="ui-pill agg-pill gold">满阶 {{ max_line_count }}</span>
             {% endif %}
+            {% if high_line_count > 0 %}
+            <span class="ui-pill agg-pill blue">高阶 {{ high_line_count }}</span>
+            {% endif %}
+            <span class="ui-pill agg-pill">总阶 {{ aggregate.level }}{% if aggregate.level_partial and aggregate.known_lines %} + 未知{% endif %}</span>
           </div>
         </div>
 

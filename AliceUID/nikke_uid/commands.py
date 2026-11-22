@@ -35,13 +35,14 @@ def _failure(stage: str, exc: Exception) -> str:
 
 @sv_uid.on_command(("绑定UID", "绑定uid"), block=True)
 async def nikke_bind_uid_cmd(bot: Bot, ev: Event):
+    from ..nikke_message.persona import send_reply, titled
     text = (ev.text or "").strip()
     if not text:
-        await bot.send(USAGE, at_sender=True)
+        await send_reply(bot, ev, USAGE, at_sender=True)
         return
     parts = text.split()
     if len(text) > 4200:
-        await bot.send("UID登记内容过长，请检查输入。", at_sender=True)
+        await send_reply(bot, ev, "UID登记内容过长，请检查输入。", at_sender=True)
         return
     try:
         # Owner always comes from the sender, regardless of mentions or text.
@@ -53,15 +54,14 @@ async def nikke_bind_uid_cmd(bot: Bot, ev: Event):
         elif parts[0] == "分享" and len(parts) == 2:
             record = get_uid_store().bind_share(user_id, bot_id, parts[1])
         else:
-            await bot.send("请按明确类型登记。\n" + USAGE, at_sender=True)
+            await send_reply(bot, ev, "请按明确类型登记。\n" + USAGE, at_sender=True)
             return
     except ValueError as exc:
-        await bot.send(str(exc), at_sender=True)
+        await send_reply(bot, ev, str(exc), at_sender=True)
         return
     except Exception as exc:  # noqa: BLE001
-        await bot.send(_failure("bind", exc), at_sender=True)
+        await send_reply(bot, ev, _failure("bind", exc), at_sender=True)
         return
-    from ..nikke_message.persona import send_reply, titled
     await send_reply(bot, ev, titled("UID信息", "UID登记已保存。\n" + format_summary(record)), at_sender=True)
 
 

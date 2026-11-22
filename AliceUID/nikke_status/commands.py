@@ -79,11 +79,12 @@ async def _query(bot,ev,kind):
             try:await client.close()
             except Exception as exc:logger.warning(f'[AliceUID] status close error_type={type(exc).__name__}')
     if result is not None and await _allowed(ev):
+        from ..nikke_message.persona import send_reply
         if bind is None:
-            await bot.send(result,at_sender=True)
+            await send_reply(bot, ev, result, at_sender=True)
         else:
             async with binding_lock(ev.user_id,ev.bot_id):
-                if await _current(ev,bind):await bot.send(result,at_sender=True)
+                if await _current(ev,bind):await send_reply(bot, ev, result, at_sender=True)
 
 
 @sv_status.on_command('会战血量')

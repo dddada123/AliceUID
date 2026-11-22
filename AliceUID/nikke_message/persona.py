@@ -49,7 +49,7 @@ def titled(tag: str, body: str) -> str:
     return f'[AliceUID·{tag}]\n{body}'
 
 
-def with_tail_at(payload, user_id, *, is_group: bool, newline: bool = False):
+def with_tail_at(payload, user_id, *, is_group: bool, newline: bool = False, sep: str | None = None):
     """Append @user_id to the tail of text/mixed group replies; leave single images and DMs untouched."""
     if not is_group or not user_id:
         return payload
@@ -62,26 +62,32 @@ def with_tail_at(payload, user_id, *, is_group: bool, newline: bool = False):
         return None
     if not (hasattr(MessageSegment, 'text') and hasattr(MessageSegment, 'at')):
         return None
-    sep = '\n' if newline else ' '
+    resolved_sep = ('\n' if newline else ' ') if sep is None else sep
     if isinstance(payload, str):
-        return [MessageSegment.text(payload + sep), MessageSegment.at(uid)]
+        return [MessageSegment.text(payload + resolved_sep), MessageSegment.at(uid)]
     if isinstance(payload, list):
         if len(payload) == 1 and getattr(payload[0], 'type', None) == 'image':
             return payload
-        items = list(payload)
-        items.extend([MessageSegment.text(sep), MessageSegment.at(uid)])
+        items = [MessageSegment.text(x) if isinstance(x, str) else x for x in payload]
+        if resolved_sep:
+            items.append(MessageSegment.text(resolved_sep))
+        items.append(MessageSegment.at(uid))
         return items
     if getattr(payload, 'type', None) == 'image':
         return payload
-    return [payload, MessageSegment.text(sep), MessageSegment.at(uid)]
+    items = [payload]
+    if resolved_sep:
+        items.append(MessageSegment.text(resolved_sep))
+    items.append(MessageSegment.at(uid))
+    return items
 
 
-async def send_reply(bot, ev, payload, *, at_sender: bool = True, newline: bool = False):
+async def send_reply(bot, ev, payload, *, at_sender: bool = True, newline: bool = False, sep: str | None = None):
     """Send a reply with @sender placed at the tail in group chats and at_sender=False."""
     is_group = bool(getattr(ev, 'group_id', None))
     uid = getattr(ev, 'user_id', None)
     if at_sender and is_group and uid:
-        tailed = with_tail_at(payload, uid, is_group=True, newline=newline)
+        tailed = with_tail_at(payload, uid, is_group=True, newline=newline, sep=sep)
         if tailed is None:
             return await bot.send(payload, at_sender=True)
         payload = tailed
@@ -262,3 +268,25 @@ def wait_export_running(*, style: str | None = None) -> str:
     if is_alice_style(style):
         return titled('练度导出', '兔子先生，您的练度表正在整理发送中，请稍微等爱丽丝一下哦～')
     return titled('练度导出', '你的练度表正在生成或发送，请稍候；本次不会重复导出。')
+
+
+def wait_panel_refresh(*, merged: bool = False, style: str | None = None) -> str:
+    if is_alice_style(style):
+        if merged:
+            return titled('刷新面板', '兔子先生，资料和角色数据已经在努力缓存中啦，稍微等爱丽丝一下哦～')
+        return titled('刷新面板', '遵命！爱丽丝正在帮兔子先生重新整理本人资料、全部角色练度与皮肤缓存，完成后立刻把最新的信息图送过来哦～')
+    if merged:
+        return titled('刷新面板', '本人资料与角色数据正在缓存，请稍候；已合并重复请求。')
+    return titled('刷新面板', '正在刷新本人资料、全部角色练度与皮肤缓存；完成后发送最新信息图。')
+
+
+def wait_character_single_query(role_name: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return titled('角色面板', f'本地名单里暂时没看到「{role_name}」，爱丽丝正在帮兔子先生单独去查一下，稍微等我一下哦～')
+    return titled('角色面板', f'本地记录未持有「{role_name}」，正在单独查询该角色，请稍候。')
+
+
+def wait_export_public(*, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return titled('练度导出', '遵命！爱丽丝正在帮兔子先生整理全部角色的完整练度信息，数据量比较大可能会慢一点，请耐心等我一下哦～')
+    return titled('练度导出', '正在获取全部角色的完整练度信息，数据量较大，可能需要较长时间，请耐心等待。')

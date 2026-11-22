@@ -112,6 +112,11 @@ html,body{width:1280px;height:820px;overflow:hidden}
   border-color:{{ 'rgba(212,148,26,0.36)' if card_theme=='light' else 'rgba(246,196,88,0.36)' }};
   color:{{ '#9B6406' if card_theme=='light' else '#FFD982' }};
 }
+.agg-pill.blue{
+  background:{{ 'rgba(37,99,235,0.12)' if card_theme=='light' else 'rgba(96,165,250,0.16)' }};
+  border-color:{{ 'rgba(37,99,235,0.34)' if card_theme=='light' else 'rgba(96,165,250,0.38)' }};
+  color:{{ '#1D4ED8' if card_theme=='light' else '#93C5FD' }};
+}
 
 .agg-list-single{display:flex;flex-direction:column;gap:8px;flex:1;justify-content:center}
 .agg-row-single{

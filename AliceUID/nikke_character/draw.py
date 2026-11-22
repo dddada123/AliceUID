@@ -228,6 +228,11 @@ def render_character_html(context: dict, style: str | None = None, theme: str | 
         1 for item in (context.get('gear') or []) if isinstance(item, dict) and item.get('tier') == 10
         for line in (item.get('lines') or []) if isinstance(line, dict) and line.get('level') == 15
     )
+    context['high_line_count'] = sum(
+        1 for item in (context.get('gear') or []) if isinstance(item, dict) and item.get('tier') == 10
+        for line in (item.get('lines') or [])
+        if isinstance(line, dict) and line.get('value') != '未知' and line.get('status') == 'rare'
+    )
     context['skill_summary_code'] = ' / '.join(
         str(s.get('level')) if isinstance(s, dict) and s.get('level') is not None else '—'
         for s in (context.get('skills') or [])

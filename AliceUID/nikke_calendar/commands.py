@@ -18,20 +18,25 @@ class CalendarCommands:
         self.image_factory = image_factory
 
     async def handle(self, bot, ev):
+        try:
+            from ..nikke_message.persona import send_reply
+        except ImportError:
+            async def send_reply(b, e, p, *, at_sender=True, newline=False, sep=None):
+                return await b.send(p, at_sender=at_sender)
         if not await self.policy.query_allowed(getattr(ev, 'group_id', None)):
-            await bot.send('本群未开放妮姬查询，请联系群管理员或 Bot 主。', at_sender=True)
+            await send_reply(bot, ev, '本群未开放妮姬查询，请联系群管理员或 Bot 主。', at_sender=True)
             return
         argument = (getattr(ev, 'text', '') or '').strip()
         if argument:
-            await bot.send(HELP, at_sender=True)
+            await send_reply(bot, ev, HELP, at_sender=True)
             return
         try:
             result = await self.service_factory().get()
         except CalendarUnavailable as exc:
-            await bot.send(str(exc), at_sender=True)
+            await send_reply(bot, ev, str(exc), at_sender=True)
             return
         except Exception:
-            await bot.send('官网日历截图暂不可用，请稍后重试。', at_sender=True)
+            await send_reply(bot, ev, '官网日历截图暂不可用，请稍后重试。', at_sender=True)
             return
         # The caption always includes source and actual capture time, including cache hits.
         image_factory = self.image_factory
@@ -39,7 +44,7 @@ class CalendarCommands:
             from gsuid_core.segment import MessageSegment
             image_factory = MessageSegment.image
         # Both are already ready: keep provenance/stale warning with its image.
-        await bot.send([result.caption(), image_factory(result.png)], at_sender=True)
+        await send_reply(bot, ev, [image_factory(result.png), result.caption()], at_sender=True, newline=True)
 
 
 _sv = None

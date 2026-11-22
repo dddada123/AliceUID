@@ -175,7 +175,7 @@
     </section>
   </div>
 
-  <div class="prof-bottom-left"><span class="ui-pill prof-preview-pill">{{ preview_notice or team_source }}</span></div>
+  {% if preview_notice %}<div class="prof-bottom-left"><span class="ui-pill prof-preview-pill">{{ preview_notice }}</span></div>{% endif %}
   <div class="prof-bottom-right"><span class="brand-credit-pill">Powered By GsCore &amp; Created By AliceUID·{{ credit_timestamp }}（北京时间）</span></div>
 </div>
 </body>

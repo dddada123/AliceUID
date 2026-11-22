@@ -50,9 +50,10 @@ class DatabaseCommands:
                            f'主人识别后，{command_prefix()}帮助才会显示管理指令。首次启动的角色列表自动更新不需要主人权限。',
                            at_sender=True)
             return
+        from ..nikke_message.persona import send_reply
         text = (getattr(ev, 'text', '') or '').strip()
         if text in {'帮助', 'help'}:
-            await bot.send(HELP, at_sender=True)
+            await send_reply(bot, ev, HELP, at_sender=True)
             return
         if text in {'状态', 'status'}:
             from .calendar_update import CalendarUpdates
@@ -62,24 +63,24 @@ class DatabaseCommands:
                                                      else '尚未成功；后台等待执行或冷却重试，请查看启动更新日志')
             if self.service.running():
                 pending = len(self.service.state()['queue'])
-                await bot.send(f'数据库更新正在后台运行；当前持久队列待处理 {pending} 项（静态表检查阶段尚未生成新队列）；进度与最终摘要会写入日志。' + calendar_status, at_sender=True)
+                await send_reply(bot, ev, f'数据库更新正在后台运行；当前持久队列待处理 {pending} 项（静态表检查阶段尚未生成新队列）；进度与最终摘要会写入日志。' + calendar_status, at_sender=True)
             else:
                 report = self.service.state().get('last_report')
-                await bot.send((summary(report) if report else '尚无数据库维护记录。' + '\n' + HELP) + calendar_status, at_sender=True)
+                await send_reply(bot, ev, (summary(report) if report else '尚无数据库维护记录。' + '\n' + HELP) + calendar_status, at_sender=True)
             return
         if text:
-            await bot.send(HELP, at_sender=True)
+            await send_reply(bot, ev, HELP, at_sender=True)
             return
         if self.service.running():
-            await bot.send('数据库更新正在后台运行，本次请求已去重。', at_sender=True)
+            await send_reply(bot, ev, '数据库更新正在后台运行，本次请求已去重。', at_sender=True)
             return
 
         async def done(report):
-            await bot.send(summary(report), at_sender=True)
+            await send_reply(bot, ev, summary(report), at_sender=True)
 
         task = self.service.start(reason='manual', done=done)
-        await bot.send('数据库增量更新已在后台启动；首装立绘补全较慢，完成或中止后会回复摘要。'
-                       if task is not None else '数据库更新正在后台运行，本次请求已去重。', at_sender=True)
+        await send_reply(bot, ev, '数据库增量更新已在后台启动；首装立绘补全较慢，完成或中止后会回复摘要。'
+                         if task is not None else '数据库更新正在后台运行，本次请求已去重。', at_sender=True)
 
 
 _sv = None

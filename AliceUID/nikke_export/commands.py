@@ -136,11 +136,12 @@ async def _export(bot, ev, options=None):
                     raise ExportError(unavailable_message(authenticated_bind))
                 if panel_identity(authenticated_bind) != panel_identity(bind) or not await current_owner():
                     raise ExportError('绑定或权限已变化，已停止导出。')
-                await bot.send('正在获取全部角色的完整练度信息，数据量较大，可能需要较长时间，请耐心等待。', at_sender=at_sender)
+                from ..nikke_message.persona import wait_export_public
+                await send_reply(bot, ev, wait_export_public(), at_sender=at_sender)
                 async def notice(message):
                     if not await current_owner():
                         raise ExportError('绑定或权限已变化，已停止导出。')
-                    await bot.send(message, at_sender=at_sender)
+                    await send_reply(bot, ev, message, at_sender=at_sender)
                 async with asyncio.timeout(300):
                     snapshot, target_bind, public_recheck = await fetch_public(client, bind, options.share, current_owner, notice=notice)
                     from ..nikke_resource.attributes import prepare_snapshot
@@ -209,14 +210,14 @@ async def _export(bot, ev, options=None):
                         raise RuntimeError('file delivery rejected')
                 except Exception as exc:
                     logger.warning(f'[AliceUID] 练度表文件发送失败 error_type={type(exc).__name__}')
-                    await bot.send('练度表已生成，但文件发送失败。请管理员检查 QQ 接入端的文件上传支持及权限；未自动重复发送。', at_sender=at_sender)
+                    await send_reply(bot, ev, '练度表已生成，但文件发送失败。请管理员检查 QQ 接入端的文件上传支持及权限；未自动重复发送。', at_sender=at_sender)
     except (TimeoutError, asyncio.TimeoutError):
-        await bot.send('练度数据读取超时，未发送不完整文件，请稍后重试。', at_sender=at_sender)
+        await send_reply(bot, ev, '练度数据读取超时，未发送不完整文件，请稍后重试。', at_sender=at_sender)
     except ExportError as exc:
         message = str(exc).replace('请先刷新面板', f'请先执行 {command_prefix()}刷新面板')
-        await bot.send(message, at_sender=at_sender)
+        await send_reply(bot, ev, message, at_sender=at_sender)
     except CharacterDataError as exc:
-        await bot.send('面板缓存准备未完成：' + str(exc), at_sender=at_sender)
+        await send_reply(bot, ev, '面板缓存准备未完成：' + str(exc), at_sender=at_sender)
     except asyncio.CancelledError:
         raise
     except NikkeApiError as exc:
@@ -226,10 +227,10 @@ async def _export(bot, ev, options=None):
             403: '社区拒绝访问，请稍后检查账号或公开设置。',
             429: '社区请求较频繁，请稍后重试。',
         }.get(exc.code, f'练度读取失败（{exc.code}），未生成不完整文件。')
-        await bot.send(message, at_sender=at_sender)
+        await send_reply(bot, ev, message, at_sender=at_sender)
     except Exception as exc:
         logger.error(f'[AliceUID] 练度全量导出失败 error_type={type(exc).__name__}')
-        await bot.send('练度表生成失败，请稍后重试或联系管理员检查日志。', at_sender=at_sender)
+        await send_reply(bot, ev, '练度表生成失败，请稍后重试或联系管理员检查日志。', at_sender=at_sender)
     finally:
         try:
             if client is not None:

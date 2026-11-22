@@ -87,10 +87,11 @@ def register(config):
     def bind(name,kind,option=None):
         @sv.on_command(name)
         async def handler(bot,ev):
+            from ..nikke_message.persona import send_reply
             route=dict(bot=str(ev.bot_id),self_id=str(getattr(ev,'bot_self_id','') or ''),group=str(getattr(ev,'group_id','') or ''))
             if option and (ev.text or '').strip():
-                await bot.send(f'用法：{command_prefix()}{name}',at_sender=True);return
-            await bot.send(commands.handle(kind,option or ev.text or '状态',getattr(ev,'user_pm',6),route),at_sender=True)
+                await send_reply(bot, ev, f'用法：{command_prefix()}{name}', at_sender=True);return
+            await send_reply(bot, ev, commands.handle(kind,option or ev.text or '状态',getattr(ev,'user_pm',6),route), at_sender=True)
     bind('签到群通知','switch')
     bind('开启签到群通知','switch','开启')
     bind('关闭签到群通知','switch','关闭')

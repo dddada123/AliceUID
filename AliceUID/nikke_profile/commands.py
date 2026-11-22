@@ -152,10 +152,15 @@ async def send_profile_image(bot, ev, client, bind, data, *, policy=None):
                 await allowed(policy, ev) and await still_current()):
             from datetime import datetime
             from ..nikke_cdk.models import SHANGHAI
+            from ..nikke_message.persona import send_reply
             stamp = data.get('_checked_at')
-            caption = ('资料最近核对：' + datetime.fromtimestamp(stamp, SHANGHAI).strftime('%Y-%m-%d %H:%M:%S')
-                       + '（北京时间）；图片复用时保留原生成时间。') if stamp else '图片显示所用资料快照，最新资料请手动刷新。'
-            await bot.send([MessageSegment.image(png), caption], at_sender=True)
+            is_group = bool(getattr(ev, 'group_id', None))
+            if stamp:
+                ts = datetime.fromtimestamp(stamp, SHANGHAI).strftime('%Y-%m-%d %H:%M:%S')
+                caption = f'资料最近核对：{ts}（北京时间）{"；" if is_group else "。"}'
+            else:
+                caption = '图片显示所用资料快照，最新资料请手动刷新' + ('；' if is_group else '。')
+            await send_reply(bot, ev, [MessageSegment.image(png), caption], at_sender=True, sep='')
             return True
     return False
 
@@ -170,28 +175,29 @@ async def send_profile_image(bot, ev, client, bind, data, *, policy=None):
 @ai_query(sv_profile, no_args=True)
 @profile_errors
 async def nikke_profile_cmd(bot: Bot, ev: Event):
+    from ..nikke_message.persona import send_reply
     if not await get_policy().query_allowed(ev.group_id):
-        await bot.send('本群未开放妮姬查询，请联系群管理员或 Bot 主。', at_sender=True)
+        await send_reply(bot, ev, '本群未开放妮姬查询，请联系群管理员或 Bot 主。', at_sender=True)
         return
     client, bind = await load_client(ev.user_id, ev.bot_id)
     if client is None:
-        await bot.send(unavailable_message(bind), at_sender=True)
+        await send_reply(bot, ev, unavailable_message(bind), at_sender=True)
         return
 
     try:
         data = await _profile_data(client, bind)
         await send_profile_image(bot, ev, client, bind, data)
     except ProfileCooldown:
-        await bot.send('资料刷新较频繁，请至少等待5秒后再查询。', at_sender=True)
+        await send_reply(bot, ev, '资料刷新较频繁，请至少等待5秒后再查询。', at_sender=True)
     except NikkeLoginRequired:
         _cache.pop(_cache_key(bind), None)
-        await bot.send(RELOGIN, at_sender=True)
+        await send_reply(bot, ev, RELOGIN, at_sender=True)
     except NikkeApiError as exc:
         logger.warning(f"[AliceUID] {command_prefix()} 信息查询失败 code={exc.code}")
-        await bot.send(RELOGIN if is_login_error(exc) else f"查询失败，请稍后重试（{exc.code}）。", at_sender=True)
+        await send_reply(bot, ev, RELOGIN if is_login_error(exc) else f"查询失败，请稍后重试（{exc.code}）。", at_sender=True)
     except Exception as exc:  # noqa: BLE001
         logger.error(f"[AliceUID] {command_prefix()} 信息异常 error_type={type(exc).__name__}")
-        await bot.send("查询失败，请稍后重试。", at_sender=True)
+        await send_reply(bot, ev, "查询失败，请稍后重试。", at_sender=True)
     finally:
         try:
             await client.close()
@@ -205,23 +211,24 @@ async def nikke_profile_refresh_cmd(bot: Bot, ev: Event):
     from ..nikke_user.panel_refresh import ensure_profile
     from ..nikke_roster.commands import allowed
     from ..nikke_roster.service import RosterCooldown
+    from ..nikke_message.persona import send_reply
     policy = get_policy()
     if not await allowed(policy, ev):
-        await bot.send('当前用户或群未开放妮姬查询，请联系管理员。', at_sender=True)
+        await send_reply(bot, ev, '当前用户或群未开放妮姬查询，请联系管理员。', at_sender=True)
         return
     client, bind = await load_client(ev.user_id, ev.bot_id)
     if client is None:
-        await bot.send(unavailable_message(bind), at_sender=True)
+        await send_reply(bot, ev, unavailable_message(bind), at_sender=True)
         return
     try:
-        await bot.send('正在轻量刷新本人名片资料，不读取全部角色装备详情。', at_sender=True)
+        await send_reply(bot, ev, '正在轻量刷新本人名片资料，不读取全部角色装备详情。', at_sender=True)
         data = await ensure_profile(client, bind, refresh=True)
         await send_profile_image(bot, ev, client, bind, data, policy=policy)
     except RosterCooldown as exc:
-        await bot.send(str(exc), at_sender=True)
+        await send_reply(bot, ev, str(exc), at_sender=True)
     except NikkeLoginRequired:
-        await bot.send(RELOGIN, at_sender=True)
+        await send_reply(bot, ev, RELOGIN, at_sender=True)
     except NikkeApiError as exc:
-        await bot.send(RELOGIN if is_login_error(exc) else '资料刷新未完成，原缓存保留，请稍后重试。', at_sender=True)
+        await send_reply(bot, ev, RELOGIN if is_login_error(exc) else '资料刷新未完成，原缓存保留，请稍后重试。', at_sender=True)
     finally:
         await client.close()

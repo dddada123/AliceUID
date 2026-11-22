@@ -23,21 +23,26 @@ class GuideCommands:
                 and await self.policy.query_allowed(getattr(ev, 'group_id', None)))
 
     async def handle(self, bot, ev):
+        try:
+            from ..nikke_message.persona import send_reply
+        except ImportError:
+            async def send_reply(b, e, p, *, at_sender=True, newline=False, sep=None):
+                return await b.send(p, at_sender=at_sender)
         if not await self.allowed(ev):
-            await bot.send('本群或当前用户未开放妮姬查询，请联系管理员。', at_sender=True)
+            await send_reply(bot, ev, '本群或当前用户未开放妮姬查询，请联系管理员。', at_sender=True)
             return
         if (getattr(ev, 'text', '') or '').strip():
-            await bot.send(help_text(), at_sender=True)
+            await send_reply(bot, ev, help_text(), at_sender=True)
             return
         try:
             result = await self.service_factory().get()
         except GuideUnavailable as exc:
             if await self.allowed(ev):
-                await bot.send(str(exc), at_sender=True)
+                await send_reply(bot, ev, str(exc), at_sender=True)
             return
         except Exception:
             if await self.allowed(ev):
-                await bot.send('会战攻略暂不可用，请稍后再试。', at_sender=True)
+                await send_reply(bot, ev, '会战攻略暂不可用，请稍后再试。', at_sender=True)
             return
         if not await self.allowed(ev):
             return

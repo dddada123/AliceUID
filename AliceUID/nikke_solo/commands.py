@@ -58,7 +58,8 @@ async def _solo_command(bot,ev,state=None):
     try:
         selection = parse_selection(ev.text)
     except ValueError:
-        await bot.send(f'用法：{command_prefix()}个人突袭推荐[火/水/风/电/铁][刷新] [亮色/暗色/随机]；支持燃烧/水冷/风压/电击/铁甲及单人突袭推荐。不填属性自动跟随网站赛季，练度变化请刷新。',at_sender=True)
+        from ..nikke_message.persona import send_reply
+        await send_reply(bot, ev, f'用法：{command_prefix()}个人突袭推荐[火/水/风/电/铁][刷新] [亮色/暗色/随机]；支持燃烧/水冷/风压/电击/铁甲及单人突袭推荐。不填属性自动跟随网站赛季，练度变化请刷新。', at_sender=True)
         return
     refresh = selection.refresh
     refresh_command = f'{command_prefix()}个人突袭推荐{selection.suffix}刷新'
@@ -75,7 +76,8 @@ async def _solo_command(bot,ev,state=None):
             text = (f'当前正在处理其他用户的单人突袭推荐，已为你排队，前方还有{ahead}个任务。'
                     if ahead else NOTICE)
             try:
-                await bot.send(text,at_sender=True)
+                from ..nikke_message.persona import send_reply
+                await send_reply(bot, ev, text, at_sender=True)
             except Exception as exc:
                 record_failure('个人突袭', '排队或等待提示发送', exc)
                 raise RetryAborted() from None
@@ -161,7 +163,8 @@ async def _solo_command(bot,ev,state=None):
                         account = await owned_account(client,bind)
                         async def opening(original):
                             try:
-                                await bot.send('你的官网妮姬资料当前为'+LABELS[original]+'。为本次推荐将临时设为所有人可见，查询可能较慢；期间其他访问者也可读取资料。',at_sender=True)
+                                from ..nikke_message.persona import send_reply
+                                await send_reply(bot, ev, '你的官网妮姬资料当前为'+LABELS[original]+'。为本次推荐将临时设为所有人可见，查询可能较慢；期间其他访问者也可读取资料。', at_sender=True)
                             except Exception as exc:
                                 record_failure('个人突袭', '临时公开提示发送', exc)
                                 raise RetryAborted() from None
@@ -237,13 +240,14 @@ async def _solo_command(bot,ev,state=None):
         else:
             reply += '\n官网临时公开将在后台恢复原设置，可用'+command_prefix()+'妮姬公开状态检查。'
     if reply is not None and await allowed(ev):
+        from ..nikke_message.persona import send_reply
         if bind is None:
-            await bot.send(reply,at_sender=True)
+            await send_reply(bot, ev, reply, at_sender=True)
         else:
             async with binding_lock(*actor):
                 if await current(ev,bind):
                     if isinstance(reply,list) and not authenticated(bind):reply = unavailable_message(bind)
-                    await bot.send(reply,at_sender=True)
+                    await send_reply(bot, ev, reply, at_sender=True)
 
 
 @sv_solo.on_command(('个人突袭推荐', '单人突袭推荐'))
