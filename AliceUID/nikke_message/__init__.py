@@ -17,9 +17,42 @@ from .images import prepare_forward_content
 _paused = OrderedDict()
 _image_paused = OrderedDict()
 _login_paused = OrderedDict()
+_hint_sent = OrderedDict()
 PAUSE_SECONDS = 60
 _retry_receipts = {}
 _image_slots = asyncio.Semaphore(1)
+FORWARD_RESTART_HINT = '（合并转发失败已转为普通发送；如持续失败，可尝试重启 NapCat 容器或对应 QQ 客户端）'
+
+
+def _should_attach_restart_hint(key) -> bool:
+    now = monotonic()
+    if _hint_sent.get(key, 0) > now:
+        return False
+    _hint_sent[key] = now + PAUSE_SECONDS
+    _hint_sent.move_to_end(key)
+    while len(_hint_sent) > 64:
+        _hint_sent.popitem(last=False)
+    return True
+
+
+def _with_restart_hint(message, key):
+    if not _should_attach_restart_hint(key):
+        return message
+    if isinstance(message, str):
+        return message + '\n' + FORWARD_RESTART_HINT
+    if isinstance(message, list):
+        items = list(message)
+        if items and isinstance(items[-1], str):
+            items[-1] = items[-1] + '\n' + FORWARD_RESTART_HINT
+            return items
+        if MessageSegment is not None:
+            items.append(MessageSegment.text('\n' + FORWARD_RESTART_HINT))
+        else:
+            items.append('\n' + FORWARD_RESTART_HINT)
+        return items
+    if MessageSegment is not None:
+        return [message, MessageSegment.text('\n' + FORWARD_RESTART_HINT)]
+    return [message, '\n' + FORWARD_RESTART_HINT]
 
 
 def _pause_store(bucket: str):
@@ -47,8 +80,8 @@ def _receipt_timeout():
 async def _pending(bot, at_sender, key, message, *, bucket: str = 'text'):
     _pause(key, bucket=bucket)
     label = '含图' if bucket == 'image' else ('登录' if bucket == 'login' else '文本')
-    logger.warning(f'[AliceUID] 转发上传未确认，普通发送原内容一次，暂停本连接{label}转发{PAUSE_SECONDS}秒；迟到成功可能重复，不再重试转发')
-    return await bot.send(message, at_sender=at_sender)
+    logger.warning(f'[AliceUID] 转发上传未确认，普通发送原内容一次，暂停本连接{label}转发{PAUSE_SECONDS}秒；迟到成功可能重复，不再重试转发（如持续失败，请尝试重启 NapCat 容器或对应 QQ 客户端）')
+    return await bot.send(_with_restart_hint(message, key), at_sender=at_sender)
 
 
 def display_name(value, fallback):
@@ -143,9 +176,9 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None, at_send
                 async with _image_slots:
                     content = await asyncio.to_thread(prepare_forward_content, content)
             except Exception as exc:
-                logger.warning(f'[AliceUID] 转发图片准备失败，保留完整原图普通发送 error_type={type(exc).__name__}')
+                logger.warning(f'[AliceUID] 转发图片准备失败，保留完整原图普通发送 error_type={type(exc).__name__}（如持续失败，请尝试重启 NapCat 容器或对应 QQ 客户端）')
                 _log_structure(kind, route, 'plain_fallback', message, at_sender=at_sender, skip_reason='prepare_failed')
-                return await bot.send(message, at_sender=at_sender)
+                return await bot.send(_with_restart_hint(message, connection), at_sender=at_sender)
         node = MessageSegment.node(content)
         logger.info(f'[AliceUID] 转发发送 kind={kind} nodes={len(content)} '
                     f'images={sum(getattr(item, "type", None) == "image" for item in content)} '
@@ -174,9 +207,9 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None, at_send
                     _retry_receipts[(bucket, connection)] = transport
                 _log_structure(kind, route, 'plain_fallback', message, at_sender=at_sender, skip_reason='timeout_or_conn')
                 return await _pending(bot, at_sender, connection, message, bucket=bucket)
-            logger.warning('[AliceUID] 转发调用中断，回退普通消息')
+            logger.warning('[AliceUID] 转发调用中断，回退普通消息（如持续失败，请尝试重启 NapCat 容器或对应 QQ 客户端）')
         except Exception as exc:
-            logger.warning(f'[AliceUID] 转发发送失败，回退普通消息 error_type={type(exc).__name__}')
+            logger.warning(f'[AliceUID] 转发发送失败，回退普通消息 error_type={type(exc).__name__}（如持续失败，请尝试重启 NapCat 容器或对应 QQ 客户端）')
         else:
             if napcat:
                 elapsed = monotonic() - started
@@ -194,11 +227,12 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None, at_send
                 if monotonic() - started >= receipt_seconds * .9:
                     _log_structure(kind, route, 'plain_fallback', message, at_sender=at_sender, skip_reason='deadline_empty')
                     return await _pending(bot, at_sender, connection, message, bucket=bucket)
-                logger.warning('[AliceUID] NapCat转发未返回消息ID且未到等待上限，回退普通消息一次')
+                logger.warning('[AliceUID] NapCat转发未返回消息ID且未到等待上限，回退普通消息一次（如持续失败，请尝试重启 NapCat 容器或对应 QQ 客户端）')
                 _pause(connection, bucket=bucket)
             elif result is not False:
                 return result  # Other adapters' None / [] is not a failure.
             else:
-                logger.warning('[AliceUID] 转发返回失败，回退普通消息')
+                logger.warning('[AliceUID] 转发返回失败，回退普通消息（如持续失败，请尝试重启 NapCat 容器或对应 QQ 客户端）')
     _log_structure(kind, route, 'plain_fallback' if skip_reason is None else 'plain', message, at_sender=at_sender, skip_reason=skip_reason)
-    return await bot.send(message, at_sender=at_sender)
+    fallback_payload = _with_restart_hint(message, connection) if skip_reason is None else message
+    return await bot.send(fallback_payload, at_sender=at_sender)

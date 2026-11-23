@@ -46,6 +46,9 @@
       <div class="name-row">
         <h1>{{ name }}</h1>
         <span class="ui-pill level-pill">Lv.{{ level if level is not none else '未知' }}</span>
+        {% if alias_pill_text %}
+        <span class="ui-pill alias-pill">{{ alias_pill_text }}</span>
+        {% endif %}
       </div>
       <div class="meta-row">
         {% for icon in role_icons or [] %}

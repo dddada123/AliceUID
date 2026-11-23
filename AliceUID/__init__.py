@@ -47,6 +47,8 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
     from .nikke_character import commands as _character_commands  # noqa: E402,F401
     from .nikke_export import commands as _export_commands  # noqa: E402,F401
     from .nikke_character import alias_commands as _alias_commands  # noqa: E402,F401
+    from .nikke_character.aliases import preload_builtin_aliases  # noqa: E402
+    preload_builtin_aliases()
     from .nikke_uid import commands as _uid_commands  # noqa: E402,F401
     from .nikke_community.runtime import setup_community, observe_group  # noqa: E402
     from .nikke_calendar.commands import setup as setup_calendar  # noqa: E402

@@ -250,6 +250,28 @@ def render_character_html(context: dict, style: str | None = None, theme: str | 
     title_em = sum(1.0 if unicodedata.east_asian_width(ch) in ('W', 'F') else 0.6 for ch in str(context.get('name') or ''))
     context['name_font_size'] = 28 if title_em <= 5 else 25 if title_em <= 8 else 22
     context['compact_name_font_size'] = 25 if title_em <= 5 else 20 if title_em <= 8 else 18
+    if context.get('alias_pill_text') is None:
+        raw_aliases = context.get('display_aliases')
+        if raw_aliases is None:
+            from .aliases import aliases_for_code
+            raw_aliases = aliases_for_code(context.get('name_code'))
+        cleaned = [str(a).strip() for a in (raw_aliases or ()) if str(a).strip()]
+        if cleaned:
+            items = sorted(dict.fromkeys(cleaned), key=lambda a: (len(a), a.casefold()))[:3]
+            level_str = f"Lv.{context['level'] if context.get('level') is not None else '未知'}"
+            level_em = sum(1.0 if unicodedata.east_asian_width(ch) in ('W', 'F') else 0.58 for ch in level_str)
+            h1_w = title_em * context['name_font_size'] * 1.04
+            level_w = level_em * 13.0 + 20.0
+            avail = max(40.0, 448.0 - h1_w - level_w - 16.0)
+            while len(items) > 1:
+                candidate = '别名-' + '|'.join(items)
+                pill_w = 20.0 + sum(1.02 if unicodedata.east_asian_width(ch) in ('W', 'F') else 0.56 for ch in candidate) * 11.0
+                if pill_w <= avail:
+                    break
+                items.pop()
+            context['alias_pill_text'] = '别名-' + '|'.join(items)
+        else:
+            context['alias_pill_text'] = ''
 
     if style == 'compact':
         from ..nikke_render.card_background import compact_geometry, compact_backdrop
@@ -279,7 +301,7 @@ def render_character_html(context: dict, style: str | None = None, theme: str | 
         ax = (context.get('wide_anchor') or {}).get('x') if (context.get('wide_anchor') or {}).get('matched') else None
         raw_placement = upper_body_placement(
             context['wide_art_url'],
-            width=516,
+            width=546,
             height=820,
             full_bounds=context.get('full_alpha_bounds') if exact_full else None,
             anchor_x=ax,
@@ -295,7 +317,7 @@ def render_character_html(context: dict, style: str | None = None, theme: str | 
         else:
             offset_pct = get_wide_art_scale_offset()
         scale_mult = WIDE_ART_BASE_SCALE * max(0.10, 1.0 + offset_pct / 100.0)
-        context['wide_art_style'] = _scale_placement(raw_placement, 516, scale_mult, ax) if exact_full else raw_placement
+        context['wide_art_style'] = _scale_placement(raw_placement, 546, scale_mult, ax) if exact_full else raw_placement
     from ..nikke_render.icon_effects import apply_icon_effects, portrait_shadow
     context = apply_icon_effects(context)
     if style == 'wide':
@@ -327,11 +349,13 @@ async def draw_character(context: dict, style: str | None = None, theme: str | N
     except ImportError:
         resources = None  # Pure offline adapters can supply their own painter.
     stable=content_context(context)
-    stable.update(render_version='alice-v1217-bento-1',
+    from .aliases import aliases_for_code
+    code=context['name_code']
+    stable.update(render_version='alice-v1223-bento-1',
                   theme=theme,style=style,presentation_mode=character_presentation_mode(),
                   wide_art_scale=get_wide_art_scale_offset(),
+                  aliases=aliases_for_code(code),
                   presentation=style_version())
-    code=context['name_code']
     store=get_panel_cache()
     from ..nikke_resource.cache import read_metadata
     dependencies = read_metadata(store.path(identity,f'render-{code}.json')).get('dependencies')

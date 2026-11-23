@@ -22,7 +22,7 @@ def icon_effect(source, theme='light', maxed=False):
         mask = Image.new('L', size)
         shift = 0 if maxed or theme == 'dark' else max(1, round(h * .035))
         mask.paste(icon.getchannel('A'), (px, py + shift))
-        color = (200, 12, 96) if maxed else (16, 57, 123) if theme == 'dark' else (0, 0, 0)
+        color = (246, 193, 92) if (maxed and theme == 'dark') else (200, 12, 96) if maxed else (16, 57, 123) if theme == 'dark' else (0, 0, 0)
         radius = min(w, h) * (.045 if maxed else .025)
         alpha = mask.filter(ImageFilter.GaussianBlur(radius))
         alpha = alpha.point(lambda a: round(a * (.90 if maxed else .65 if theme == 'dark' else .70)))

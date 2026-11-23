@@ -162,10 +162,12 @@ def _format_merged_error_group(items, sig):
     if not signed:
         if stopped:
             text += f'\n处理：连续{streak}个周期未能确认成功，已自动关闭自动签到。'
-            text += f'请本人{command_prefix()}重新登录以恢复此前授权；网络恢复后也可{command_prefix()}自动社区 开启。'
+            text += f'请本人{command_prefix()}重新登录以恢复此前授权；如为网络或服务异常，恢复后也可{command_prefix()}自动社区 开启。'
         elif streak:
             text += f'\n处理：连续失败{streak}/3天，自动签到保持开启，下个周期继续。'
-        text += f'\nCOOKIE 可能已过期，请发送 {command_prefix()}重新登录；如为网络或服务异常，请稍后检查。'
+            text += f'\nCOOKIE 可能已过期，请发送 {command_prefix()}重新登录；如为网络或服务异常，请稍后检查。'
+        else:
+            text += f'\nCOOKIE 可能已过期，请发送 {command_prefix()}重新登录；如为网络或服务异常，请稍后检查。'
         for item in items:
             actor = str(item['actor'])
             if actor.isascii() and actor.isdigit() and 0 < len(actor) <= 20:

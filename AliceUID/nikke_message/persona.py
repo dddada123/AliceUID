@@ -253,19 +253,18 @@ def community_enable_text(sign_time: str, prefix: str, *, style: str | None = No
 
 
 def community_group_summary_header(counts, day: str, today: bool, complete: bool, *, style: str | None = None) -> str:
-    prefix_day = '今日' if today else day + '周期'
     status_icon = '✅' if complete else '⚠️'
+    scope_day = '今天' if today else f'{day}周期'
     if is_alice_style(style):
-        title = prefix_day + ('自动签到全部办妥啦！' if complete else '自动签到处理结束。')
-        text = f'[AliceUID·社区自动签到] {status_icon} {title}'
+        text = f'[AliceUID·社区自动签到] {status_icon}'
         if complete:
-            text += f'\n📝 嘿嘿，兔子先生，今天的社区签到爱丽丝已经帮大家办好啦～（本群签到成功{counts["成功"]}人，签到失败{counts["失败"]}人，{counts["未开启"]}人尚未开启自动签到）'
+            text += f'\n嘿嘿，兔子先生，{scope_day}的社区签到爱丽丝已经帮大家办好啦～（本群签到成功{counts["成功"]}人，签到失败{counts["失败"]}人，{counts["未开启"]}人尚未开启自动签到）'
         else:
-            text += f'\n📝 兔子先生，本轮自动签到已处理完毕（本群签到成功{counts["成功"]}人，签到失败{counts["失败"]}人，{counts["未开启"]}人尚未开启自动签到）。'
+            text += f'\n兔子先生，{scope_day}自动签到已处理完毕（本群签到成功{counts["成功"]}人，签到失败{counts["失败"]}人，{counts["未开启"]}人尚未开启自动签到）。'
         return text
-    title = prefix_day + ('自动签到已完成！' if complete else '自动签到处理结束。')
-    text = f'[AliceUID·社区自动签到] {status_icon} {title}'
-    text += f'\n📝 本群共签到成功{counts["成功"]}人，共签到失败{counts["失败"]}人，{counts["未开启"]}人尚未开启自动签到。'
+    text = f'[AliceUID·社区自动签到] {status_icon}'
+    prefix = '' if today else f'{day}周期'
+    text += f'\n{prefix}本群共签到成功{counts["成功"]}人，共签到失败{counts["失败"]}人，{counts["未开启"]}人尚未开启自动签到。'
     return text
 
 
