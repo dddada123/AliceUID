@@ -88,6 +88,13 @@ def bedtime(now, full_at, value):
     return 0 <= begin - now <= 3600 and begin <= full_at < begin + length
 
 
+def in_pre_quiet_window(now, value):
+    if not value or quiet(now, value):
+        return False
+    start, _ = map(minutes, value.split('-'))
+    return 0 <= at_next(now, start) - now <= 3600
+
+
 def snapshot(context):
     if not context.get('storage_known'):
         raise ValueError('社区未提供有效保管箱容量，暂不能安排收菜提醒。')

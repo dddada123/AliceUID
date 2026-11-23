@@ -95,8 +95,10 @@ async def fetch(acc, *, full=False):
 
 
 async def render(acc, sub):
+    import copy
     from ..nikke_status.draw import draw_status
     from ..nikke_resource.cache import validate_image
+    from ..nikke_resource.identity_card import decorate_identity
     if not await allowed(sub, acc):
         raise ValueError('绑定或会话权限已变化，已停止生成开启卡片。')
     from ..nikke_status.service import resource_status
@@ -104,7 +106,8 @@ async def render(acc, sub):
     bind = await AliceBind.get_bind(sub['route']['user'], sub['route']['bot'])
     if bind is None or revision(bind) != acc['revision']:
         raise ValueError('绑定已变化，开启卡片已取消。')
-    context = _contexts[acc['key']]
+    context = copy.deepcopy(_contexts[acc['key']])
+    await decorate_identity(context, bind)
     owner = resource_status.owner_key(bind, (sub['route']['user'], sub['route']['bot']))
     image = await draw_status(context, owner_key=owner)
     validate_image(image)

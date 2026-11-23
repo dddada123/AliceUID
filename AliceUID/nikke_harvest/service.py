@@ -6,7 +6,7 @@ from decimal import Decimal
 import logging
 import time
 from .planner import (TZ, DEFAULT_QUIET, account_key, revision, night_next, pre_next,
-                      quiet, quiet_value, bedtime, at_next, minutes)
+                      quiet, quiet_value, bedtime, in_pre_quiet_window, at_next, minutes)
 
 
 class HarvestService:
@@ -73,9 +73,10 @@ class HarvestService:
                            full_nights=0, night_date='', error='')
                 self.store.reset_nights(key)
                 self.store.save_account(acc)
+            quiet_cfg = old.get('quiet', DEFAULT_QUIET) if old else DEFAULT_QUIET
             sub = dict(id=route['id'], account=key, enabled=True, generation=(old['generation']+1 if old else 1),
-                       route=route, quiet=old['quiet'] if old else DEFAULT_QUIET,
-                       pre_due=pre_next(now, old['quiet'] if old else DEFAULT_QUIET), reason='')
+                       route=route, quiet=quiet_cfg,
+                       pre_due=pre_next(now, quiet_cfg), reason='')
             self.store.save_sub(sub)
             try:
                 if not await self.allowed(sub, acc):
@@ -97,6 +98,8 @@ class HarvestService:
                 if Decimal(acc['snapshot']['p']) >= 90 or bedtime(now, acc['snapshot']['full'], sub['quiet']):
                     kind = 'full' if Decimal(acc['snapshot']['p']) >= 99 else ('normal' if Decimal(acc['snapshot']['p']) >= 90 else 'bed')
                     note = self.notice(acc, sub, kind)
+                    if kind == 'bed':
+                        note['opening_card'] = True
                     self.store.enqueue(note)
                     self.store.mark(note['id'], 'confirmed')
                 return acc, sub, image, True
@@ -117,12 +120,38 @@ class HarvestService:
 
     async def set_quiet(self, sid, value):
         value = quiet_value(value)
+        now = self.clock()
+        immediate = in_pre_quiet_window(now, value)
+        account_key_val = None
         async with self.send_lock:
             sub = self.store.sub(sid)
             if not sub:
                 raise ValueError('请先在当前会话开启收菜提醒。')
-            sub.update(quiet=value, pre_due=pre_next(self.clock(), value))
+            sub.update(quiet=value, pre_due=(now if immediate else pre_next(now, value)))
             self.store.save_sub(sub)
+            account_key_val = sub['account']
+        if immediate and account_key_val:
+            acc = self.store.account(account_key_val)
+            if acc and acc['phase'] not in ('OFF', 'AUTO_STOPPED', 'PAUSED', 'INITIALIZING'):
+                self.store.clear_opening_bed(sid, acc['cycle'])
+                if acc['phase'] == 'WAIT_MAX':
+                    async with self.lock(account_key_val):
+                        acc = self.store.account(account_key_val)
+                        sub = self.store.sub(sid)
+                        snap = acc.get('snapshot') if acc else None
+                        if (acc and sub and sub['enabled'] and acc['phase'] == 'WAIT_MAX' and snap
+                                and Decimal(snap['p']) < 99 and bedtime(now, snap['full'], value)
+                                and not self.store.seen(sub['id'], acc['cycle'], 'bed')
+                                and not self.store.seen(sub['id'], acc['cycle'], 'full')
+                                and await self.allowed(sub, acc)):
+                            self.store.enqueue(self.notice(acc, sub, 'bed'))
+                        if sub:
+                            sub['pre_due'] = pre_next(now, value)
+                            self.store.save_sub(sub)
+                    await self.deliver()
+                else:
+                    await self.process(account_key_val)
+                    await self.deliver()
         return value
 
     def revoke(self, bind):

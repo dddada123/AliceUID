@@ -116,6 +116,15 @@ class Store:
             return any(db.execute("SELECT 1 FROM notices WHERE id=? AND status<>'discarded'", (key,)).fetchone()
                        for key in keys)
 
+    def clear_opening_bed(self, sid, cycle):
+        nid = f'{sid}:{cycle}:bed'
+        with self.tx() as db:
+            row = db.execute("SELECT status,payload FROM notices WHERE id=?", (nid,)).fetchone()
+            if row and row['status'] != 'discarded' and json.loads(row['payload']).get('opening_card'):
+                db.execute("UPDATE notices SET status='discarded' WHERE id=?", (nid,))
+                return True
+        return False
+
     def ready(self):
         with self.tx() as db:
             return [json.loads(r[0]) for r in db.execute("SELECT payload FROM notices WHERE status='ready'")]

@@ -62,6 +62,8 @@ async def _query(bot,ev,kind):
                 else:
                     context=await union_queries.query_bosses(client,bind,refresh=text=='刷新')
                     if not await _current(ev,bind):return
+                    from ..nikke_resource.identity_card import decorate_identity
+                    await decorate_identity(context,bind)
                     from .draw import draw_status
                     result=MessageSegment.image(await draw_status(context,owner_key=(str(ev.user_id),str(ev.bot_id),*binding_key(bind))))
     except NikkeLoginRequired:

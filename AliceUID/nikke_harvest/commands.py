@@ -88,6 +88,8 @@ async def execute(bot, ev, action):
                     text += '\n当前阶段：'+phases.get(acc['phase'], acc['phase'])+'。'
                     if acc.get('due') is not None:
                         text += f'\n下次检查：{moment(acc["due"], svc.clock())}。'
+                    if sub.get('pre_due') is not None:
+                        text += f'\n下次睡前检查：{moment(sub["pre_due"], svc.clock())}。'
                 if acc and acc.get('error'):
                     text += '\n最近检查未成功，等待下一次合法检查或重新开启。'
         from ..nikke_message.persona import send_reply
