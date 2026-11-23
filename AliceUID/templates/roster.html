@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <style>
 {% include 'alice_v2_tokens.css' %}
-html,body{margin:0;padding:0;width:1400px;color:{{ palette.ink }}}
+html,body{margin:0;padding:0;width:{{ page_width }}px;color:{{ palette.ink }}}
 .page{
-  width:1400px;height:{{ image_height }}px;padding:8px 24px 0;
+  width:{{ page_width }}px;height:{{ image_height }}px;padding:8px 24px 0;
   background:{{ palette.page_bg }} url('{{ frost_scene_uri }}') center top/100% auto no-repeat;
 }
 /* 严格保留 HEADER=176px 尺寸契约：160px 卡片 + 8px 顶部页面留白 + 8px 下边距 = 176px */
@@ -19,11 +19,11 @@ html,body{margin:0;padding:0;width:1400px;color:{{ palette.ink }}}
 .avatar-empty{font-weight:800;color:{{ element_accent }};font-size:24px}
 .roster-header-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .eyebrow{font-size:10px;font-weight:800;letter-spacing:2px;color:{{ element_accent }}}
-.name{font-size:28px;line-height:34px;font-weight:800;color:{{ palette.ink }};max-width:760px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.name{font-size:28px;line-height:34px;font-weight:800;color:{{ palette.ink }};max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .identity{display:flex;gap:14px;font-size:13px;font-weight:600;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
 .roster-header-metrics{display:flex;align-items:center;flex:none;gap:12px}
 .header-metric{
-  min-width:146px;padding:8px 16px;border-radius:12px;
+  min-width:142px;padding:8px 14px;border-radius:12px;
   background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
   display:flex;flex-direction:column;align-items:center;gap:2px;
 }
@@ -34,9 +34,11 @@ html,body{margin:0;padding:0;width:1400px;color:{{ palette.ink }}}
   border-top:1px solid {{ palette.line }};padding-top:8px;
   display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:{{ palette.muted }};
 }
+.header-tip{color:{{ element_accent }};font-weight:700}
 
-.grid{display:flex;flex-wrap:wrap;gap:8px;width:1352px}
+.grid{display:flex;flex-wrap:wrap;gap:8px;width:{{ grid_width }}px}
 .card{position:relative;width:128px;height:160px;border-radius:14px;overflow:hidden;display:block}
+.card-spacer{width:128px;height:160px;flex:none}
 .card>.avatar-glass-edge{width:128px;height:160px;border-radius:14px}
 .game-avatar{position:relative;z-index:1;width:128px;height:128px;border-radius:14px 14px 0 0;overflow:hidden}
 .member-icon{width:128px;height:128px;object-fit:contain;display:block}
@@ -44,6 +46,22 @@ html,body{margin:0;padding:0;width:1400px;color:{{ palette.ink }}}
 .card-info{position:relative;z-index:1;height:32px;width:128px;display:flex;align-items:center;justify-content:center;padding:1px 4px;background:{{'rgba(16,28,46,0.56)' if card_theme=='dark' else 'rgba(248,251,255,0.52)'}};border-top:1px solid {{ palette.sub_border }}}
 .card-name{width:120px;max-height:30px;overflow:hidden;font-size:12px;line-height:14px;text-align:center;color:{{ palette.ink }};font-weight:700;word-break:break-word}
 .card-name.long-name{font-size:10px;line-height:13px}
+
+.card.unowned .game-left-badges,.card.unowned .game-element{opacity:0.55}
+.card.unowned .card-name{color:{{ palette.muted }};font-weight:600}
+
+.section-transition{
+  width:{{ grid_width }}px;height:34px;margin:10px 0 8px;padding:0 16px;
+  border-radius:11px;display:flex;align-items:center;justify-content:space-between;
+  background:{{ palette.glass_bg }};border:1px solid {{ palette.glass_border }};
+  font-size:12px;font-weight:700;color:{{ palette.ink }};
+}
+.section-transition-sub{font-size:11px;font-weight:600;color:{{ palette.muted }}}
+.empty-grid-note{
+  width:{{ grid_width }}px;height:160px;border-radius:16px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:700;color:{{ palette.muted }};
+}
 
 .game-left-badges{position:absolute;left:3px;top:4px;display:flex;flex-direction:column;gap:3px;z-index:4}
 .game-symbol{position:relative;width:22px;height:25px;display:flex;align-items:center;justify-content:center}
@@ -60,8 +78,7 @@ html,body{margin:0;padding:0;width:1400px;color:{{ palette.ink }}}
 .game-element{position:absolute;bottom:4px;right:4px;width:26px;height:29px;display:flex;align-items:center;justify-content:center;z-index:4}
 .game-element .symbol-icon{width:19px;height:19px}
 
-.footer{height:32px;padding-top:6px;display:flex;align-items:center;justify-content:space-between;font-size:10px;color:{{ palette.credit_ink }}}
-.footer-source{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:750px}
+.footer{height:32px;padding-top:6px;display:flex;align-items:center;justify-content:center;font-size:10px;color:{{ palette.credit_ink }}}
 .brand-credit-pill{
   display:inline-flex;align-items:center;justify-content:center;line-height:1;
   height:20px;padding:2px 12px 0;border-radius:999px;
@@ -84,21 +101,31 @@ html,body{margin:0;padding:0;width:1400px;color:{{ palette.ink }}}
         <span class="avatar-glass-edge"></span>
       </div>
       <div class="roster-header-copy">
-        <span class="eyebrow">NIKKE / COMMANDER COLLECTION</span>
+        <span class="eyebrow">{{ 'NIKKE / MAIN SQUAD ROSTER' if mode == 'main' else 'NIKKE / COMMANDER COLLECTION' }}</span>
         <div class="name">{{ nickname }}</div>
         <div class="identity"><span>{{ area_label }}</span><span>·</span><span>游戏 UID {{ uid }}</span></div>
       </div>
       <div class="roster-header-metrics">
         <div class="header-metric"><span>同步器等级</span><b>{{ synchro_text or '—' }}</b></div>
+        {% if mode == 'main' %}
+        <div class="header-metric"><span>主力妮姬</span><b>{{ count }}<small> / {{ owned_count or total }}</small></b></div>
+        {% else %}
         <div class="header-metric"><span>已持有妮姬</span><b>{{ count }}<small> / {{ total }}</small></b></div>
+        {% endif %}
       </div>
     </div>
     <div class="header-sub">
-      <span>全部已持有妮姬 · 10列 SI 图标</span>
-      <span>{{ '星级与核心 · 头像角标' if cards else '暂无已持有妮姬资料' }}</span>
+      {% if mode == 'main' %}
+      <span>主力妮姬（任一技能 ≥ Lv.7）· {{ columns }}列 SI 图标 · 战力降序</span>
+      <span class="header-tip">查看所有妮姬请使用 {{ command_prefix or 'nk' }}图鉴 命令</span>
+      {% else %}
+      <span>全部已持有妮姬 · {{ columns }}列 SI 图标</span>
+      <span>{{ '已持有左上→右 · 未解锁灰阶右下→左' if unowned_cards else ('星级与核心 · 头像角标' if cards else '暂无已持有妮姬资料') }}</span>
+      {% endif %}
     </div>
   </header>
 
+  {% if cards %}
   <div class="grid">
     {% for n in cards %}
     <div class="card avatar-glass" data-code="{{ n.name_code }}" title="{{ n.skin_notice }}">
@@ -113,11 +140,37 @@ html,body{margin:0;padding:0;width:1400px;color:{{ palette.ink }}}
     </div>
     {% endfor %}
   </div>
+  {% else %}
+  <div class="bento-card empty-grid-note">暂无技能 ≥ Lv.7 的主力妮姬，发送 {{ command_prefix or 'nk' }}图鉴 可查看全部妮姬。</div>
+  {% endif %}
+
+  {% if unowned_rows %}
+  <div class="section-transition">
+    <span>未解锁妮姬 · 共 {{ unowned_count }} 名</span>
+    <span class="section-transition-sub">按稀有度排序 · 右下角从右向左排列</span>
+  </div>
+  <div class="grid">
+    {% for row in unowned_rows %}
+      {% for n in row %}
+        {% if n is none %}
+        <div class="card-spacer"></div>
+        {% else %}
+        <div class="card avatar-glass unowned" data-code="{{ n.name_code }}" title="{{ n.skin_notice }}">
+          <div class="game-avatar">
+            <img class="member-icon" src="{{ n.icon_source }}" alt="{{ n.name }}">
+            {{ role_corners(n, neutral_frame) }}
+          </div>
+          <div class="card-info"><div class="card-name{% if n.name|length>18 %} long-name{% endif %}">{{ n.name }}</div></div>
+          <span class="avatar-glass-edge"></span>
+        </div>
+        {% endif %}
+      {% endfor %}
+    {% endfor %}
+  </div>
+  {% endif %}
 
   <div class="footer">
-    <span class="footer-source">{{ preview_notice or '皮肤依据本人接口 · 基图回退标注「基础」 · 未知突破标注「?」' }}</span>
     <span class="brand-credit-pill">Powered By GsCore &amp; Created By AliceUID · {{ credit_timestamp }}（北京时间）</span>
-    <span>AliceUID / {{ count }} 名完整展示</span>
   </div>
 </div>
 </body>

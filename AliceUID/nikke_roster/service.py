@@ -8,7 +8,7 @@ from .cache import RosterCache, identity
 from .draw import draw_roster, prepare_images
 from ..nikke_render.theme import get_card_theme_mode as get_card_theme
 
-RENDER_VERSION = "alice-icons10-v1209-local-first"
+RENDER_VERSION = "alice-icons-v1300-main-codex"
 
 
 class RosterCooldown(ValueError):
@@ -118,14 +118,15 @@ class RosterService:
         self.epochs = {}
         self.snapshot_provider = snapshot_provider
 
-    async def prepare(self, client, bind, actor, bot):
-        key, owner = identity(actor, bot, bind)
+    async def prepare(self, client, bind, actor, bot, *, mode='owned'):
+        key, owner = identity(actor, bot, bind, mode=mode)
         data = {}
         epoch = self.epochs.get(key, 0)
         import time
         from ..nikke_logs.store import event
-        started=time.monotonic()
-        event('完整卡片','资料快照','START')
+        started = time.monotonic()
+        label = '主力卡片' if mode == 'main' else ('图鉴卡片' if mode == 'codex' else '完整卡片')
+        event(label, '资料快照', 'START')
         if self.snapshot_provider is not None:
             data = await self.snapshot_provider(client, bind)
             basic, owned = data['basic'], data['chars']
@@ -143,7 +144,7 @@ class RosterService:
                     saved = await paced.get_saved_role_info()
                     if saved_role_matches(saved, client.region):
                         uid = str(saved.get('role_id') or '')
-        event('完整卡片','资料快照','OK',elapsed_ms=round((time.monotonic()-started)*1000),count=len(owned) if isinstance(owned,list) else 0)
+        event(label, '资料快照', 'OK', elapsed_ms=round((time.monotonic() - started) * 1000), count=len(owned) if isinstance(owned, list) else 0)
         epoch = self.epochs.get(key, 0)
         static = self.resources.load_static()
         codes = {number(row.get('name_code')) for row in owned if isinstance(row, dict)} if isinstance(owned, list) else set()
@@ -162,8 +163,36 @@ class RosterService:
             from ..nikke_commands import command_prefix
             raise ValueError('新角色资料暂未补齐，已自动检查公开角色表。请稍后重试，或联系Bot主执行'
                              f'{command_prefix()}数据库更新；不会将缺失资料渲染为空白卡片。')
-        context = build_roster_context(basic, owned, static, nickname=bind.nickname,
-                                       uid=uid, area_label=client.region.label)
+
+        details = data.get('details') if isinstance(data.get('details'), dict) else None
+        if mode == 'main' and details is None:
+            from ..nikke_character.cache import panel_identity
+            from ..nikke_character.service import character_queries
+            store = character_queries.store()
+            snapshot = store.read(panel_identity(bind)) if store is not None else {}
+            details = snapshot.get('details') if isinstance(snapshot.get('details'), dict) else {}
+            missing_details = [c for c in codes if c > 0 and str(c) not in details]
+            if missing_details and self.snapshot_provider is not None:
+                try:
+                    from ..nikke_user.panel_refresh import refresh_panel
+                    await refresh_panel(client, bind, actor=actor, bot=bot, only_missing=True)
+                    snapshot = store.read(panel_identity(bind)) if store is not None else {}
+                    details = snapshot.get('details') if isinstance(snapshot.get('details'), dict) else {}
+                except Exception:
+                    pass
+
+        from ..nikke_commands import command_prefix
+        context = build_roster_context(
+            basic,
+            owned,
+            static,
+            nickname=bind.nickname,
+            uid=uid,
+            area_label=client.region.label,
+            mode=mode,
+            details=details,
+            command_prefix=command_prefix(),
+        )
         from ..nikke_resource.identity_card import cached_identity,portrait_mapping
         context.update(cached_identity(bind,dict(data,chars=owned)))
         context['commander_mapping']=portrait_mapping(self.resources,context)
@@ -213,10 +242,11 @@ class RosterService:
     def invalidate_binding(self, bind, actor=None, bot=None, *, clear_image=True):
         actor = str(actor if actor is not None else bind.user_id)
         bot = str(bot if bot is not None else bind.bot_id)
-        key, _ = identity(actor, bot, bind)
-        self.epochs[key] = self.epochs.get(key, 0) + 1
-        if clear_image:
-            self.cache.invalidate_key(key)
+        for mode in ('main', 'codex'):
+            key, _ = identity(actor, bot, bind, mode=mode)
+            self.epochs[key] = self.epochs.get(key, 0) + 1
+            if clear_image:
+                self.cache.invalidate_key(key)
 
     def invalidate_actor(self, actor, bot):
         self.cache.invalidate_actor(actor, bot)

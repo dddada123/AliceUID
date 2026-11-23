@@ -147,6 +147,8 @@ class AliasStore:
             merged = self.read(static=static)
             code = resolve_character(character, static, aliases=merged)
             for name, other in merged.items():
+                if other not in static.characters:
+                    continue
                 if _name_key(name, convert) == key and other != code:
                     raise ValueError('别名已用于其他角色，未修改。')
             local = self.read_local()

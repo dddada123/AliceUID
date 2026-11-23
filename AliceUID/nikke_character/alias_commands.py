@@ -17,44 +17,44 @@ _export_busy = set()
 
 @sv_alias.on_regex(r'^(?P<character>.+?)(?:新增|注册)别名(?P<alias>.+)$')
 async def add_alias(bot, ev):
-    from ..nikke_message.persona import send_reply
+    from ..nikke_message.persona import alias_add_text, alias_owner_only_text, send_reply, titled
     if type(getattr(ev, 'user_pm', None)) is not int or ev.user_pm != 0:
-        await send_reply(bot, ev, '仅Bot主可维护角色别名。', at_sender=True)
+        await send_reply(bot, ev, alias_owner_only_text('维护角色别名'), at_sender=True)
         return
     args = ev.regex_dict
     static = get_resources().load_static()
     try:
         code = get_alias_store().add(args['character'], args['alias'], static)
-        await send_reply(bot, ev, f"已添加：{static.name(code)} → {args['alias'].strip()}", at_sender=True)
+        await send_reply(bot, ev, alias_add_text(static.name(code), args['alias'].strip()), at_sender=True)
     except (CharacterLookupError, ValueError, OSError):
-        await send_reply(bot, ev, '添加失败：请核对完整角色名、别名冲突或本地别名文件。', at_sender=True)
+        await send_reply(bot, ev, titled('角色别名', '添加失败：请核对完整角色名、别名冲突或本地别名文件。'), at_sender=True)
 
 
 @sv_alias.on_regex(r'^(?:注销|删除)别名\s*(?P<alias>.+)$')
 async def remove_alias(bot, ev):
-    from ..nikke_message.persona import send_reply
+    from ..nikke_message.persona import alias_owner_only_text, alias_remove_text, send_reply, titled
     if type(getattr(ev, 'user_pm', None)) is not int or ev.user_pm != 0:
-        await send_reply(bot, ev, '仅Bot主可维护角色别名。', at_sender=True)
+        await send_reply(bot, ev, alias_owner_only_text('维护角色别名'), at_sender=True)
         return
     alias = (ev.regex_dict or {}).get('alias', '').strip()
     static = get_resources().load_static()
     try:
         removed, code = get_alias_store().remove(alias, static=static)
         role_name = static.name(code) if code is not None and code in static.characters else f'角色{code}'
-        await send_reply(bot, ev, f'已注销：{role_name} × {removed}', at_sender=True)
+        await send_reply(bot, ev, alias_remove_text(role_name, removed), at_sender=True)
     except (ValueError, OSError) as exc:
-        await send_reply(bot, ev, f'注销失败：{exc}', at_sender=True)
+        await send_reply(bot, ev, titled('角色别名', f'注销失败：{exc}'), at_sender=True)
 
 
 @sv_alias.on_command('别名导出', aliases=['导出别名'], block=True)
 async def export_aliases(bot, ev):
-    from ..nikke_message.persona import send_reply
+    from ..nikke_message.persona import alias_export_notice, alias_owner_only_text, send_reply
     if type(getattr(ev, 'user_pm', None)) is not int or ev.user_pm != 0:
-        await send_reply(bot, ev, '仅Bot主可导出角色别名表。', at_sender=True)
+        await send_reply(bot, ev, alias_owner_only_text('导出角色别名表'), at_sender=True)
         return
     owner = (str(getattr(ev, 'bot_id', '')), str(getattr(ev, 'user_id', '')))
     if owner in _export_busy:
-        await send_reply(bot, ev, '别名表正在导出或发送，请稍候。', at_sender=True)
+        await send_reply(bot, ev, alias_export_notice('busy'), at_sender=True)
         return
     _export_busy.add(owner)
     try:
@@ -62,11 +62,11 @@ async def export_aliases(bot, ev):
         data = await asyncio.to_thread(get_alias_store().export_markdown, static)
         receipt = await bot.send(MessageSegment.file(data, 'AliceUID_nk_alias.md'))
         if receipt is False or receipt == []:
-            await send_reply(bot, ev, '别名表已生成，但发送未确认，请检查接入端文件上传支持。', at_sender=True)
+            await send_reply(bot, ev, alias_export_notice('unconfirmed'), at_sender=True)
     except asyncio.CancelledError:
         raise
     except (ValueError, OSError):
-        await send_reply(bot, ev, '别名表导出或文件发送失败，请检查本地别名文件与接入端权限。', at_sender=True)
+        await send_reply(bot, ev, alias_export_notice('failed'), at_sender=True)
     finally:
         _export_busy.discard(owner)
 

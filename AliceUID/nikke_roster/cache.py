@@ -13,11 +13,14 @@ TTL = 7 * 86400
 HEX = re.compile(r'^[a-f0-9]{64}$')
 
 
-def identity(actor, bot, bind):
+def identity(actor, bot, bind, *, mode='main'):
     from ..nikke_community.runtime import binding_revision
     account = [str(bind.game_id), str(bind.intl_open_id), str(bind.area_id)]
     owner = hashlib.sha256(json.dumps([str(actor), str(bot)], separators=(',', ':')).encode()).hexdigest()
-    key = hashlib.sha256(json.dumps([owner, account, binding_revision(bind)], separators=(',', ':')).encode()).hexdigest()
+    parts = [owner, account, binding_revision(bind)]
+    if mode not in ('main', 'owned'):
+        parts.append(str(mode))
+    key = hashlib.sha256(json.dumps(parts, separators=(',', ':')).encode()).hexdigest()
     return key, owner
 
 

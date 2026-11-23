@@ -270,14 +270,16 @@ def community_group_summary_header(counts, day: str, today: bool, complete: bool
 
 # --- 4. 耗时等待提示 (roster / export / profile / character) ---
 
-def wait_roster_generating(*, merged: bool = False, style: str | None = None) -> str:
+def wait_roster_generating(*, merged: bool = False, mode: str = 'main', style: str | None = None) -> str:
+    tag = '主力妮姬' if mode == 'main' else '图鉴展示'
+    noun = '主力妮姬卡片' if mode == 'main' else '完整图鉴卡片'
     if is_alice_style(style):
         if merged:
-            return titled('完整卡片', '兔子先生，完整卡片正在为您加紧绘制中，稍微等爱丽丝一小会儿哦～')
-        return titled('完整卡片', '好，爱丽丝正在核对兔子先生的阵容并绘制完整卡片，首次准备头像可能会稍久一点哦～')
+            return titled(tag, f'兔子先生，{noun}正在为您加紧绘制中，稍微等爱丽丝一小会儿哦～')
+        return titled(tag, f'好~，爱丽丝正在核对兔子先生的阵容并绘制{noun}，首次准备头像可能会稍久一点哦～')
     if merged:
-        return titled('完整卡片', '你的完整卡片正在生成，请稍候。')
-    return titled('完整卡片', '正在核对本人阵容并生成完整卡片，首次准备肖像可能稍久。')
+        return titled(tag, f'你的{noun}正在生成，请稍候。')
+    return titled(tag, f'正在核对本人阵容并生成{noun}，首次准备肖像可能稍久。')
 
 
 def wait_export_running(*, style: str | None = None) -> str:
@@ -332,3 +334,39 @@ def solo_privacy_text(label: str, *, style: str | None = None) -> str:
             '爱丽丝会先临时帮您设为所有人可见，查询可能稍慢一点，完成后会恢复原状的（期间其他访问者也能看到资料哦）。',
         )
     return titled('个人突袭', f'你的官网妮姬资料当前为{label}。为本次推荐将临时设为所有人可见，查询可能较慢；期间其他访问者也可读取资料。')
+
+
+# --- 5. 角色别名管理 (nikke_character.alias_commands) ---
+
+def alias_owner_only_text(action: str = '维护角色别名', *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return titled('角色别名', f'唔……兔子先生，{action}这项工作只有 Bot 主才能操作哦。')
+    return titled('角色别名', f'仅Bot主可{action}。')
+
+
+def alias_add_text(role_name: str, alias: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return titled('角色别名', f'嘿嘿，爱丽丝已经帮兔子先生记下新称呼啦：{role_name} → {alias}')
+    return titled('角色别名', f'已添加：{role_name} → {alias}')
+
+
+def alias_remove_text(role_name: str, alias: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return titled('角色别名', f'好~，爱丽丝已经帮兔子先生把这个别名划掉啦～（已注销：{role_name} × {alias}）')
+    return titled('角色别名', f'已注销：{role_name} × {alias}')
+
+
+def alias_export_notice(kind: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        mapping = {
+            'busy': '兔子先生，爱丽丝正在整理并发送别名表呢，稍微等我一下下哦～',
+            'unconfirmed': '唔……别名表已经生成好啦，但没有收到接入端的发送确认，请检查文件上传支持哦。',
+            'failed': '啊……别名表导出或发送失败了，请兔子先生检查本地别名文件与接入端权限。',
+        }
+        return titled('别名导出', mapping[kind])
+    mapping = {
+        'busy': '别名表正在导出或发送，请稍候。',
+        'unconfirmed': '别名表已生成，但发送未确认，请检查接入端文件上传支持。',
+        'failed': '别名表导出或文件发送失败，请检查本地别名文件与接入端权限。',
+    }
+    return titled('别名导出', mapping[kind])

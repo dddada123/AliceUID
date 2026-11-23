@@ -50,12 +50,13 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
             {'command': f'{command_prefix()}妮姬隐藏', 'description': '隐藏官网妮姬资料，持续生效'},
             {'command': f'{command_prefix()}妮姬公开状态', 'description': '查看官网实际公开范围和待恢复状态'},
         ]},
-        {'title': '个人查询', 'tag': '本人功能', 'description': '资料、角色练度、收菜与个人突袭；日历和别名查询无需绑定。', 'items': [
+        {'title': '个人查询', 'tag': '本人功能', 'description': '资料、主力卡片、全量图鉴、练度导出与收菜提醒；日历和别名查询无需绑定。', 'items': [
             {'command': f'{command_prefix()}信息 / {command_prefix()}名片', 'description': '读取本人资料缓存；展示战役爬塔、主立绘与当前皮肤'},
-            {'command': f'{command_prefix()}爱丽丝练度 / {command_prefix()}爱丽丝面板', 'description': '本人立绘、装备与技能；已有本地数据和图片优先复用'},
+            {'command': f'{command_prefix()}爱丽丝练度 / {command_prefix()}爱丽丝面板', 'description': '本人立绘、装备与技能；宽版含别名胶囊，优先复用本地缓存'},
             {'command': f'{command_prefix()}信息刷新 / {command_prefix()}刷新信息', 'description': '轻量更新本人名片资料并回图，不读取全部角色装备详情'},
             {'command': f'{command_prefix()}刷新爱丽丝面板', 'description': '替换角色名，更新该角色数据并渲染卡片；至少间隔5秒'},
-            {'command': f'{command_prefix()}卡片', 'description': '读取本人角色与皮肤缓存；每行10个头像，含星级/核心角标'},
+            {'command': f'{command_prefix()}卡片 / {command_prefix()}阵容卡片', 'description': '主力妮姬卡片（任一技能 ≥ Lv.7）；按人数自动 7 / 8 / 10 列排布'},
+            {'command': f'{command_prefix()}图鉴 / {command_prefix()}妮姬图鉴', 'description': '完整图鉴：10列已持有妮姬 + 换行灰阶未解锁妮姬（右下角起）'},
             {'command': f'{command_prefix()}练度全量导出', 'description': '原始练度Excel；支持筛选、编号/原始战力排序及公开链接'},
             {'command': f'{command_prefix()}400练度全量导出[json] [链接]', 'description': '原始与指定等级模拟对照；400可替换为成长资料支持的等级'},
             {'command': f'{command_prefix()}练度全量导出json / JSON', 'description': '实际等级JSON，便于AI分析；可追加公开练度链接'},

@@ -27,13 +27,13 @@ async def current_before_send(policy, event, bind, prepared, model):
     return await allowed(policy, event)
 
 
-async def roster_worker(bot,event,policy):
+async def roster_worker(bot, event, policy, *, mode='main'):
     from ..nikke_logs.store import request_scope
-    with request_scope('完整卡片'):
-        return await _roster_worker(bot,event,policy)
+    with request_scope('主力卡片' if mode == 'main' else '图鉴卡片'):
+        return await _roster_worker(bot, event, policy, mode=mode)
 
 
-async def _roster_worker(bot, event, policy):
+async def _roster_worker(bot, event, policy, *, mode='main'):
     from gsuid_core.logger import logger
     from gsuid_core.segment import MessageSegment
     from ..nikke_api.client import NikkeApiError, NikkeLoginRequired
@@ -57,7 +57,7 @@ async def _roster_worker(bot, event, policy):
             return
         from ..nikke_logs.store import event as diagnostic_event
         async with asyncio.timeout(120):
-            prepared = await service.prepare(client, bind, event.user_id, event.bot_id)
+            prepared = await service.prepare(client, bind, event.user_id, event.bot_id, mode=mode)
         # Binding mutations use this same lock. Prevent revoke/rebind between the
         # final revision check and send, and verify permissions again after work.
         async with binding_lock(event.user_id, event.bot_id):
@@ -67,11 +67,13 @@ async def _roster_worker(bot, event, policy):
                 return
             data = prepared.path.read_bytes()
             from ..nikke_message import send_with_forward, display_name
-            diagnostic_event('完整卡片','发送','START',bytes=len(data))
+            log_label = '主力卡片' if mode == 'main' else '图鉴卡片'
+            title_kind = '主力妮姬' if mode == 'main' else '图鉴展示'
+            diagnostic_event(log_label, '发送', 'START', bytes=len(data))
             result = await send_with_forward(bot, event, MessageSegment.image(data),
                                              config_key='AliceUID_RosterForward',
-                                             title=f'[AliceUID·图鉴展示·{display_name(getattr(bind, "nickname", ""), "未知指挥官")}]')
-            diagnostic_event('完整卡片','发送','OK' if result is not False else 'FAILED')
+                                             title=f'[AliceUID·{title_kind}·{display_name(getattr(bind, "nickname", ""), "未知指挥官")}]')
+            diagnostic_event(log_label, '发送', 'OK' if result is not False else 'FAILED')
             if result is not False:
                 service.mark_sent(prepared)
     except TimeoutError:
@@ -97,24 +99,25 @@ async def _roster_worker(bot, event, policy):
                 pass
 
 
-async def queue_roster(bot, event, policy):
+async def queue_roster(bot, event, policy, *, mode='main'):
     try:
         from ..nikke_message.persona import send_reply, wait_roster_generating
     except ImportError:
         async def send_reply(b, e, p, *, at_sender=True, newline=False, sep=None):
             return await b.send(p, at_sender=at_sender)
-        def wait_roster_generating(*, merged=False, style=None):
-            return '[AliceUID·完整卡片]\n' + ('正在合并重复请求，完整卡片生成中，请稍候。' if merged else '正在准备完整卡片，请稍候。')
+        def wait_roster_generating(*, merged=False, mode='main', style=None):
+            tag = '主力妮姬' if mode == 'main' else '图鉴展示'
+            return f'[AliceUID·{tag}]\n' + ('正在合并重复请求，卡片生成中，请稍候。' if merged else '正在准备卡片，请稍候。')
     if not await allowed(policy, event):
         await send_reply(bot, event, '当前用户或群未开放妮姬查询，请联系管理员。', at_sender=True)
         return
-    key = (str(event.user_id), str(event.bot_id))
+    key = (str(event.user_id), str(event.bot_id)) if mode == 'main' else (str(event.user_id), str(event.bot_id), mode)
     async with _queue_locks.setdefault(key, asyncio.Lock()):
         if key in _tasks and not _tasks[key].done():
-            await send_reply(bot, event, wait_roster_generating(merged=True), at_sender=True)
+            await send_reply(bot, event, wait_roster_generating(merged=True, mode=mode), at_sender=True)
             return
-        await send_reply(bot, event, wait_roster_generating(merged=False), at_sender=True)
-        task = asyncio.create_task(roster_worker(bot, event, policy))
+        await send_reply(bot, event, wait_roster_generating(merged=False, mode=mode), at_sender=True)
+        task = asyncio.create_task(roster_worker(bot, event, policy, mode=mode))
         _tasks[key] = task
     def done(completed):
         if _tasks.get(key) is completed:
@@ -136,7 +139,10 @@ def setup(policy=None, scheduler=None):
     sv = SV('妮姬完整阵容卡片', priority=3)
     @sv.on_fullmatch(('卡片', '阵容卡片', '妮姬卡片'))
     async def card(bot, ev):
-        await queue_roster(bot, ev, policy)
+        await queue_roster(bot, ev, policy, mode='main')
+    @sv.on_fullmatch(('图鉴', '妮姬图鉴', '完整图鉴'))
+    async def codex(bot, ev):
+        await queue_roster(bot, ev, policy, mode='codex')
     @sv.on_fullmatch(('刷新面板',))
     async def refresh(bot, ev):
         from ..nikke_user.panel_refresh import queue_refresh
