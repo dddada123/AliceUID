@@ -172,7 +172,7 @@ def harvest_enable_text(where: str, created: bool, *, at_str: str = '', pct: str
 
 def harvest_disable_text(where: str, all_stopped: bool, *, style: str | None = None) -> str:
     if is_alice_style(style):
-        text = f'[AliceUID·收菜提醒已关闭]\n好，爱丽丝已经帮兔子先生关掉{where}的收菜提醒啦（其他会话里的提醒不受影响）。'
+        text = f'[AliceUID·收菜提醒已关闭]\n好~爱丽丝已经帮兔子先生关掉{where}的收菜提醒啦（其他会话里的提醒不受影响）。'
         if all_stopped:
             text += '\n目前所有会话都已关闭，爱丽丝先停下后台检查咯。'
         return text
@@ -209,7 +209,7 @@ def cdk_all_claimed_note(*, style: str | None = None) -> str:
 def cdk_auto_start_notice(source_text: str, codes: str, *, only_user: bool = False, style: str | None = None) -> str:
     if only_user:
         if is_alice_style(style):
-            return titled('自动兑换', '好，检测到兔子先生刚绑定好账号，爱丽丝正在帮您核对当前全部有效的兑换码哦～')
+            return titled('自动兑换', '收到啦~检测到兔子先生刚绑定好账号，爱丽丝正在帮您核对当前全部有效的兑换码哦～')
         return titled('自动兑换', '新绑定账号，正在核对当前有效兑换码。')
     if is_alice_style(style):
         return titled(
@@ -276,7 +276,7 @@ def wait_roster_generating(*, merged: bool = False, mode: str = 'main', style: s
     if is_alice_style(style):
         if merged:
             return titled(tag, f'兔子先生，{noun}正在为您加紧绘制中，稍微等爱丽丝一小会儿哦～')
-        return titled(tag, f'好~，爱丽丝正在核对兔子先生的阵容并绘制{noun}，首次准备头像可能会稍久一点哦～')
+        return titled(tag, f'好~爱丽丝正在核对兔子先生的阵容并绘制{noun}，首次准备头像可能会稍久一点哦～')
     if merged:
         return titled(tag, f'你的{noun}正在生成，请稍候。')
     return titled(tag, f'正在核对本人阵容并生成{noun}，首次准备肖像可能稍久。')
@@ -312,7 +312,7 @@ def wait_export_public(*, style: str | None = None) -> str:
 
 def wait_profile_refresh(*, style: str | None = None) -> str:
     if is_alice_style(style):
-        return titled('刷新信息', '好，爱丽丝正在帮兔子先生快速刷新一下名片资料，很快就好哦～')
+        return titled('刷新信息', '好~爱丽丝正在帮兔子先生快速刷新一下名片资料，很快就好哦～')
     return titled('刷新信息', '正在轻量刷新本人名片资料，不读取全部角色装备详情。')
 
 
@@ -352,7 +352,7 @@ def alias_add_text(role_name: str, alias: str, *, style: str | None = None) -> s
 
 def alias_remove_text(role_name: str, alias: str, *, style: str | None = None) -> str:
     if is_alice_style(style):
-        return titled('角色别名', f'好~，爱丽丝已经帮兔子先生把这个别名划掉啦～（已注销：{role_name} × {alias}）')
+        return titled('角色别名', f'好~爱丽丝已经帮兔子先生把这个别名划掉啦～（已注销：{role_name} × {alias}）')
     return titled('角色别名', f'已注销：{role_name} × {alias}')
 
 

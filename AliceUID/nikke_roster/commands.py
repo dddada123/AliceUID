@@ -20,9 +20,9 @@ async def allowed(policy, event):
     return bool(await result if inspect.isawaitable(result) else result)
 
 
-async def current_before_send(policy, event, bind, prepared, model):
+async def current_before_send(policy, event, bind, prepared, model, *, mode='main'):
     current = await model.get_bind(event.user_id, event.bot_id)
-    if current is None or identity(event.user_id, event.bot_id, current)[0] != prepared.key:
+    if current is None or identity(event.user_id, event.bot_id, current, mode=mode)[0] != prepared.key:
         return False
     return await allowed(policy, event)
 
@@ -61,7 +61,7 @@ async def _roster_worker(bot, event, policy, *, mode='main'):
         # Binding mutations use this same lock. Prevent revoke/rebind between the
         # final revision check and send, and verify permissions again after work.
         async with binding_lock(event.user_id, event.bot_id):
-            if not await current_before_send(policy, event, bind, prepared, AliceBind):
+            if not await current_before_send(policy, event, bind, prepared, AliceBind, mode=mode):
                 service.cache.invalidate_key(prepared.key)
                 await _send_reply(bot, event, '绑定或权限已变化，已停止发送旧账号卡片。', at_sender=True)
                 return
