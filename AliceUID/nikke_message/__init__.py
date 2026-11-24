@@ -123,9 +123,9 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None, at_send
     has_images = any(getattr(item, 'type', None) == 'image' for item in items)
     kind = {'AliceUID_HelpForward': 'help', 'AliceUID_RosterForward': 'roster',
             'AliceUID_UnionForward': 'union', 'AliceUID_RaidGuideForward': 'raid_guide',
-            'AliceUID_GuideForward': 'guide', 'AliceUID_LoginForward': 'login',
-            'AliceUID_CDKForward': 'cdk', 'AliceUID_CDKResultForward': 'cdk_result',
-            'AliceUID_AccountListForward': 'accounts'}.get(config_key, 'other')
+            'AliceUID_GuideForward': 'guide', 'AliceUID_CalendarForward': 'calendar',
+            'AliceUID_LoginForward': 'login', 'AliceUID_CDKForward': 'cdk',
+            'AliceUID_CDKResultForward': 'cdk_result', 'AliceUID_AccountListForward': 'accounts'}.get(config_key, 'other')
     bucket = 'login' if kind == 'login' else ('image' if has_images else 'text')
 
     mode = getattr(core_bot, 'enable_forward', '允许')

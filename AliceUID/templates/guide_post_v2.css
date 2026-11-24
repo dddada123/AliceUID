@@ -22,8 +22,8 @@
 
 .guide-shell {
   width: 100%;
-  border-radius: 20px;
-  padding: 32px 36px 26px;
+  border-radius: 36px;
+  padding: 18px 18px 26px;
   background-color: #ffffff;
   border: 1px solid #dce3ee;
   color: #1e2430;
@@ -36,30 +36,32 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 18px;
+  gap: 20px;
   padding-bottom: 18px;
   border-bottom: 2px solid #e7edf5;
 }
 
 .guide-avatar {
-  width: 86px;
-  height: 86px;
-  border-radius: 20px;
+  width: 112px;
+  height: 112px;
+  border-radius: 18px;
   flex-shrink: 0;
 }
 
 .guide-avatar > img {
-  width: 86px;
-  height: 86px;
-  border-radius: 20px;
+  width: 112px;
+  height: 112px;
+  border-radius: 18px;
 }
 
 .guide-header-main {
   flex: 1;
   min-width: 0;
+  min-height: 112px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 6px;
 }
 
 .guide-badges {
@@ -105,6 +107,8 @@
 }
 
 .guide-body {
+  padding-left: 14px;
+  padding-right: 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -176,7 +180,7 @@
 
 .guide-footer {
   margin-top: 8px;
-  padding-top: 18px;
+  padding: 18px 14px 0;
   border-top: 1px solid #e7edf5;
   display: flex;
   flex-direction: row;

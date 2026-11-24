@@ -12,10 +12,11 @@ HELP = (f'命令：{command_prefix()}日历\n'
 
 
 class CalendarCommands:
-    def __init__(self, policy, *, service_factory=get_calendar, image_factory=None):
+    def __init__(self, policy, *, service_factory=get_calendar, image_factory=None, forward_sender=None):
         self.policy = policy
         self.service_factory = service_factory
         self.image_factory = image_factory
+        self.forward_sender = forward_sender
 
     async def handle(self, bot, ev):
         try:
@@ -35,7 +36,12 @@ class CalendarCommands:
         except CalendarUnavailable as exc:
             await send_reply(bot, ev, str(exc), at_sender=True)
             return
-        except Exception:
+        except Exception as exc:
+            try:
+                from ..nikke_logs.store import record_failure
+                record_failure('活动日历', 'HANDLE', exc)
+            except Exception:
+                pass
             await send_reply(bot, ev, '官网日历截图暂不可用，请稍后重试。', at_sender=True)
             return
         # The caption always includes source and actual capture time, including cache hits.
@@ -43,8 +49,18 @@ class CalendarCommands:
         if image_factory is None:
             from gsuid_core.segment import MessageSegment
             image_factory = MessageSegment.image
-        # Both are already ready: keep provenance/stale warning with its image.
-        await send_reply(bot, ev, [image_factory(result.png), result.caption()], at_sender=True, newline=True)
+        sender = self.forward_sender
+        if sender is None:
+            from ..nikke_message import send_with_forward
+            sender = send_with_forward
+        await sender(
+            bot,
+            ev,
+            [image_factory(result.png), result.caption()],
+            config_key='AliceUID_CalendarForward',
+            title='[AliceUID·活动日历]',
+            at_sender=True,
+        )
 
 
 _sv = None

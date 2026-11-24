@@ -18,13 +18,125 @@
   color: #e6edf8;
 }
 
-.cal-top {
+.cal-hero-card {
+  width: 100%;
+  border-radius: 28px;
+  padding: 14px 20px 14px 14px;
   display: flex;
   flex-direction: row;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-end;
-  padding-bottom: 10px;
+  gap: 16px;
 }
+
+.cal-hero-card-light {
+  background-color: #ffffff;
+  border: 1px solid #dbe3ef;
+  color: #182234;
+}
+
+.cal-hero-card-dark {
+  background-color: #151c2b;
+  border: 1px solid #28344c;
+  color: #e6edf8;
+}
+
+.cal-hero-left {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cal-hero-avatar,
+.cal-hero-avatar > img {
+  width: 84px;
+  height: 84px;
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.cal-hero-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 84px;
+  min-width: 0;
+}
+
+.cal-hero-eyebrow-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.cal-hero-brand-pill {
+  height: 20px;
+  padding: 2px 9px 0;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+.cal-hero-sub {
+  font-size: 12px;
+  opacity: 0.72;
+}
+
+.cal-hero-right {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.cal-hero-divider {
+  width: 1px;
+  height: 64px;
+}
+
+.cal-hero-divider-light { background-color: #dbe3ef; }
+.cal-hero-divider-dark { background-color: #28354f; }
+
+.cal-hero-brand-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.cal-hero-mark-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.cal-hero-mark {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.cal-hero-mark-light { color: #2563eb; }
+.cal-hero-mark-dark { color: #60a5fa; }
+
+.cal-hero-ver {
+  height: 20px;
+  padding: 2px 8px 0;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.cal-hero-ver-light { background-color: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
+.cal-hero-ver-dark { background-color: #1e293b; border: 1px solid #334155; color: #93c5fd; }
 
 .cal-eyebrow {
   font-size: 11px;
@@ -156,12 +268,14 @@
   background-color: #ffffff;
   border: 1px solid #dbe3ef;
   border-radius: 14px;
+  color: #182234;
 }
 
 .cal-card-dark {
   background-color: #151c2b;
   border: 1px solid #28344c;
   border-radius: 14px;
+  color: #e6edf8;
 }
 
 .banner-card {
@@ -171,20 +285,20 @@
 }
 
 .banner-img-box {
-  width: 908px;
+  width: 100%;
   height: 302px;
   overflow: hidden;
 }
 
 .banner-img {
-  width: 908px;
+  width: 100%;
   height: 302px;
   object-fit: cover;
   display: block;
 }
 
 .banner-fallback {
-  width: 908px;
+  width: 100%;
   height: 110px;
   background-color: #1e293b;
   color: #ffffff;

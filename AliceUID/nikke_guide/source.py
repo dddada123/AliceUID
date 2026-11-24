@@ -220,8 +220,92 @@ async def download_image_bytes(
         return await _get(c)
 
 
-def to_static_data_uri(raw: bytes, *, max_width: int = 960) -> str:
-    """Convert PNG/JPEG/WEBP/GIF (frame 0) to compact static PNG/JPEG data URI for pytakumi."""
+def _try_extract_gif_first_frame(buf: bytes) -> bytes | None:
+    """Try decoding frame 0 from a partial GIF byte stream (appending ';' trailer)."""
+    if not (buf.startswith(b'GIF87a') or buf.startswith(b'GIF89a')):
+        return None
+    candidate = buf if buf.endswith(b';') else (buf + b';')
+    try:
+        with Image.open(io.BytesIO(candidate)) as im:
+            if im.width < 16 or im.height < 16 or im.width * im.height > 64_000_000:
+                return None
+            im.seek(0)
+            im.load()
+        return candidate
+    except Exception:
+        return None
+
+
+async def download_image_for_guide(
+    url: str,
+    *,
+    referer: str = 'https://www.blablalink.com/',
+    timeout: float = 15.0,
+    max_bytes: int = 20 * 1024 * 1024,
+    gif_max_bytes: int = 4 * 1024 * 1024,
+    client: httpx.AsyncClient | None = None,
+) -> bytes:
+    """Download image with hard total timeout and early-stop GIF frame-0 extraction."""
+    clean_url = validate_image_url(url)
+
+    async def _get(c: httpx.AsyncClient) -> bytes:
+        req_timeout = httpx.Timeout(timeout, connect=8.0, read=10.0)
+        async with c.stream('GET', clean_url, headers={'Referer': referer}, timeout=req_timeout) as resp:
+            resp.raise_for_status()
+            ctype = (resp.headers.get('content-type') or '').lower()
+            clen = resp.headers.get('content-length')
+            is_gif_hint = 'gif' in ctype or clean_url.lower().endswith('.gif')
+            if clen and clen.isdigit() and not is_gif_hint and int(clen) > max_bytes:
+                raise GuideError('攻略图片体积超出限制。')
+
+            chunks: list[bytes] = []
+            size = 0
+            is_gif = False
+            next_probe = 64 * 1024
+
+            async for chunk in resp.aiter_bytes():
+                if not chunk:
+                    continue
+                chunks.append(chunk)
+                size += len(chunk)
+                if not is_gif and size >= 6:
+                    head = chunks[0][:6] if len(chunks[0]) >= 6 else b''.join(chunks)[:6]
+                    is_gif = head in (b'GIF87a', b'GIF89a')
+
+                if is_gif:
+                    # Probe first complete frame periodically; abort stream immediately once ready.
+                    if size >= next_probe:
+                        merged = b''.join(chunks)
+                        if _try_extract_gif_first_frame(merged) is not None:
+                            return merged
+                        next_probe = size + 256 * 1024
+                    if size >= gif_max_bytes:
+                        merged = b''.join(chunks)
+                        extracted = _try_extract_gif_first_frame(merged)
+                        if extracted is not None:
+                            return extracted
+                        raise GuideError('GIF首帧超出读取限制。')
+                elif size > max_bytes:
+                    raise GuideError('攻略图片体积超出限制。')
+
+            data = b''.join(chunks)
+            if is_gif:
+                extracted = _try_extract_gif_first_frame(data)
+                if extracted is not None:
+                    return extracted
+            return validate_image_bytes(data, max_bytes=max_bytes)
+
+    async def _run() -> bytes:
+        if client is not None:
+            return await _get(client)
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as c:
+            return await _get(c)
+
+    return await asyncio.wait_for(_run(), timeout=timeout)
+
+
+def encode_static_image(raw: bytes, *, max_width: int = 920, quality: int = 82) -> tuple[bytes, str]:
+    """Convert PNG/JPEG/WEBP/GIF (frame 0) to compact static image bytes + mime type."""
     with Image.open(io.BytesIO(raw)) as im:
         has_alpha = 'A' in im.getbands() and im.convert('RGBA').getchannel('A').getextrema()[0] < 255
         if getattr(im, 'is_animated', False) or im.format == 'GIF':
@@ -232,12 +316,22 @@ def to_static_data_uri(raw: bytes, *, max_width: int = 960) -> str:
             frame = frame.resize((max_width, new_h), Image.Resampling.LANCZOS)
         buf = io.BytesIO()
         if has_alpha:
-            frame.save(buf, format='PNG', optimize=True)
-            mime = 'image/png'
-        else:
-            frame.save(buf, format='JPEG', quality=88, subsampling=0, optimize=True)
-            mime = 'image/jpeg'
-        return f'data:{mime};base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+            frame.save(buf, format='PNG')
+            return buf.getvalue(), 'image/png'
+        frame.save(buf, format='JPEG', quality=quality, subsampling=0)
+        return buf.getvalue(), 'image/jpeg'
+
+
+def bytes_to_data_uri(data: bytes, mime: str | None = None) -> str:
+    if not mime:
+        mime = 'image/png' if data.startswith(b'\x89PNG') else 'image/jpeg'
+    return f'data:{mime};base64,' + base64.b64encode(data).decode('ascii')
+
+
+def to_static_data_uri(raw: bytes, *, max_width: int = 920) -> str:
+    """Convert PNG/JPEG/WEBP/GIF (frame 0) to compact static PNG/JPEG data URI for pytakumi."""
+    data, mime = encode_static_image(raw, max_width=max_width)
+    return bytes_to_data_uri(data, mime)
 
 
 class _PlainTextParser(HTMLParser):

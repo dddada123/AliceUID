@@ -151,10 +151,13 @@ async def fetch_calendar_detail(*, http=None) -> dict:
     return payload
 
 
-async def render_calendar_from_api(*, assets_cache_dir: Path | None = None, clock=time.time) -> bytes:
+CALENDAR_STYLE_VERSION = 'v1307-hero'
+
+
+async def render_calendar_from_api(*, assets_cache_dir: Path | None = None, clock=time.time, theme: str | None = None) -> bytes:
     from .draw import render_calendar_png
     payload = await fetch_calendar_detail()
-    data = await render_calendar_png(payload, assets_cache_dir=assets_cache_dir, now=clock())
+    data = await render_calendar_png(payload, assets_cache_dir=assets_cache_dir, now=clock(), theme=theme)
     _validate_png(data)
     return data
 
@@ -171,9 +174,15 @@ class CalendarService:
         self.image_path = self.root / 'current.png'
         self.meta_path = self.root / 'current.json'
 
-    def _metadata(self) -> dict:
+    def _slot_paths(self, theme: str | None) -> tuple[Path, Path]:
+        if self.capture is not None or theme not in ('light', 'dark'):
+            return self.image_path, self.meta_path
+        return self.root / f'current_{theme}.png', self.root / f'current_{theme}.json'
+
+    def _metadata(self, meta_path: Path | None = None) -> dict:
+        target = meta_path or self.meta_path
         try:
-            meta = json.loads(self.meta_path.read_text(encoding='utf-8'))
+            meta = json.loads(target.read_text(encoding='utf-8'))
             if not isinstance(meta, dict):
                 return {}
             for key in ('captured_at', 'retry_after', 'last_attempt'):
@@ -185,11 +194,14 @@ class CalendarService:
         except (OSError, ValueError, TypeError, OverflowError):
             return {}
 
-    def _cached(self, meta: dict, now: float) -> CalendarImage | None:
+    def _cached(self, meta: dict, now: float, image_path: Path | None = None) -> CalendarImage | None:
+        target_img = image_path or self.image_path
         try:
             if meta.get('url') != CALENDAR_URL or not 0 < meta.get('captured_at', 0) <= now + 60:
                 return None
-            data = self.image_path.read_bytes()
+            if self.capture is None and meta.get('style_version') != CALENDAR_STYLE_VERSION:
+                return None
+            data = target_img.read_bytes()
             _validate_png(data)
             if hashlib.sha256(data).hexdigest() != meta.get('sha256'):
                 return None
@@ -197,12 +209,15 @@ class CalendarService:
         except (OSError, ValueError, Image.DecompressionBombError):
             return None
 
-    async def get(self) -> CalendarImage:
+    async def get(self, *, theme: str | None = None) -> CalendarImage:
         # Shared across all service instances/groups; a queued caller rechecks disk state.
+        from ..nikke_render.theme import get_card_theme
+        target_theme = theme if theme in ('light', 'dark') else get_card_theme(default='random')
+        img_path, meta_path = self._slot_paths(target_theme)
         async with _CAPTURE_LOCK:
             now = self.clock()
-            meta = self._metadata()
-            cached = self._cached(meta, now)
+            meta = self._metadata(meta_path)
+            cached = self._cached(meta, now, img_path)
             if cached and 0 <= now - cached.captured_at < self.ttl:
                 return cached
             if now < meta.get('retry_after', 0):
@@ -211,18 +226,24 @@ class CalendarService:
                 raise CalendarUnavailable('官网日历暂不可用，正在冷却，请至少五分钟后再试。')
             # Persist before opening a browser: restart/repeated requests cannot bypass cooldown.
             meta.update(last_attempt=now, retry_after=now + self.cooldown)
-            _atomic_write(self.meta_path, json.dumps(meta, ensure_ascii=False).encode())
+            _atomic_write(meta_path, json.dumps(meta, ensure_ascii=False).encode())
             try:
                 capture = self.capture
                 data = await asyncio.wait_for(
-                    capture() if capture else render_calendar_from_api(assets_cache_dir=self.root / 'assets', clock=self.clock),
+                    capture() if capture else render_calendar_from_api(
+                        assets_cache_dir=self.root / 'assets',
+                        clock=self.clock,
+                        theme=target_theme,
+                    ),
                     timeout=150,
                 )
                 _validate_png(data)
                 captured_at = self.clock()
-                _atomic_write(self.image_path, data)
-                _atomic_write(self.meta_path, json.dumps({
-                    'version': 1, 'url': CALENDAR_URL, 'captured_at': captured_at,
+                _atomic_write(img_path, data)
+                _atomic_write(meta_path, json.dumps({
+                    'version': 1, 'style_version': CALENDAR_STYLE_VERSION,
+                    'theme': target_theme,
+                    'url': CALENDAR_URL, 'captured_at': captured_at,
                     'time_metadata': time_metadata(captured_at),
                     'last_attempt': now, 'retry_after': now + self.cooldown,
                     'sha256': hashlib.sha256(data).hexdigest(),
@@ -234,7 +255,7 @@ class CalendarService:
                 log.warning('AliceUID official calendar capture failed: %s', type(exc).__name__)
                 meta['retry_after'] = max(meta['retry_after'], self.clock() + self.cooldown)
                 try:
-                    _atomic_write(self.meta_path, json.dumps(meta, ensure_ascii=False).encode())
+                    _atomic_write(meta_path, json.dumps(meta, ensure_ascii=False).encode())
                 except OSError:
                     pass
                 if cached:

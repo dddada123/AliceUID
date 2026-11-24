@@ -123,7 +123,9 @@ class GuideCommands:
             sender = send_with_forward
 
         # Long image already embeds the lead image, so forward 3 parts: header -> long image -> plain text.
-        payload: list = [result.header_text(), image(result.long_image)]
+        payload: list = [result.header_text()]
+        if result.long_image is not None:
+            payload.append(image(result.long_image))
         payload.extend(result.plain_text_chunks())
 
         await sender(

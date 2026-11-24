@@ -10,7 +10,7 @@ import time
 from ..nikke_character.aliases import AliasStore
 from ..nikke_render.language import get_card_language
 from ..nikke_render.theme import get_card_theme
-from .draw import render_post_long_image
+from .draw import render_post_long_image, render_post_long_image_with_meta
 from .matcher import build_name_code_resolver, dedupe_recent_guides, match_guides, norm_key
 from .registry import CATEGORY_LABELS, GUIDE_CATEGORIES, GuideAuthor, load_authors
 from .source import (
@@ -57,9 +57,10 @@ class GuideResult:
     author: GuideAuthor
     display_title: str
     lead_image: bytes | None
-    long_image: bytes
+    long_image: bytes | None
     plain_text: str
     translated_from: str | None = None
+    missing_count: int = 0
 
     def header_text(self) -> str:
         cat_label = CATEGORY_LABELS.get(self.post.category, '攻略')
@@ -77,6 +78,10 @@ class GuideResult:
         lines.append(f'原帖链接：{self.post.post_url}')
         lines.append(f'作者主页：{self.author.homepage_url}')
         lines.append(EXPERIMENTAL_NOTICE)
+        if self.long_image is None:
+            lines.append('※ 攻略长图生成超时，已降级发送原帖链接与纯文字版攻略')
+        elif self.missing_count > 0:
+            lines.append(f'※ 本次有 {self.missing_count} 张配图暂未加载成功，下次查询将自动尝试补全')
         return '\n'.join(lines)
 
     def plain_text_chunks(self) -> list[str]:
@@ -85,7 +90,9 @@ class GuideResult:
 
     def forward_messages(self) -> list[str | bytes]:
         # Long image already embeds the lead image; send 3 parts: header -> long image -> plain text.
-        msgs: list[str | bytes] = [self.header_text(), self.long_image]
+        msgs: list[str | bytes] = [self.header_text()]
+        if self.long_image is not None:
+            msgs.append(self.long_image)
         msgs.extend(self.plain_text_chunks())
         return msgs
 
@@ -315,7 +322,7 @@ class GuideService:
         on_rendering=None,
     ) -> GuideResult:
         lang = language or get_card_language()
-        resolved_theme = get_card_theme(theme, default='light')
+        resolved_theme = get_card_theme(theme, default='random')
 
         async with _post_lock(post.post_uuid):
             now = int(self.clock())
@@ -343,6 +350,7 @@ class GuideService:
                     long_image=cached['long_image'],
                     plain_text=cached['plain_text'],
                     translated_from=cached['translated_from'],
+                    missing_count=int(cached.get('missing_count') or 0),
                 )
 
             if on_rendering is not None:
@@ -371,16 +379,6 @@ class GuideService:
                     content_html = str(detail.get('content') or content_html)
                     translated_from = post.original_language or 'en'
 
-            lead_bytes: bytes | None = None
-            if post.lead_image_url:
-                try:
-                    lead_bytes = await self.image_downloader(
-                        post.lead_image_url,
-                        referer=post.post_url,
-                    )
-                except Exception:
-                    lead_bytes = None
-
             render_payload = {
                 'post_uuid': post.post_uuid,
                 'title': display_title,
@@ -388,36 +386,71 @@ class GuideService:
                 'created_on': post.created_on,
             }
             cat_label = CATEGORY_LABELS.get(post.category, '攻略')
-            long_image = await self.post_renderer(
-                render_payload,
-                author_name=author.display_name,
-                category_label=cat_label,
-                post_url=post.post_url,
-                quality=self.quality,
-                theme=resolved_theme,
-                language=lang,
-                translated_from=translated_from,
-            )
-            plain_text = html_to_plain_text(content_html, has_lead_image=lead_bytes is not None)
+            plain_text = html_to_plain_text(content_html, has_lead_image=bool(post.lead_image_url))
+
+            failed_urls: list[str] = []
+            try:
+                if self.post_renderer is render_post_long_image:
+                    long_image, failed_urls = await render_post_long_image_with_meta(
+                        render_payload,
+                        author_name=author.display_name,
+                        category_label=cat_label,
+                        post_url=post.post_url,
+                        quality=self.quality,
+                        theme=resolved_theme,
+                        language=lang,
+                        translated_from=translated_from,
+                        image_cache_dir=self.store.image_cache_dir(post.post_uuid),
+                    )
+                else:
+                    rendered = await self.post_renderer(
+                        render_payload,
+                        author_name=author.display_name,
+                        category_label=cat_label,
+                        post_url=post.post_url,
+                        quality=self.quality,
+                        theme=resolved_theme,
+                        language=lang,
+                        translated_from=translated_from,
+                    )
+                    if isinstance(rendered, tuple):
+                        long_image, failed_urls = rendered[0], list(rendered[1] or ())
+                    else:
+                        long_image = rendered
+            except TimeoutError as exc:
+                _log_failure('RENDER_TIMEOUT', exc)
+                _log_event('TAKUMI_RENDER', 'TIMEOUT', reason=f'uuid={post.post_uuid}')
+                return GuideResult(
+                    post=post,
+                    author=author,
+                    display_title=display_title,
+                    lead_image=None,
+                    long_image=None,
+                    plain_text=plain_text,
+                    translated_from=translated_from,
+                )
+
             self.store.write_media(
                 post.post_uuid,
                 post.modified_on,
                 lang,
                 resolved_theme,
-                lead_bytes=lead_bytes,
+                lead_bytes=None,
                 long_image=long_image,
                 plain_text=plain_text,
                 display_title=display_title,
                 translated_from=translated_from,
+                failed_urls=failed_urls,
             )
             return GuideResult(
                 post=post,
                 author=author,
                 display_title=display_title,
-                lead_image=lead_bytes,
+                lead_image=None,
                 long_image=long_image,
                 plain_text=plain_text,
                 translated_from=translated_from,
+                missing_count=len(failed_urls),
             )
 
 

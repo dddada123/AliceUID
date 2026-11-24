@@ -5,8 +5,10 @@ import asyncio
 import base64
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
+import hashlib
 import io
 from pathlib import Path
+import time
 
 import httpx
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -19,11 +21,14 @@ from ..nikke_resource.media import media_path
 from .source import (
     MAX_IMAGE_BYTES,
     POST_URL,
-    download_image_bytes,
+    bytes_to_data_uri,
+    download_image_for_guide,
+    encode_static_image,
     extract_image_urls,
     sanitize_html_for_takumi,
-    to_static_data_uri,
 )
+
+BATCH_IMAGE_TIMEOUT_SECONDS = 45.0
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / 'templates'
 _ENV = Environment(
@@ -43,32 +48,90 @@ def _format_published(ts_raw) -> str:
         return ''
 
 
+def _log_render_event(stage: str, result: str, **metrics):
+    try:
+        from ..nikke_logs.store import event
+        event('攻略长图', stage, result, **metrics)
+    except Exception:
+        pass
+
+
+def _url_cache_file(cache_dir: Path, url: str) -> Path:
+    return cache_dir / (hashlib.sha256(url.encode('utf-8')).hexdigest() + '.img')
+
+
 async def _fetch_post_images(
     urls: list[str],
     *,
     referer: str,
     http: httpx.AsyncClient | None = None,
-) -> dict[str, str]:
-    """Download all embedded post images with bounded concurrency and convert to static data URIs."""
+    image_cache_dir: Path | None = None,
+) -> tuple[dict[str, str], list[str]]:
+    """Download/reuse embedded post images with bounded concurrency and 45s batch timeout."""
     if not urls:
-        return {}
-    sem = asyncio.Semaphore(4)
+        return {}, []
+    t0 = time.monotonic()
     result: dict[str, str] = {}
+    pending: list[str] = []
+    if image_cache_dir is not None:
+        image_cache_dir.mkdir(parents=True, exist_ok=True)
+        for u in urls:
+            p = _url_cache_file(image_cache_dir, u)
+            if p.is_file():
+                try:
+                    raw = p.read_bytes()
+                    if raw:
+                        result[u] = bytes_to_data_uri(raw)
+                        continue
+                except OSError:
+                    pass
+            pending.append(u)
+    else:
+        pending = list(urls)
+
+    sem = asyncio.Semaphore(4)
+    total_bytes = 0
 
     async def _one(client: httpx.AsyncClient, url: str):
+        nonlocal total_bytes
         async with sem:
             try:
-                raw = await download_image_bytes(url, referer=referer, max_bytes=32 * 1024 * 1024, client=client)
-                result[url] = to_static_data_uri(raw, max_width=940)
+                raw = await download_image_for_guide(url, referer=referer, client=client)
+                static_bytes, mime = await asyncio.to_thread(encode_static_image, raw, max_width=920, quality=82)
+                total_bytes += len(raw)
+                if image_cache_dir is not None:
+                    try:
+                        from ..nikke_resource.cache import atomic_write
+                        atomic_write(_url_cache_file(image_cache_dir, url), static_bytes)
+                    except Exception:
+                        pass
+                result[url] = bytes_to_data_uri(static_bytes, mime)
             except Exception:
                 pass
 
-    if http is not None:
-        await asyncio.gather(*(_one(http, u) for u in urls))
-    else:
-        async with httpx.AsyncClient(timeout=25, follow_redirects=False) as client:
-            await asyncio.gather(*(_one(client, u) for u in urls))
-    return result
+    if pending:
+        async def _batch():
+            if http is not None:
+                await asyncio.gather(*(_one(http, u) for u in pending))
+            else:
+                async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
+                    await asyncio.gather(*(_one(client, u) for u in pending))
+
+        try:
+            await asyncio.wait_for(_batch(), timeout=BATCH_IMAGE_TIMEOUT_SECONDS)
+        except TimeoutError:
+            pass
+
+    failed_urls = [u for u in urls if u not in result]
+    _log_render_event(
+        'FETCH_IMAGES',
+        'PARTIAL' if failed_urls else 'OK',
+        count=len(result),
+        bytes=total_bytes,
+        elapsed_ms=int((time.monotonic() - t0) * 1000),
+        reason=f'total={len(urls)},failed={len(failed_urls)},cached={len(urls)-len(pending)}',
+    )
+    return result, failed_urls
 
 
 def _ensure_jpeg_under_limit(data: bytes, *, max_bytes: int = MAX_IMAGE_BYTES) -> bytes:
@@ -141,11 +204,15 @@ def render_guide_html(
 ) -> str:
     resolved_theme = get_card_theme(theme, default='light')
     resolved_lang = language or get_card_language()
+    # Localize lightweight title/author/template labels BEFORE inlining multi-MB image data URIs.
+    loc_title = localize_html(title, language=resolved_lang)
+    loc_author = localize_html(author_name, language=resolved_lang)
+    loc_cat = localize_html(category_label, language=resolved_lang)
     ctx = {
-        'title': title,
+        'title': loc_title,
         'body_html': body_html,
-        'author_name': author_name,
-        'category_label': category_label,
+        'author_name': loc_author,
+        'category_label': loc_cat,
         'post_url': post_url,
         'hero_art': _alice_icon_uri(),
         'qr_uri': _qr_data_uri(post_url),
@@ -158,8 +225,72 @@ def render_guide_html(
         'credit_timestamp': datetime.now(_BJ_TZ).strftime('%Y-%m-%d·%H:%M'),
     }
     raw_html = _ENV.get_template('guide_post.html').render(**ctx)
-    localized = localize_html(raw_html, language=resolved_lang)
-    return apply_font_html(localized, embed=False)
+    return apply_font_html(raw_html, embed=False, skip_localize=True)
+
+
+async def render_post_long_image_with_meta(
+    post: dict,
+    *,
+    author_name: str,
+    category_label: str = '攻略',
+    post_url: str | None = None,
+    quality: int = 95,
+    theme: str | None = None,
+    language: str | None = None,
+    translated_from: str | None = None,
+    http: httpx.AsyncClient | None = None,
+    image_map: dict[str, str] | None = None,
+    image_cache_dir: Path | None = None,
+) -> tuple[bytes, list[str]]:
+    """Render a Blablalink post dict into JPEG long image + failed image URL list."""
+    uid = str(post.get('post_uuid') or '').strip()
+    url = post_url or (f'{POST_URL}{uid}' if uid else 'https://www.blablalink.com/')
+    resolved_lang = language or get_card_language()
+    content_html = str(post.get('content') or '')
+    failed_urls: list[str] = []
+    if image_map is None:
+        img_urls = extract_image_urls(content_html)
+        image_map, failed_urls = await _fetch_post_images(
+            img_urls,
+            referer=url,
+            http=http,
+            image_cache_dir=image_cache_dir,
+        )
+    # Localize lightweight HTML markup once BEFORE embedding multi-MB base64 data URIs.
+    localized_content = localize_html(content_html, language=resolved_lang)
+    body_html = sanitize_html_for_takumi(localized_content, image_map)
+    html = render_guide_html(
+        title=str(post.get('title') or ''),
+        body_html=body_html,
+        author_name=author_name,
+        category_label=category_label,
+        post_url=url,
+        published_on=post.get('created_on') or 0,
+        theme=theme,
+        language=resolved_lang,
+        translated_from=translated_from,
+    )
+    from ..nikke_render.render import render_html
+    q = quality if type(quality) is int and 0 <= quality <= 100 else 95
+    t0 = time.monotonic()
+    raw_bytes = await render_html(
+        html,
+        root_width=1040,
+        dpi=96,
+        image_format='jpeg',
+        jpeg_quality=q,
+        skip_localize=True,
+        timeout=60.0,
+    )
+    out = await asyncio.to_thread(_ensure_jpeg_under_limit, raw_bytes)
+    _log_render_event(
+        'TAKUMI_RENDER',
+        'OK',
+        bytes=len(out),
+        elapsed_ms=int((time.monotonic() - t0) * 1000),
+        reason=f'html_len={len(html)}',
+    )
+    return out, failed_urls
 
 
 async def render_post_long_image(
@@ -174,33 +305,19 @@ async def render_post_long_image(
     translated_from: str | None = None,
     http: httpx.AsyncClient | None = None,
     image_map: dict[str, str] | None = None,
+    image_cache_dir: Path | None = None,
 ) -> bytes:
-    """Render a Blablalink post dict into a JPEG long image via GsCore pytakumi."""
-    uid = str(post.get('post_uuid') or '').strip()
-    url = post_url or (f'{POST_URL}{uid}' if uid else 'https://www.blablalink.com/')
-    content_html = str(post.get('content') or '')
-    if image_map is None:
-        img_urls = extract_image_urls(content_html)
-        image_map = await _fetch_post_images(img_urls, referer=url, http=http)
-    body_html = sanitize_html_for_takumi(content_html, image_map)
-    html = render_guide_html(
-        title=str(post.get('title') or ''),
-        body_html=body_html,
+    out, _ = await render_post_long_image_with_meta(
+        post,
         author_name=author_name,
         category_label=category_label,
-        post_url=url,
-        published_on=post.get('created_on') or 0,
+        post_url=post_url,
+        quality=quality,
         theme=theme,
         language=language,
         translated_from=translated_from,
+        http=http,
+        image_map=image_map,
+        image_cache_dir=image_cache_dir,
     )
-    from ..nikke_render.render import render_html
-    q = quality if type(quality) is int and 0 <= quality <= 100 else 95
-    raw_bytes = await render_html(
-        html,
-        root_width=1040,
-        dpi=96,
-        image_format='jpeg',
-        jpeg_quality=q,
-    )
-    return _ensure_jpeg_under_limit(raw_bytes)
+    return out

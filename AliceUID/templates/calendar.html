@@ -9,13 +9,32 @@
 </head>
 <body style="font-family: '{{ font_family or 'MiSans' }}', 'MiSans', sans-serif;">
   <div class="cal-root cal-root-{{ card_theme or 'light' }}">
-    <div class="cal-top">
-      <div class="cal-top-left">
-        <div class="cal-eyebrow">BLABLALINK // OFFICIAL ACTIVITY CALENDAR</div>
-        <div class="cal-title">NIKKE 官网活动日历</div>
+    <div class="cal-hero-card cal-hero-card-{{ card_theme or 'light' }}">
+      <div class="cal-hero-left">
+        {% if hero_art %}
+        <div class="avatar-glass cal-hero-avatar">
+          <img src="{{ hero_art }}" alt="AliceUID" />
+          <span class="avatar-glass-edge"></span>
+        </div>
+        {% endif %}
+        <div class="cal-hero-meta">
+          <div class="cal-hero-eyebrow-row">
+            <span class="cal-eyebrow">BLABLALINK // OFFICIAL ACTIVITY CALENDAR</span>
+            <span class="ui-pill cal-hero-brand-pill">AliceUID</span>
+          </div>
+          <div class="cal-title">NIKKE 官网活动日历</div>
+          <div class="cal-hero-sub">官网全板块公开活动排期 · 实时倒计时一览</div>
+        </div>
       </div>
-      <div class="cal-top-right">
-        <span class="ui-pill cal-stamp cal-stamp-{{ card_theme or 'light' }}">北京时间 · {{ captured_text }}</span>
+      <div class="cal-hero-right">
+        <div class="cal-hero-divider cal-hero-divider-{{ card_theme or 'light' }}"></div>
+        <div class="cal-hero-brand-col">
+          <div class="cal-hero-mark-row">
+            <span class="cal-hero-mark cal-hero-mark-{{ card_theme or 'light' }}">NIKKE · AliceUID</span>
+            <span class="ui-pill cal-hero-ver cal-hero-ver-{{ card_theme or 'light' }}">v{{ app_version or '1.3.07' }}</span>
+          </div>
+          <span class="ui-pill cal-stamp cal-stamp-{{ card_theme or 'light' }}">北京时间 · {{ captured_text }}</span>
+        </div>
       </div>
     </div>
 

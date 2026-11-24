@@ -101,9 +101,10 @@ def font_css(selection,*,embed=True):
     return face+f"html,body,body *{{font-family:{font_stack(selection)}{importance};}}"
 
 
-def apply_font_html(html,selection=None,*,embed=True):
-    from .language import localize_html
-    html=localize_html(html)
+def apply_font_html(html,selection=None,*,embed=True,skip_localize=False):
+    if not skip_localize:
+        from .language import localize_html
+        html=localize_html(html)
     selected=selection or resolve_font()
     # Replace our own previous injection (e.g. preview HTML reused for native).
     html=re.sub(r'<style id="nikke-font-style">.*?</style>','',html,flags=re.S)

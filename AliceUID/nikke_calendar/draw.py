@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
+import base64
 from pathlib import Path
 import time
 
@@ -10,7 +12,20 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from ..nikke_render.fonts import apply_font_html
 from ..nikke_render.language import get_card_language, localize_html
 from ..nikke_render.theme import get_card_theme, v2_theme_tokens
+from ..nikke_resource.media import media_path
+from ..version import VERSION
 from .assets import avatar_url, banner_url, prepare_calendar_assets, reward_icon_url
+
+
+@lru_cache(maxsize=1)
+def _alice_icon_uri() -> str:
+    for p in (media_path('assets/ICON.png'), Path(__file__).resolve().parents[2] / 'ICON.png'):
+        if p.is_file():
+            try:
+                return 'data:image/png;base64,' + base64.b64encode(p.read_bytes()).decode('ascii')
+            except OSError:
+                pass
+    return ''
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / 'templates'
 _ENV = Environment(
@@ -234,7 +249,7 @@ def build_calendar_context(
     promo_rows.sort(key=lambda r: r['_st'])
     champ_rows.sort(key=lambda r: r['_st'])
 
-    resolved_theme = get_card_theme(theme, default='light')
+    resolved_theme = get_card_theme(theme, default='random')
     resolved_lang = language or get_card_language()
     return {
         'char_items': char_items,
@@ -248,6 +263,8 @@ def build_calendar_context(
         'promo_rows': promo_rows,
         'champ_rows': champ_rows,
         'captured_text': datetime.fromtimestamp(cur_now, _BJ_TZ).strftime('%Y-%m-%d %H:%M'),
+        'hero_art': _alice_icon_uri(),
+        'app_version': VERSION,
         'card_theme': resolved_theme,
         'palette': v2_theme_tokens(None, resolved_theme)['palette'],
         'html_lang': resolved_lang,

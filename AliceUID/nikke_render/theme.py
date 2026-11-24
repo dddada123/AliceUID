@@ -1,9 +1,19 @@
 """Lazy GsCore configuration and shared renderer-safe card theme tokens."""
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 import base64
 import io
+import threading
+from weakref import WeakKeyDictionary
+
+THEME_RANDOM_STRATEGIES = ('纯随机', '交替', '昼夜')
+_ALT_LOCK = threading.Lock()
+_ALT_NEXT = 'light'
+_TASK_ALT_THEME: WeakKeyDictionary = WeakKeyDictionary()
+_BJ_TZ = timezone(timedelta(hours=8))
 
 
 def _configured(key: str, allowed: tuple[str, ...], default: str) -> str:
@@ -15,19 +25,61 @@ def _configured(key: str, allowed: tuple[str, ...], default: str) -> str:
     return value if value in allowed else default
 
 
+def get_theme_random_strategy() -> str:
+    return _configured('AliceUID_ThemeRandomStrategy', THEME_RANDOM_STRATEGIES, '纯随机')
+
+
+def _day_night_theme(now: datetime | None = None) -> str:
+    dt = now.astimezone(_BJ_TZ) if now is not None else datetime.now(_BJ_TZ)
+    return 'light' if 6 <= dt.hour < 18 else 'dark'
+
+
+def _next_alternating_theme() -> str:
+    """Advance alternating cursor once per async request task (or per call in sync mode)."""
+    try:
+        task = asyncio.current_task()
+    except RuntimeError:
+        task = None
+    if task is not None and task in _TASK_ALT_THEME:
+        return _TASK_ALT_THEME[task]
+    global _ALT_NEXT
+    with _ALT_LOCK:
+        cur = _ALT_NEXT
+        _ALT_NEXT = 'dark' if cur == 'light' else 'light'
+    if task is not None:
+        _TASK_ALT_THEME[task] = cur
+    return cur
+
+
+def resolve_random_color(*, strategy: str | None = None, now: datetime | None = None) -> str:
+    import random
+    strat = strategy if strategy in THEME_RANDOM_STRATEGIES else get_theme_random_strategy()
+    if strat == '昼夜':
+        return _day_night_theme(now)
+    if strat == '交替':
+        return _next_alternating_theme()
+    return random.choice(('light', 'dark'))
+
+
 def get_card_theme(theme: str | None = None, default: str = 'random') -> str:
     if theme in ('light', 'dark'):
         return theme
     selected = theme if theme == 'random' else get_card_theme_mode(default)
     if selected == 'random':
-        import random
-        return random.choice(('light', 'dark'))
+        return resolve_random_color()
     return selected
 
 
 def get_card_theme_mode(default='random'):
-    """Stable cache identity; choose a random concrete palette only on render."""
-    return _configured('AliceUID_CardTheme', ('light', 'dark', 'random'), default if default in ('light','dark','random') else 'random')
+    """Stable cache identity; resolves concrete light/dark under 交替/昼夜 so dual caches work."""
+    raw = _configured('AliceUID_CardTheme', ('light', 'dark', 'random'), default if default in ('light', 'dark', 'random') else 'random')
+    if raw == 'random':
+        strat = get_theme_random_strategy()
+        if strat == '昼夜':
+            return _day_night_theme()
+        if strat == '交替':
+            return _next_alternating_theme()
+    return raw
 
 
 def get_card_style(style: str | None = None) -> str:
@@ -85,10 +137,15 @@ def character_presentation_mode():
         random_raw = AliceUIDConfig.get_config('AliceUID_CharacterRandomTheme').data
     except (ImportError, AttributeError, KeyError, RuntimeError):
         fixed_raw, random_raw = '横版亮色', '关闭随机'
-    return dict(
-        fixed=normalize_character_style(fixed_raw),
-        random=normalize_character_random(random_raw),
-    )
+    fixed = normalize_character_style(fixed_raw)
+    rnd = normalize_character_random(random_raw)
+    result = dict(fixed=fixed, random=rnd)
+    if rnd != '关闭随机':
+        strat = get_theme_random_strategy()
+        if strat in ('交替', '昼夜'):
+            result['strategy'] = strat
+            result['resolved_color'] = resolve_random_color(strategy=strat)
+    return result
 
 
 def get_character_style(default='wide'):
@@ -112,17 +169,21 @@ def resolve_character_presentation(style=None, theme=None):
         layout = 'compact'
         color = STYLE_LAYOUT_THEME[mode['fixed']][1]
     else:
-        choices = CHARACTER_THEMES
-        if mode['random'] == '横版随机':
-            choices = ('横版亮色', '横版暗色')
+        if mode['random'] == '关闭随机':
+            layout, color = STYLE_LAYOUT_THEME[mode['fixed']]
+        elif mode['random'] == '横版随机':
+            layout = 'wide'
+            color = mode.get('resolved_color') or resolve_random_color()
         elif mode['random'] == '纵版随机':
-            choices = ('纵版亮色', '纵版暗色')
-        selected = mode['fixed'] if mode['random'] == '关闭随机' else random.choice(choices)
-        layout, color = STYLE_LAYOUT_THEME[selected]
+            layout = 'compact'
+            color = mode.get('resolved_color') or resolve_random_color()
+        else:  # 全部随机
+            layout = random.choice(('wide', 'compact'))
+            color = mode.get('resolved_color') or resolve_random_color()
     if theme in ('light', 'dark'):
         color = theme
     elif theme == 'random':
-        color = random.choice(('light', 'dark'))
+        color = resolve_random_color()
     return layout, color
 
 

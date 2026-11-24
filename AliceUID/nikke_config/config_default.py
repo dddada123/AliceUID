@@ -108,6 +108,9 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
     'AliceUID_CardTheme': GsStrConfig(
         "全局卡片主题", "默认random随机亮暗；dark暗色、light亮色。只在新渲染时随机，已有缓存图片直接复用，保留已有自定义值", "random", options=["dark", "light", "random"],
     ),
+    'AliceUID_ThemeRandomStrategy': GsStrConfig(
+        "卡片主题随机策略", "纯随机=默认随机亮暗（兼容原策略）；交替=在亮色与暗色之间轮替发送；昼夜=北京时间 06:00~17:59 发送亮色、18:00~05:59 发送暗色。仅在主题处于随机模式时生效，已固定亮/暗的设置不变。", "纯随机", options=["纯随机", "交替", "昼夜"],
+    ),
     'AliceUID_CharacterCardStyle': GsStrConfig(
         "角色练度卡片主题", "默认横版亮色；可选横版亮色、横版暗色、纵版亮色、纵版暗色（兼容旧英文配置自动迁移）。", "横版亮色", options=["横版亮色", "横版暗色", "纵版亮色", "纵版暗色"],
     ),
@@ -167,6 +170,10 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
     'AliceUID_GuideForward': GsBoolConfig(
         '攻略查询用转发消息',
         '默认开启，依次发送标题作者来源与实验性说明、完整攻略长图（含镇楼图）、纯文字正文（含【镇楼图】【图1】标注）。关闭或转发不可用时回退普通发送。', True,
+    ),
+    'AliceUID_CalendarForward': GsBoolConfig(
+        '活动日历用转发消息',
+        '默认开启，使用标准合并转发发送官网活动日历长图及说明（首节点标题 [AliceUID·活动日历]）；关闭或转发不可用时回退普通发送。', True,
     ),
     'AliceUID_AccountListForward': GsBoolConfig(
         "账号列表用转发消息",

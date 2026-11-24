@@ -14,6 +14,8 @@ from .registry import GuideAuthor, classify_post, extract_post_tags
 from .source import POST_URL, extract_lead_image_url, validate_image_bytes
 
 MEDIA_TTL_SECONDS = 30 * 86400
+GUIDE_STYLE_VERSION = 'v1307-header-concentric'
+INCOMPLETE_RETRY_SECONDS = 60
 
 
 @dataclass(frozen=True)
@@ -316,6 +318,9 @@ class GuideStore:
     def _cache_dir(self, cache_key: str) -> Path:
         return self.media_root / cache_key
 
+    def image_cache_dir(self, post_uuid: str) -> Path:
+        return self.media_root / f'{post_uuid}_imgs'
+
     def invalidate_post_media(self, post_uuid: str):
         with self._connect() as conn:
             rows = conn.execute(
@@ -325,6 +330,7 @@ class GuideStore:
             conn.execute('DELETE FROM media_cache WHERE post_uuid = ?', (str(post_uuid),))
         for r in rows:
             shutil.rmtree(self._cache_dir(str(r['cache_key'])), ignore_errors=True)
+        shutil.rmtree(self.image_cache_dir(str(post_uuid)), ignore_errors=True)
 
     def cleanup_expired_media(self) -> int:
         """Delete media files older than 30 days while keeping the SQLite post index intact."""
@@ -355,6 +361,13 @@ class GuideStore:
             now = int(self.clock())
             if meta.get('modified_on') != modified_on or meta.get('expires_at', 0) <= now:
                 return None
+            if meta.get('style_version') != GUIDE_STYLE_VERSION:
+                return None
+            complete = bool(meta.get('complete', True))
+            retry_after = int(meta.get('retry_after') or 0)
+            if not complete and now >= retry_after:
+                # Incomplete render cooldown expired: force incremental re-fetch of missing images.
+                return None
             long_bytes = (cdir / 'long.jpg').read_bytes()
             validate_image_bytes(long_bytes)
             if hashlib.sha256(long_bytes).hexdigest() != meta.get('long_sha256'):
@@ -372,6 +385,9 @@ class GuideStore:
                 'plain_text': plain_text,
                 'display_title': str(meta.get('display_title') or ''),
                 'translated_from': meta.get('translated_from'),
+                'complete': complete,
+                'missing_count': int(meta.get('missing_count') or 0),
+                'failed_urls': list(meta.get('failed_urls') or []),
             }
         except (OSError, ValueError, TypeError, Exception):
             return None
@@ -388,6 +404,7 @@ class GuideStore:
         plain_text: str,
         display_title: str,
         translated_from: str | None = None,
+        failed_urls: list[str] | tuple[str, ...] = (),
     ):
         now = int(self.clock())
         expires_at = now + MEDIA_TTL_SECONDS
@@ -398,13 +415,20 @@ class GuideStore:
         if lead_bytes is not None:
             atomic_write(cdir / 'lead.img', lead_bytes)
         atomic_write(cdir / 'plain.txt', plain_text.encode('utf-8'))
+        failed_list = list(failed_urls or ())
+        complete = len(failed_list) == 0
         meta = {
+            'style_version': GUIDE_STYLE_VERSION,
             'post_uuid': str(post_uuid),
             'modified_on': int(modified_on),
             'lang': lang,
             'theme': theme,
             'display_title': display_title,
             'translated_from': translated_from,
+            'complete': complete,
+            'missing_count': len(failed_list),
+            'failed_urls': failed_list,
+            'retry_after': 0 if complete else (now + INCOMPLETE_RETRY_SECONDS),
             'has_lead': lead_bytes is not None,
             'lead_sha256': hashlib.sha256(lead_bytes).hexdigest() if lead_bytes is not None else None,
             'long_sha256': hashlib.sha256(long_image).hexdigest(),
