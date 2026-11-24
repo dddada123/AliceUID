@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="{{ html_lang or 'zh-CN' }}">
+<head>
+<meta charset="utf-8" />
+<style>{% include 'guide_post_v2.css' %}</style>
+</head>
+<body style="font-family: '{{ font_family or 'MiSans' }}', 'MiSans', sans-serif;">
+  <div class="guide-root guide-root-{{ card_theme or 'light' }}">
+    <div class="guide-shell">
+      <div class="guide-header">
+        <div class="guide-badges">
+          <span class="badge badge-brand">AliceUID · {{ category_label }}</span>
+          {% if translated_from %}
+          <span class="badge badge-translate">原文 {{ translated_from }} · Blablalink 官方中文翻译</span>
+          {% endif %}
+          <span class="badge badge-exp">实验性 · 仅适配 {{ author_name }} 特征</span>
+        </div>
+        <div class="guide-title">{{ title }}</div>
+        <div class="guide-meta">
+          <span>作者：<strong>{{ author_name }}</strong>{% if published_text %} · 发布时间：{{ published_text }}{% endif %}</span>
+          <span>原帖：{{ post_url }}</span>
+        </div>
+      </div>
+
+      <div class="guide-body">
+        {{ body_html | safe }}
+      </div>
+
+      <div class="guide-footer">
+        <div>攻略来源：{{ author_name }}（{{ post_url }}）</div>
+        {% include 'brand_credit.html' %}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

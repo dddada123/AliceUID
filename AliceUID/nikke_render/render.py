@@ -35,6 +35,8 @@ async def _render_html(
     *,
     root_width: int = 1000,
     dpi: int | None = None,
+    image_format: str = "png",
+    jpeg_quality: int = 95,
 ) -> bytes:
     """把 HTML 渲染成 PNG。
 
@@ -75,14 +77,28 @@ async def _render_html(
         max_width=max_width,
         dpi=dpi,
         root_max_width=root_width,
-        image_format="png",
+        image_format=image_format,
+        jpeg_quality=jpeg_quality,
         allow_refit=True,
     )
 
 
-async def render_html(html: str, *, root_width: int = 1000, dpi: int | None = None) -> bytes:
+async def render_html(
+    html: str,
+    *,
+    root_width: int = 1000,
+    dpi: int | None = None,
+    image_format: str = "png",
+    jpeg_quality: int = 95,
+) -> bytes:
     """Cache hits never enter this bounded paint queue."""
     loop = asyncio.get_running_loop()
     gate = _render_slots.setdefault(loop, asyncio.Semaphore(2))
     async with gate:
-        return await _render_html(html, root_width=root_width, dpi=dpi)
+        return await _render_html(
+            html,
+            root_width=root_width,
+            dpi=dpi,
+            image_format=image_format,
+            jpeg_quality=jpeg_quality,
+        )

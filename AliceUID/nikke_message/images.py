@@ -74,7 +74,7 @@ def encode_forward_pages(data, quality=JPEG_QUALITY):
         return [encoded]
 
 
-def prepare_forward_content(content):
+def prepare_forward_content(content, *, preserve_order: bool = False):
     """Snapshot inline cards before standard nodes, honoring GsCore forward JPEG settings only."""
     from gsuid_core.logger import logger
     from gsuid_core.segment import MessageSegment
@@ -114,6 +114,8 @@ def prepare_forward_content(content):
             cached, hit = snapshot(page, CACHE_PATH / 'forward_outbox')
             logger.info(f'[AliceUID] 转发缓存 stage=cache_ready bytes={len(cached)} hit={hit}')
             result.append(MessageSegment.image(cached))
+    if preserve_order:
+        return result
     texts = [str(item.data) for item in result if getattr(item, 'type', None) == 'text' and item.data]
     remaining = [item for item in result if getattr(item, 'type', None) != 'text']
     return ([MessageSegment.text('\n'.join(texts))] if texts else []) + remaining

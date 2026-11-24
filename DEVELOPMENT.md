@@ -1,4 +1,8 @@
-﻿# 1.2.15 · 2026-11-22
+﻿# 1.3.05 · 2026-11-24
+
+新增 `nikke_guide` 通用 Blablalink 多作者攻略系统（SQLite 持久索引 + 30 天媒体 TTL 缓存 + 匿名 `GetPost` 自动中文翻译 + `nikke_message` `preserve_order=True` 保序转发），并同步将 `nikke_raid_guide`（`nk会战攻略`）与 `nikke_calendar`（`nk日历`）全面迁移至 GsCore 内置 `pytakumi` 渲染引擎。
+
+# 1.2.15 · 2026-11-22
 
 全面切换角色练度（横版 / 纵版）、指挥官名片（`profile`）与资源查询（`status` resources）为全新 Bento 战术玻璃 v2 视觉体系；旧版 1.2.14 卡片模板与样式独立备份至工作区 `HistoryDoc/legacy_card_styles_1.2.14/`，生产插件包内移除旧版样式。
 

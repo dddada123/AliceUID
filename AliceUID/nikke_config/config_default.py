@@ -162,7 +162,11 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
     ),
     'AliceUID_RaidGuideForward': GsBoolConfig(
         '会战阵容用转发消息',
-        '默认开启，依次发送帖子原标题及作者来源、組隊示例下的第一张阵容原图、帖子完整长截图。长截图JPG质量沿用转发设置，默认95。', True,
+        '默认开启，依次发送帖子原标题及作者来源、組隊示例下的第一张阵容原图、帖子完整长图。长图JPG质量沿用转发设置，默认95。', True,
+    ),
+    'AliceUID_GuideForward': GsBoolConfig(
+        '攻略查询用转发消息',
+        '默认开启，依次发送标题作者来源与实验性说明、完整攻略长图（含镇楼图）、纯文字正文（含【镇楼图】【图1】标注）。关闭或转发不可用时回退普通发送。', True,
     ),
     'AliceUID_AccountListForward': GsBoolConfig(
         "账号列表用转发消息",

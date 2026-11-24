@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="{{ html_lang or 'zh-CN' }}">
+<head>
+<meta charset="utf-8" />
+<style>{% include 'calendar_v2.css' %}</style>
+</head>
+<body style="font-family: '{{ font_family or 'MiSans' }}', 'MiSans', sans-serif;">
+  <div class="cal-root cal-root-{{ card_theme or 'dark' }}">
+    <div class="cal-shell cal-shell-{{ card_theme or 'dark' }}">
+      <div class="cal-header cal-header-{{ card_theme or 'dark' }}">
+        <div class="cal-header-left">
+          <div class="cal-eyebrow">BLABLALINK · ACTIVITY CALENDAR</div>
+          <div class="cal-title">NIKKE 官网活动日历</div>
+          <div class="cal-subtitle cal-sub-{{ card_theme or 'dark' }}">基于官网公开日程数据生成 · 北京时间（UTC+8）</div>
+        </div>
+        <div class="cal-header-right">
+          <span class="cal-stamp cal-sub-{{ card_theme or 'dark' }}">数据时间：{{ captured_text }}</span>
+          <span class="cal-badge-total">共 {{ total_items }} 项活跃/排期</span>
+        </div>
+      </div>
+
+      {% for section in sections %}
+      <div class="cal-section">
+        <div class="section-head">
+          <div class="section-title-wrap">
+            <span class="section-dot dot-{{ section.key }}"></span>
+            <span class="section-title">{{ section.title }}</span>
+          </div>
+          <span class="section-en">{{ section.en_title }}</span>
+        </div>
+
+        {% if section['items'] %}
+        <div class="card-grid">
+          {% for item in section['items'] %}
+          <div class="event-card event-card-{{ card_theme or 'dark' }} status-{{ item.status }}">
+            <div class="event-top">
+              <div class="event-title">{{ item.title }}</div>
+              <span class="status-pill pill-{{ item.status }}">{{ item.status_label }}</span>
+            </div>
+            {% if item.subtitle %}
+            <div class="event-sub event-sub-{{ card_theme or 'dark' }}">{{ item.subtitle }}</div>
+            {% endif %}
+            <div class="event-time cal-sub-{{ card_theme or 'dark' }}">{{ item.time_range }}</div>
+            <div class="event-remain remain-{{ item.status }}">{{ item.remain_text }}</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-box empty-box-{{ card_theme or 'dark' }}">{{ section.empty_text }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      <div class="cal-footer cal-footer-{{ card_theme or 'dark' }}">
+        <span>来源：https://www.blablalink.com/activity-calendar（官网默认日程，不按绑定区服筛选）</span>
+        {% include 'brand_credit.html' %}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

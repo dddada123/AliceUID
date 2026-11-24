@@ -1,0 +1,269 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.cal-root {
+  width: 1040px;
+  padding: 26px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.cal-root-light {
+  background-color: #eef2f8;
+  color: #182132;
+}
+
+.cal-root-dark {
+  background-color: #0b0f18;
+  color: #e6ecf8;
+}
+
+.cal-shell {
+  width: 100%;
+  border-radius: 22px;
+  padding: 28px 30px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.cal-shell-light {
+  background-color: #ffffff;
+  border: 1px solid #d9e2ef;
+}
+
+.cal-shell-dark {
+  background-color: #131926;
+  border: 1px solid #263147;
+}
+
+.cal-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-bottom: 16px;
+}
+
+.cal-header-light {
+  border-bottom: 2px solid #e6ecf5;
+}
+
+.cal-header-dark {
+  border-bottom: 2px solid #253046;
+}
+
+.cal-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cal-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #3b82f6;
+}
+
+.cal-title {
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.cal-subtitle {
+  font-size: 13px;
+}
+
+.cal-sub-light { color: #64748b; }
+.cal-sub-dark { color: #94a3b8; }
+
+.cal-header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.cal-stamp {
+  font-size: 13px;
+}
+
+.cal-badge-total {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+.cal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-head {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-title-wrap {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.dot-version_event { background-color: #3b82f6; }
+.dot-character_gacha { background-color: #ec4899; }
+.dot-skin_gacha { background-color: #a855f7; }
+.dot-raid { background-color: #ef4444; }
+.dot-simulation_room { background-color: #14b8a6; }
+.dot-arena { background-color: #f59e0b; }
+
+.section-title {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.section-en {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  opacity: 0.55;
+}
+
+.card-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.event-card {
+  width: 458px;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.event-card-light {
+  background-color: #f7f9fc;
+  border: 1px solid #e2e8f0;
+}
+
+.event-card-dark {
+  background-color: #1a2234;
+  border: 1px solid #2b3750;
+}
+
+.event-top {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.event-title {
+  font-size: 16px;
+  font-weight: 700;
+  flex: 1;
+}
+
+.status-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.pill-active {
+  background-color: #10b981;
+  color: #ffffff;
+}
+
+.pill-ending {
+  background-color: #f97316;
+  color: #ffffff;
+}
+
+.pill-upcoming {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.event-sub {
+  font-size: 13px;
+}
+
+.event-sub-light { color: #475569; }
+.event-sub-dark { color: #cbd5e1; }
+
+.event-time {
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.event-remain {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.remain-active { color: #10b981; }
+.remain-ending { color: #f97316; }
+.remain-upcoming { color: #60a5fa; }
+
+.empty-box {
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 13px;
+}
+
+.empty-box-light {
+  background-color: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #64748b;
+}
+
+.empty-box-dark {
+  background-color: #171e2d;
+  border: 1px dashed #334155;
+  color: #94a3b8;
+}
+
+.cal-footer {
+  margin-top: 6px;
+  padding-top: 12px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+
+.cal-footer-light {
+  border-top: 1px solid #e6ecf5;
+  color: #64748b;
+}
+
+.cal-footer-dark {
+  border-top: 1px solid #253046;
+  color: #94a3b8;
+}

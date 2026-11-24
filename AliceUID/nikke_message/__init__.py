@@ -103,7 +103,7 @@ def _log_structure(kind: str, route: str, mode: str, payload, *, at_sender=None,
         pass
 
 
-async def send_with_forward(bot, ev, message, *, config_key, title=None, at_sender=None):
+async def send_with_forward(bot, ev, message, *, config_key, title=None, at_sender=None, preserve_order=False):
     """Keep transport metadata out of nodes and all sends behind actor guards.
 
     xiowo's NapCat adapter catches OneBot errors outside Core's send coroutine.
@@ -122,7 +122,8 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None, at_send
     items = message if isinstance(message, list) else [message]
     has_images = any(getattr(item, 'type', None) == 'image' for item in items)
     kind = {'AliceUID_HelpForward': 'help', 'AliceUID_RosterForward': 'roster',
-            'AliceUID_UnionForward': 'union', 'AliceUID_RaidGuideForward': 'raid_guide', 'AliceUID_LoginForward': 'login',
+            'AliceUID_UnionForward': 'union', 'AliceUID_RaidGuideForward': 'raid_guide',
+            'AliceUID_GuideForward': 'guide', 'AliceUID_LoginForward': 'login',
             'AliceUID_CDKForward': 'cdk', 'AliceUID_CDKResultForward': 'cdk_result',
             'AliceUID_AccountListForward': 'accounts'}.get(config_key, 'other')
     bucket = 'login' if kind == 'login' else ('image' if has_images else 'text')
@@ -174,7 +175,10 @@ async def send_with_forward(bot, ev, message, *, config_key, title=None, at_send
         if config_key != 'AliceUID_LoginForward':
             try:
                 async with _image_slots:
-                    content = await asyncio.to_thread(prepare_forward_content, content)
+                    if preserve_order:
+                        content = await asyncio.to_thread(prepare_forward_content, content, preserve_order=True)
+                    else:
+                        content = await asyncio.to_thread(prepare_forward_content, content)
             except Exception as exc:
                 logger.warning(f'[AliceUID] 转发图片准备失败，保留完整原图普通发送 error_type={type(exc).__name__}（如持续失败，请尝试重启 NapCat 容器或对应 QQ 客户端）')
                 _log_structure(kind, route, 'plain_fallback', message, at_sender=at_sender, skip_reason='prepare_failed')

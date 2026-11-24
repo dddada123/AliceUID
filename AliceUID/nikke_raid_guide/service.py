@@ -82,7 +82,7 @@ class GuideService:
             season['guide_offseason'] = not season['combat_active']
             sid = str(season['id'])
             meta = self.read_meta()
-            if meta.get('season_id') != sid:
+            if meta.get('season_id') != sid or (self.capture is None and meta.get('render_engine') != 'pytakumi'):
                 # Persist the new identity first: a failed fetch/restart cannot reuse old guides.
                 self.save_meta(dict(author=AUTHOR, season_id=sid, retry_after=0, saved_at=0))
                 for name in ('team.image', 'post.jpg'):
@@ -106,19 +106,23 @@ class GuideService:
             meta.update(author=AUTHOR, season_id=sid, retry_after=now+300, failure_kind='unavailable')
             self.save_meta(meta)
             try:
-                if self.capture is None:
-                    from ..nikke_browser.runtime import manager, BrowserUnavailable
-                    try:
-                        await manager.prepare(channel=self.channel, headless=True)
-                    except BrowserUnavailable as exc:
-                        raise GuideUnavailable(str(exc)) from None
                 async def fetch():
                     post = await self.finder(season, now)
                     if not matches(post, season, now):
                         raise GuideUnavailable('未找到作者的本期攻略。')
                     team = await self.download(example_image(post.get('content', '')))
-                    shot = await (self.capture(post) if self.capture else capture_post(
-                        post, channel=self.channel, quality=self.quality))
+                    if self.capture:
+                        shot = await self.capture(post)
+                    else:
+                        from ..nikke_guide.draw import render_post_long_image
+                        author_display = post.get('user', {}).get('username') or AUTHOR_NAME
+                        shot = await render_post_long_image(
+                            post,
+                            author_name=author_display,
+                            category_label='联盟突袭攻略',
+                            post_url=f'{POST_URL}{post["post_uuid"]}',
+                            quality=self.quality,
+                        )
                     validate_image(team)
                     validate_image(shot, screenshot=True)
                     return post, team, shot
@@ -133,6 +137,7 @@ class GuideService:
                 public_post = {k:post[k] for k in ('title','post_uuid','created_on','intl_openid')}
                 public_post['user'] = {'intl_openid': AUTHOR, 'username': post.get('user', {}).get('username') or AUTHOR_NAME}
                 self.save_meta(dict(author=AUTHOR, season_id=sid, season=season, post=public_post,
+                    render_engine='pytakumi',
                     saved_at=self.clock(), retry_after=0,
                     hashes=[hashlib.sha256(b).hexdigest() for b in (team, shot)]))
                 return Guide(post['title'], team, shot, public_post['user']['username'], str(post['post_uuid']), not season['combat_active'])
