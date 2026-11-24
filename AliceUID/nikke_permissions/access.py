@@ -1,14 +1,33 @@
 """Global actor guard for every Trigger belonging to the registered plugin."""
+from collections import OrderedDict
 from functools import wraps
+import threading
 
 DENIED = "你无权使用AliceUID，请联系Bot主。"
 _group_observer = None
+_LOGGED_MSGS: OrderedDict[tuple, None] = OrderedDict()
+_LOGGED_LOCK = threading.Lock()
 
 
 def _log_triggered_command(ev, *, allowed: bool):
     """Record anonymized command text with [bot主]/[普通成员] role (never sender name/QQ)."""
     if ev is None:
         return
+    msg_id = str(getattr(ev, "msg_id", "") or "").strip()
+    if msg_id:
+        dedup_key = (
+            str(getattr(ev, "bot_id", "") or ""),
+            str(getattr(ev, "group_id", "") or "dm"),
+            str(getattr(ev, "user_id", "") or ""),
+            msg_id,
+        )
+        with _LOGGED_LOCK:
+            if dedup_key in _LOGGED_MSGS:
+                return
+            _LOGGED_MSGS[dedup_key] = None
+            _LOGGED_MSGS.move_to_end(dedup_key)
+            while len(_LOGGED_MSGS) > 128:
+                _LOGGED_MSGS.popitem(last=False)
     try:
         if getattr(ev, "_alice_cmd_logged", False):
             return

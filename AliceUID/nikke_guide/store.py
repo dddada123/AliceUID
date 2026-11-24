@@ -15,6 +15,7 @@ from .source import POST_URL, extract_lead_image_url, validate_image_bytes
 
 MEDIA_TTL_SECONDS = 30 * 86400
 GUIDE_STYLE_VERSION = 'v1307-header-concentric'
+INDEX_RULES_VERSION = 'v1308-exact-alias'
 INCOMPLETE_RETRY_SECONDS = 60
 
 
@@ -45,9 +46,69 @@ class GuideStore:
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.db_path = self.root / 'index.sqlite3'
+        self.meta_path = self.root / 'index_meta.json'
         self.media_root = self.root / 'media'
         self.clock = clock
         self._init_db()
+
+    def rules_version(self) -> str:
+        try:
+            data = json.loads(self.meta_path.read_text('utf-8'))
+            return str(data.get('rules_version') or '') if isinstance(data, dict) else ''
+        except Exception:
+            return ''
+
+    def set_rules_version(self, ver: str):
+        payload = {'rules_version': str(ver), 'updated_at': int(self.clock())}
+        atomic_write(self.meta_path, json.dumps(payload, ensure_ascii=False).encode('utf-8'))
+
+    def reindex_local(self, *, norm_fn, name_code_resolver, authors_by_id: dict[str, GuideAuthor]) -> dict[str, int]:
+        """Recompute title_norm/category/subject/name_code across all cached posts with 0 network I/O."""
+        total = 0
+        updated = 0
+        with self._connect() as conn:
+            rows = conn.execute('SELECT * FROM posts').fetchall()
+            for r in rows:
+                total += 1
+                uid = str(r['post_uuid'])
+                aid = str(r['author_id'])
+                author = authors_by_id.get(aid)
+                if author is None:
+                    continue
+                tags = json.loads(r['tags_json'] or '[]')
+                raw_post = {
+                    'post_uuid': uid,
+                    'title': str(r['title'] or ''),
+                    'tags': tags,
+                }
+                category, subject = classify_post(raw_post, author)
+                name_code = name_code_resolver(subject, tags, raw_post['title']) if category == 'character' else None
+                title_norm = norm_fn(raw_post['title'])
+                if (
+                    category != str(r['category'])
+                    or subject != str(r['subject'])
+                    or name_code != (int(r['name_code']) if r['name_code'] is not None else None)
+                    or title_norm != str(r['title_norm'])
+                ):
+                    conn.execute(
+                        'UPDATE posts SET title_norm = ?, category = ?, subject = ?, name_code = ? WHERE post_uuid = ?',
+                        (title_norm, category, subject, name_code, uid),
+                    )
+                    updated += 1
+        return {'total': total, 'updated': updated}
+
+    def reset_sync_state(self):
+        with self._connect() as conn:
+            conn.execute('UPDATE authors SET full_backfill_done = 0, last_sync_at = 0, retry_after = 0')
+
+    def clear_all(self) -> int:
+        with self._connect() as conn:
+            cur = conn.execute('SELECT COUNT(*) AS c FROM posts').fetchone()
+            removed = int(cur['c']) if cur else 0
+            conn.executescript('DELETE FROM posts; DELETE FROM authors; DELETE FROM media_cache;')
+        shutil.rmtree(self.media_root, ignore_errors=True)
+        self.meta_path.unlink(missing_ok=True)
+        return removed
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(str(self.db_path), timeout=15)

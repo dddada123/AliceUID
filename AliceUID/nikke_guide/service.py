@@ -11,7 +11,14 @@ from ..nikke_character.aliases import AliasStore
 from ..nikke_render.language import get_card_language
 from ..nikke_render.theme import get_card_theme
 from .draw import render_post_long_image, render_post_long_image_with_meta
-from .matcher import build_name_code_resolver, dedupe_recent_guides, match_guides, norm_key
+from .matcher import (
+    GuideMatchResult,
+    build_name_code_resolver,
+    dedupe_recent_guides,
+    match_guides,
+    match_guides_rich,
+    norm_key,
+)
 from .registry import CATEGORY_LABELS, GUIDE_CATEGORIES, GuideAuthor, load_authors
 from .source import (
     GuideError,
@@ -22,7 +29,7 @@ from .source import (
     html_to_plain_text,
     split_text_chunks,
 )
-from .store import GuideStore, IndexedPost
+from .store import GuideStore, INDEX_RULES_VERSION, IndexedPost
 
 _SYNC_LOCK = asyncio.Lock()
 _POST_LOCKS: dict[str, asyncio.Lock] = {}
@@ -183,6 +190,23 @@ class GuideService:
                     alias_map = {}
             resolver = build_name_code_resolver(static, alias_map)
 
+            # One-time 0-network local reindex when matching rules upgrade (preserves all 30d media caches).
+            if self.store.rules_version() != INDEX_RULES_VERSION:
+                if self.store.count_posts() > 0:
+                    authors_map = {a.author_id: a for a in authors}
+                    stats = self.store.reindex_local(
+                        norm_fn=norm_key,
+                        name_code_resolver=resolver,
+                        authors_by_id=authors_map,
+                    )
+                    _log_event(
+                        'LOCAL_REINDEX',
+                        'OK',
+                        count=stats['total'],
+                        reason=f"rules={INDEX_RULES_VERSION},updated={stats['updated']}",
+                    )
+                self.store.set_rules_version(INDEX_RULES_VERSION)
+
             first_run_notified = False
             for author in authors:
                 state = self.store.get_author_state(author.author_id)
@@ -288,16 +312,55 @@ class GuideService:
         *,
         on_first_index=None,
     ) -> tuple[str, list[IndexedPost], dict[str, GuideAuthor]]:
+        match_res, authors_by_id, _, _ = await self.search_rich(query, on_first_index=on_first_index)
+        return match_res.status, match_res.posts, authors_by_id
+
+    async def search_rich(
+        self,
+        query: str,
+        *,
+        on_first_index=None,
+    ) -> tuple[GuideMatchResult, dict[str, GuideAuthor], dict[int, list[str]]]:
         authors = await self.ensure_indexed(on_first_index=on_first_index)
         authors_by_id = {a.author_id: a for a in authors}
-        status, posts = match_guides(
+        static = self._static()
+        aliases_store = self._aliases()
+        alias_by_code: dict[int, list[str]] = {}
+        if aliases_store is not None:
+            try:
+                raw_aliases = aliases_store.read(static=static)
+                for al, cid in raw_aliases.items():
+                    alias_by_code.setdefault(int(cid), []).append(str(al))
+            except Exception:
+                alias_by_code = {}
+        names_by_code = {int(c): static.name(c) for c in static.characters} if static is not None else {}
+        res = match_guides_rich(
             query,
             store=self.store,
-            static=self._static(),
-            alias_store=self._aliases(),
+            static=static,
+            alias_store=aliases_store,
             authors=authors,
         )
-        return status, posts, authors_by_id
+        return res, authors_by_id, alias_by_code, names_by_code
+
+    def is_sync_running(self) -> bool:
+        return _SYNC_LOCK.locked()
+
+    async def reindex(self, *, clear: bool = False) -> dict[str, int]:
+        """Bot-owner fallback: force full re-crawl across authors (optionally clearing local SQLite/media first)."""
+        t0 = time.monotonic()
+        cleared = 0
+        async with _SYNC_LOCK:
+            if clear:
+                cleared = self.store.clear_all()
+            else:
+                self.store.reset_sync_state()
+
+        await self.ensure_indexed(force=True)
+        total = self.store.count_posts()
+        elapsed_ms = int((time.monotonic() - t0) * 1000)
+        _log_event('OWNER_REINDEX', 'OK', count=total, elapsed_ms=elapsed_ms, reason=f'clear={int(clear)},cleared={cleared}')
+        return {'total': total, 'cleared': cleared, 'elapsed_ms': elapsed_ms}
 
     def _handle_post_unavailable(self, post: IndexedPost, *, now: int | None = None, exc: BaseException | None = None) -> GuideError:
         stamp = int(self.clock() if now is None else now)

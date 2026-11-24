@@ -98,6 +98,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
         sections.extend([
             {'title': '数据库与全局管理', 'tag': '仅 Bot 主', 'description': '公开数据库、账号权限、角色别名与全局外观维护。', 'items': [
                 {'command': f'{command_prefix()}数据库更新 [状态/帮助]', 'description': '增量更新角色资料与图库，或查看日历调度状态'},
+                {'command': f'{command_prefix()}攻略重索引 [清空]', 'description': 'Bot主重新回溯全量攻略索引；追加“清空”可重置后重建'},
                 {'command': f'{command_prefix()}日志导出[分钟数]', 'description': f'导出最近 1～1440 分钟脱敏诊断日志（如 {command_prefix()}日志导出10）'},
                 {'command': f'{command_prefix()}刷新兑换码', 'description': '立即检查并同步最新官方/第三方兑换码'},
                 {'command': f'{command_prefix()}启用自动兑换码 / {command_prefix()}停用自动兑换码', 'description': '控制全插件自动兑换码总开关'},
