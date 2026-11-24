@@ -48,14 +48,14 @@ def render_profile_html(context: dict) -> str:
             anchor = result.get('hero_anchor') or {}
             ax = anchor.get('x') if anchor.get('matched', True) else None
             raw_placement = upper_body_placement(
-                source, width=410, height=672,
+                source, width=424, height=672,
                 full_bounds=result.get('hero_full_bounds'),
                 anchor_x=ax, anchor_y=anchor.get('y'), head_top=anchor.get('head_top'),
             )
-            placement = _scale_placement(raw_placement, 410, 0.90, ax)
+            placement = _scale_placement(raw_placement, 424, 0.90, ax)
         else:
-            placement = portrait_placement(source, 'portraits', 410, 672)
-        result['hero_art_style'] = placement or 'width:410px;height:672px;left:0px;top:0px'
+            placement = portrait_placement(source, 'portraits', 424, 672)
+        result['hero_art_style'] = placement or 'width:424px;height:672px;left:0px;top:0px'
         result['hero_shadow_url'], result['hero_shadow_style'] = portrait_shadow(source, result['hero_art_style'], glow=result['card_theme'] == 'dark')
     else:
         result.update(hero_art_style='', hero_shadow_url='', hero_shadow_style='')
@@ -77,10 +77,23 @@ def render_profile_html(context: dict) -> str:
     result['lead_accent_border'] = v2_base['element_accent_border']
     for badge_key in ('neutral_frame', 'star_on', 'star_off', 'core_icon'):
         result.setdefault(badge_key, '')
-    result['lead_corp_watermark_url'] = next(
-        (r.get('icon_url') for r in (lead.get('role_icons') or []) if isinstance(r, dict) and r.get('kind') == 'corporation' and r.get('icon_url')),
-        '',
-    )
+    if not result.get('power_icon_url'):
+        from ..nikke_resource.base_icons import STATIC_BADGES
+        result['power_icon_url'] = 'data:image/png;base64,' + STATIC_BADGES['power']['base64']
+    result['synchro_level'] = result['stats'][4]['value'] if len(result.get('stats') or ()) > 4 else ''
+    result['squad_fallback'] = bool(result.get('team_source')) and result.get('team_source') != '个人主页展示队伍'
+    result['lead_name_font_size'] = 20 if len(str(lead.get('name') or '')) >= 8 else 23
+    corp_icons = result.get('_corp_icons') or {}
+    result['corp_towers'] = [
+        dict(t, icon_url=t.get('icon_url') or corp_icons.get(t.get('label'), ''),
+             icon_shadow_url=icon_effect(t.get('icon_url') or corp_icons.get(t.get('label'), ''), color))
+        for t in (result.get('corp_towers') or [])
+    ]
+    if not result.get('lead_corp_watermark_url'):
+        result['lead_corp_watermark_url'] = next(
+            (r.get('icon_url') for r in (lead.get('role_icons') or []) if isinstance(r, dict) and r.get('kind') == 'corporation' and r.get('icon_url')),
+            '',
+        )
     result['font_family'] = 'MiSans'
     return apply_font_html(_env.get_template('profile.html').render(**result), embed=False)
 

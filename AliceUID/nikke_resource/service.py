@@ -238,6 +238,19 @@ class ResourceService:
                            portrait_hash=art.content_hash)
                 row['skin_notice'] += ' · ' + self._image_notice(art, 'MI立绘')
         result['top_nikke'] = team
+        from .cache import image_data_uri
+        corp_icons = {}
+        for label, key in (('极乐净土', 'icn_corp_01'), ('米西利斯', 'icn_corp_02'), ('泰特拉', 'icn_corp_03'), ('朝圣者', 'icn_corp_04')):
+            raw = await self.images.get_base_icon('corporations', key)
+            corp_icons[label] = image_data_uri(raw, (128, 128)) if raw else ''
+        result['_corp_icons'] = corp_icons
+        if team and 0 <= lead_index < len(team):
+            lead_code = team[lead_index].get('name_code')
+            corp_raw = (self.load_static().character(lead_code).get('corporation') or '').lower() if lead_code else ''
+            corp_key = {'elysion': 'icn_corp_01', 'missilis': 'icn_corp_02', 'tetra': 'icn_corp_03', 'pilgrim': 'icn_corp_04', 'abnormal': 'icn_corp_05'}.get(corp_raw)
+            if corp_key:
+                raw = await self.images.get_base_icon('corporations', corp_key)
+                result['lead_corp_watermark_url'] = image_data_uri(raw, (256, 256)) if raw else ''
         from .commander import prepare_commander
         result.update(await prepare_commander(self, result))
         from .commander import avatar_is_clear
@@ -249,7 +262,7 @@ class ResourceService:
                           avatar_hint='展示队伍首位角色头像')
         else:
             result.update(avatar_url=PLACEHOLDER, avatar_source='placeholder', avatar_hint='头像暂不可用')
-        result['render_version'] = 'alice-profile-v1217-bento'
+        result['render_version'] = 'alice-profile-v1304-bento-3'
         return result
 
     async def prepare_character(self, context: dict, *, framing=False) -> dict:

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>指挥官名片 · AliceUID</title>
+<style>
+{% include 'alice_v2_tokens.css' %}
+{% include 'profile_v2.css' %}
+{% include 'squad_badges.css' %}
+.avatar-empty{font-weight:800;color:{{ accent }};font-size:22px}
+.hero-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:{{ palette.muted }};font-size:15px}
+</style>
+</head>
+<body>
+{% from 'card_badges.html' import progression as rank_badges, role_corners %}
+<div class="page profile-wide profile-page {{ card_theme }}">
+
+  <section class="bento-card lead-pane" title="{{ lead.skin_notice }}">
+    <div class="lead-archive-tag">
+      <span class="lead-archive-dot"></span>
+      <span>NIKKE // FEATURED</span>
+    </div>
+    {% if lead_corp_watermark_url %}
+    <div class="lead-corp-watermark"><img src="{{ lead_corp_watermark_url }}" alt=""></div>
+    {% endif %}
+    <div class="lead-art-wrap">
+      {% if hero_shadow_url %}
+      <img class="portrait-shadow" src="{{ hero_shadow_url }}" style="{{ hero_shadow_style }}" alt="">
+      {% endif %}
+      {% if hero_art_url %}
+      <img src="{{ hero_art_url }}" data-kind="{{ hero_art_kind or 'portraits' }}" style="{{ hero_art_style }}" alt="{{ lead.name }}立绘">
+      {% else %}
+      <div class="hero-empty">暂无展示立绘</div>
+      {% endif %}
+    </div>
+    <div class="lead-caption">
+      <div class="lead-accent-bar"></div>
+      <div class="lead-name-row">
+        <h1>{{ lead.name }}</h1>
+        <span class="ui-pill lead-lv-pill">Lv.{{ lead.level }}</span>
+        <span class="ui-pill lead-rarity-pill">{{ lead.rarity }}</span>
+      </div>
+      <div class="lead-meta-row">
+        <div class="lead-icons-left">
+          {% for icon in lead.role_icons or [] %}
+          {% if icon.kind in ['class','element','burst'] and icon.icon_url %}
+          <span class="lead-role-icon" title="{{ icon.label }}">
+            <span class="icon-stack">
+              {% if icon.icon_shadow_url %}<img class="icon-shadow" src="{{ icon.icon_shadow_url }}" alt="">{% endif %}
+              <img class="alpha-effect" src="{{ icon.icon_url }}" alt="{{ icon.label }}">
+            </span>
+          </span>
+          {% endif %}
+          {% endfor %}
+          {% if lead.star_states or lead.core_display %}
+          {{ rank_badges(lead, star_on, star_off, core_icon) }}
+          {% endif %}
+        </div>
+        <span class="lead-power">{{ lead.combat_text }}</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="profile-right">
+    <header class="bento-card prof-identity">
+      <div class="avatar-glass">
+        {% if avatar_url %}
+        <img src="{{ avatar_url }}" alt="{{ avatar_hint or '指挥官头像' }}">
+        {% else %}
+        <span class="avatar-empty">{{ (nickname or '指')[:1] }}</span>
+        {% endif %}
+        <span class="avatar-glass-edge"></span>
+      </div>
+      <div class="prof-id-copy">
+        <span class="prof-eyebrow">COMMANDER / 指挥官档案</span>
+        <div class="prof-name-row">
+          <h2>{{ nickname }}</h2>
+          <span class="ui-pill prof-lv-pill">Lv.{{ level }}</span>
+        </div>
+        <div class="prof-meta">
+          <span>{{ area_label }}</span>
+          <span>·</span>
+          <span>UID {{ uid }}</span>
+          {% if guild_name %}<span>·</span><span>{{ guild_name }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="prof-power-box">
+        <div class="prof-power-bar"></div>
+        <span class="prof-power-label">部队战斗力</span>
+        <strong class="prof-power-val">{{ stats[1].value }}</strong>
+        <span class="prof-brand-sub">NIKKE · AliceUID</span>
+      </div>
+    </header>
+
+    <section class="bento-card prof-metrics">
+      {% for i in [4,0,2,5,3] %}
+      <div class="metric-slot{% if i==3 %} date{% endif %}">
+        <span>{{ stats[i].label }}</span>
+        <b>{{ stats[i].value }}</b>
+      </div>
+      {% endfor %}
+    </section>
+
+    <section class="prof-mid">
+      <div class="bento-card prof-campaign">
+        <div class="panel-head">
+          <h3>战役与爬塔</h3>
+          <span>CAMPAIGN / TOWER</span>
+        </div>
+        <div class="campaign-pair">
+          {% for p in progress[:2] %}
+          <div class="camp-slot">
+            <span>{{ p.label }}</span>
+            <b>{{ p.value }}</b>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="tower-grid">
+          <div class="tower-slot">
+            <span>无限之塔</span>
+            <b>{{ progress[2].value }}</b>
+          </div>
+          {% for t in corp_towers %}
+          <div class="tower-slot">
+            <span>{{ t.label }}</span>
+            <b>{{ t.value }}</b>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="bento-card prof-outpost">
+        <div class="panel-head">
+          <h3>前哨基地</h3>
+          <span>OUTPOST</span>
+        </div>
+        <div class="outpost-grid">
+          {% for o in outpost %}
+          <div class="outpost-slot">
+            <span>{{ o.label }}</span>
+            <b>{{ o.value }}</b>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="outpost-foot">
+          <span>资料范围</span>
+          <span>本人当前绑定账号</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="bento-card prof-squad">
+      <div class="panel-head">
+        <h3>主页展示队伍</h3>
+        <span>{{ team_source }}</span>
+      </div>
+      <div class="squad-grid">
+        {% for n in squad_nikke %}
+        <div class="squad-member">
+          <div class="avatar-glass">
+            <img src="{{ n.icon_url }}" alt="{{ n.name }}头像">
+            <span class="member-level">Lv.{{ n.level }}</span>
+            {{ role_corners(n, neutral_frame) }}
+            {% if n.star_states or n.core_display %}
+            {{ rank_badges(n, star_on, star_off, core_icon, 'corner-rank') }}
+            {% endif %}
+            <span class="avatar-glass-edge"></span>
+          </div>
+          <div class="member-name">{{ n.name }}</div>
+          <div class="member-power"><span>战斗力</span><b>{{ n.combat_text }}</b></div>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  {% if preview_notice %}<div class="prof-bottom-left"><span class="ui-pill prof-preview-pill">{{ preview_notice }}</span></div>{% endif %}
+  <div class="prof-bottom-right"><span class="brand-credit-pill">Powered By GsCore &amp; Created By AliceUID·{{ credit_timestamp }}（北京时间）</span></div>
+</div>
+</body>
+</html>
