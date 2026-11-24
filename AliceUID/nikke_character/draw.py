@@ -351,7 +351,7 @@ async def draw_character(context: dict, style: str | None = None, theme: str | N
     stable=content_context(context)
     from .aliases import aliases_for_code
     code=context['name_code']
-    stable.update(render_version='alice-v1223-bento-1',
+    stable.update(render_version='alice-v1303-bento-2',
                   theme=theme,style=style,presentation_mode=character_presentation_mode(),
                   wide_art_scale=get_wide_art_scale_offset(),
                   aliases=aliases_for_code(code),

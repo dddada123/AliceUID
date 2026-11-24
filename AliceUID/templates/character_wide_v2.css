@@ -6,13 +6,13 @@ html,body{width:1280px;height:820px;overflow:hidden}
   background:{{ palette.page_bg }} url('{{ wide_background_uri }}') center/100% 100% no-repeat;
 }
 .stage-scrim{
-  position:absolute;left:0;top:0;width:560px;height:820px;
-  background:{{ 'linear-gradient(180deg, rgba(242,247,255,0.20) 0%, rgba(242,247,255,0.0) 28%, rgba(235,242,252,0.0) 68%, rgba(230,238,248,0.42) 100%)' if card_theme=='light' else 'linear-gradient(180deg, rgba(5,12,24,0.42) 0%, rgba(5,12,24,0.08) 28%, rgba(5,12,24,0.08) 66%, rgba(4,10,20,0.62) 100%)' }};
+  position:absolute;inset:0;
+  background:{{ 'linear-gradient(180deg, rgba(242,247,255,0.18) 0%, rgba(242,247,255,0.0) 26%, rgba(235,242,252,0.0) 70%, rgba(230,238,248,0.34) 100%)' if card_theme=='light' else 'linear-gradient(180deg, rgba(5,12,24,0.30) 0%, rgba(5,12,24,0.04) 26%, rgba(5,12,24,0.04) 70%, rgba(4,10,20,0.46) 100%)' }};
   z-index:0;pointer-events:none;
 }
 .panel-ambient{
-  position:absolute;left:500px;top:0;width:780px;height:820px;
-  background:{{ 'linear-gradient(90deg, rgba(240,246,255,0.0) 0%, rgba(240,246,255,0.18) 18%, rgba(240,246,255,0.28) 100%)' if card_theme=='light' else 'linear-gradient(90deg, rgba(4,10,20,0.0) 0%, rgba(4,10,20,0.28) 18%, rgba(4,10,20,0.42) 100%)' }};
+  position:absolute;inset:0;
+  background:{{ 'linear-gradient(90deg, rgba(240,246,255,0.0) 0%, rgba(240,246,255,0.0) 34%, rgba(240,246,255,0.14) 52%, rgba(240,246,255,0.24) 100%)' if card_theme=='light' else 'linear-gradient(90deg, rgba(4,10,20,0.0) 0%, rgba(4,10,20,0.0) 34%, rgba(4,10,20,0.22) 52%, rgba(4,10,20,0.36) 100%)' }};
   z-index:0;pointer-events:none;
 }
 .stage-archive-tag{
