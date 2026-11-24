@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from contextlib import asynccontextmanager
 from html import escape, unescape
 from html.parser import HTMLParser
 import io
 import re
+import time
 from urllib.parse import urlsplit
 
 import httpx
@@ -236,32 +238,148 @@ def _try_extract_gif_first_frame(buf: bytes) -> bytes | None:
         return None
 
 
+class NonRetryableImageError(GuideError):
+    """403/404/oversize/invalid-domain errors that should skip immediately without retry."""
+
+
+class RateLimitedImageError(GuideError):
+    """429/403/503 CDN throttling or overload signal triggering pacer downgrade."""
+
+
+_DEFAULT_UA = (
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+)
+
+# (max_concurrency, spacing_seconds)
+_PACER_TIERS: tuple[tuple[int, float], ...] = (
+    (5, 0.0),    # Tier 0: Normal
+    (3, 0.15),   # Tier 1: Mild congestion downgrade
+    (2, 0.40),   # Tier 2: Heavy throttle downgrade
+    (1, 0.80),   # Tier 3: Conservative serial protection
+)
+
+
+class GuideImagePacer:
+    """Global shared adaptive concurrency pool for Blablalink guide image downloads."""
+
+    def __init__(self, *, clock=time.monotonic, recovery_cooldown: float = 600.0, recovery_streak: int = 8):
+        self.clock = clock
+        self.recovery_cooldown = recovery_cooldown
+        self.recovery_streak = recovery_streak
+        self.tier = 0
+        self.active = 0
+        self.clean_streak = 0
+        self.cooldown_until = 0.0
+        self._last_launch = 0.0
+        self._cond: asyncio.Condition | None = None
+        self._cond_loop = None
+
+    def _condition(self) -> asyncio.Condition:
+        loop = asyncio.get_running_loop()
+        if self._cond is None or self._cond_loop is not loop:
+            self._cond = asyncio.Condition()
+            self._cond_loop = loop
+        return self._cond
+
+    @property
+    def max_concurrency(self) -> int:
+        return _PACER_TIERS[self.tier][0]
+
+    @property
+    def spacing_seconds(self) -> float:
+        return _PACER_TIERS[self.tier][1]
+
+    @asynccontextmanager
+    async def slot(self):
+        cond = self._condition()
+        async with cond:
+            await cond.wait_for(lambda: self.active < self.max_concurrency)
+            spacing = self.spacing_seconds
+            if spacing > 0:
+                now = self.clock()
+                wait = (self._last_launch + spacing) - now
+                if wait > 0:
+                    await asyncio.sleep(wait)
+            self._last_launch = self.clock()
+            self.active += 1
+        try:
+            yield
+        finally:
+            async with cond:
+                self.active = max(0, self.active - 1)
+                cond.notify_all()
+
+    def record_success(self):
+        self.clean_streak += 1
+        if self.tier > 0 and self.clock() >= self.cooldown_until and self.clean_streak >= self.recovery_streak:
+            self.tier -= 1
+            self.clean_streak = 0
+            self.cooldown_until = self.clock() + self.recovery_cooldown
+
+    def record_congestion(self):
+        self.clean_streak = 0
+        if self.tier < len(_PACER_TIERS) - 1:
+            self.tier += 1
+        self.cooldown_until = self.clock() + self.recovery_cooldown
+
+    def record_throttle(self):
+        self.clean_streak = 0
+        if self.tier < 2:
+            self.tier = 2
+        else:
+            self.tier = 3
+        self.cooldown_until = self.clock() + self.recovery_cooldown
+
+
+_GLOBAL_PACER: GuideImagePacer | None = None
+
+
+def get_image_pacer() -> GuideImagePacer:
+    global _GLOBAL_PACER
+    if _GLOBAL_PACER is None:
+        _GLOBAL_PACER = GuideImagePacer()
+    return _GLOBAL_PACER
+
+
 async def download_image_for_guide(
     url: str,
     *,
     referer: str = 'https://www.blablalink.com/',
-    timeout: float = 15.0,
+    timeout: float = 25.0,
     max_bytes: int = 20 * 1024 * 1024,
-    gif_max_bytes: int = 4 * 1024 * 1024,
+    gif_max_bytes: int = 8 * 1024 * 1024,
     client: httpx.AsyncClient | None = None,
-) -> bytes:
-    """Download image with hard total timeout and early-stop GIF frame-0 extraction."""
+) -> tuple[bytes, bool]:
+    """Download image with stagnation timeout, non-retryable guards, and GIF frame-0 early stop.
+
+    Returns (image_bytes, gif_early_stopped).
+    """
     clean_url = validate_image_url(url)
 
-    async def _get(c: httpx.AsyncClient) -> bytes:
+    async def _get(c: httpx.AsyncClient) -> tuple[bytes, bool]:
         req_timeout = httpx.Timeout(timeout, connect=8.0, read=10.0)
-        async with c.stream('GET', clean_url, headers={'Referer': referer}, timeout=req_timeout) as resp:
+        headers = {'Referer': referer, 'User-Agent': _DEFAULT_UA}
+        async with c.stream('GET', clean_url, headers=headers, timeout=req_timeout) as resp:
+            status = resp.status_code
+            if status in (429, 503):
+                raise RateLimitedImageError(f'HTTP_{status}')
+            if status == 403:
+                raise RateLimitedImageError('HTTP_403')
+            if status in (404, 410):
+                raise NonRetryableImageError(f'HTTP_{status}')
             resp.raise_for_status()
+
             ctype = (resp.headers.get('content-type') or '').lower()
             clen = resp.headers.get('content-length')
             is_gif_hint = 'gif' in ctype or clean_url.lower().endswith('.gif')
             if clen and clen.isdigit() and not is_gif_hint and int(clen) > max_bytes:
-                raise GuideError('攻略图片体积超出限制。')
+                raise NonRetryableImageError('OVERSIZE_HEADER')
 
             chunks: list[bytes] = []
             size = 0
             is_gif = False
-            next_probe = 64 * 1024
+            next_probe = 128 * 1024
 
             async for chunk in resp.aiter_bytes():
                 if not chunk:
@@ -273,32 +391,34 @@ async def download_image_for_guide(
                     is_gif = head in (b'GIF87a', b'GIF89a')
 
                 if is_gif:
-                    # Probe first complete frame periodically; abort stream immediately once ready.
                     if size >= next_probe:
                         merged = b''.join(chunks)
-                        if _try_extract_gif_first_frame(merged) is not None:
-                            return merged
+                        extracted = await asyncio.to_thread(_try_extract_gif_first_frame, merged)
+                        if extracted is not None:
+                            return extracted, True
                         next_probe = size + 256 * 1024
                     if size >= gif_max_bytes:
                         merged = b''.join(chunks)
-                        extracted = _try_extract_gif_first_frame(merged)
+                        extracted = await asyncio.to_thread(_try_extract_gif_first_frame, merged)
                         if extracted is not None:
-                            return extracted
-                        raise GuideError('GIF首帧超出读取限制。')
+                            return extracted, True
+                        raise NonRetryableImageError('GIF_FRAME0_OVERSIZE')
                 elif size > max_bytes:
-                    raise GuideError('攻略图片体积超出限制。')
+                    raise NonRetryableImageError('OVERSIZE_STREAM')
 
             data = b''.join(chunks)
             if is_gif:
-                extracted = _try_extract_gif_first_frame(data)
+                extracted = await asyncio.to_thread(_try_extract_gif_first_frame, data)
                 if extracted is not None:
-                    return extracted
-            return validate_image_bytes(data, max_bytes=max_bytes)
+                    return extracted, False
+            validated = await asyncio.to_thread(validate_image_bytes, data, max_bytes=max_bytes)
+            return validated, False
 
-    async def _run() -> bytes:
+    async def _run() -> tuple[bytes, bool]:
         if client is not None:
             return await _get(client)
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as c:
+        limits = httpx.Limits(max_connections=10, max_keepalive_connections=6)
+        async with httpx.AsyncClient(timeout=timeout, limits=limits, follow_redirects=False) as c:
             return await _get(c)
 
     return await asyncio.wait_for(_run(), timeout=timeout)

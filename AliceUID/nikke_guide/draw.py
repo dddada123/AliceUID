@@ -21,14 +21,17 @@ from ..nikke_resource.media import media_path
 from .source import (
     MAX_IMAGE_BYTES,
     POST_URL,
+    NonRetryableImageError,
+    RateLimitedImageError,
     bytes_to_data_uri,
     download_image_for_guide,
     encode_static_image,
     extract_image_urls,
+    get_image_pacer,
     sanitize_html_for_takumi,
 )
 
-BATCH_IMAGE_TIMEOUT_SECONDS = 45.0
+BATCH_IMAGE_TIMEOUT_SECONDS = 60.0
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / 'templates'
 _ENV = Environment(
@@ -66,11 +69,13 @@ async def _fetch_post_images(
     referer: str,
     http: httpx.AsyncClient | None = None,
     image_cache_dir: Path | None = None,
+    pacer=None,
 ) -> tuple[dict[str, str], list[str]]:
-    """Download/reuse embedded post images with bounded concurrency and 45s batch timeout."""
+    """Download/reuse embedded post images via adaptive pacer, 1x retry, and 60s batch timeout."""
     if not urls:
         return {}, []
     t0 = time.monotonic()
+    pacer = pacer or get_image_pacer()
     result: dict[str, str] = {}
     pending: list[str] = []
     if image_cache_dir is not None:
@@ -89,32 +94,66 @@ async def _fetch_post_images(
     else:
         pending = list(urls)
 
-    sem = asyncio.Semaphore(4)
     total_bytes = 0
+    retried_count = 0
+    gif_early_count = 0
+    congestion_count = 0
+    fail_details: dict[str, str] = {}
 
     async def _one(client: httpx.AsyncClient, url: str):
-        nonlocal total_bytes
-        async with sem:
-            try:
-                raw = await download_image_for_guide(url, referer=referer, client=client)
-                static_bytes, mime = await asyncio.to_thread(encode_static_image, raw, max_width=920, quality=82)
-                total_bytes += len(raw)
-                if image_cache_dir is not None:
-                    try:
-                        from ..nikke_resource.cache import atomic_write
-                        atomic_write(_url_cache_file(image_cache_dir, url), static_bytes)
-                    except Exception:
-                        pass
-                result[url] = bytes_to_data_uri(static_bytes, mime)
-            except Exception:
-                pass
+        nonlocal total_bytes, retried_count, gif_early_count, congestion_count
+        tail = url.rsplit('/', 1)[-1][:24]
+        for attempt, img_timeout in enumerate((25.0, 20.0), 1):
+            async with pacer.slot():
+                try:
+                    dl_res = await download_image_for_guide(
+                        url,
+                        referer=referer,
+                        timeout=img_timeout,
+                        client=client,
+                    )
+                    raw, early = dl_res if isinstance(dl_res, tuple) else (dl_res, False)
+                    if early:
+                        gif_early_count += 1
+                    static_bytes, mime = await asyncio.to_thread(
+                        encode_static_image, raw, max_width=920, quality=82
+                    )
+                    total_bytes += len(raw)
+                    if image_cache_dir is not None:
+                        try:
+                            from ..nikke_resource.cache import atomic_write
+                            atomic_write(_url_cache_file(image_cache_dir, url), static_bytes)
+                        except Exception:
+                            pass
+                    result[url] = bytes_to_data_uri(static_bytes, mime)
+                    pacer.record_success()
+                    fail_details.pop(url, None)
+                    return
+                except NonRetryableImageError as exc:
+                    fail_details[url] = f'{tail}:{exc}'
+                    return
+                except RateLimitedImageError as exc:
+                    pacer.record_throttle()
+                    fail_details[url] = f'{tail}:{exc}'
+                    if attempt == 2:
+                        return
+                except Exception as exc:
+                    congestion_count += 1
+                    if congestion_count >= 2:
+                        pacer.record_congestion()
+                    fail_details[url] = f'{tail}:{type(exc).__name__}'
+                    if attempt == 2:
+                        return
+            retried_count += 1
+            await asyncio.sleep(0.5)
 
     if pending:
         async def _batch():
             if http is not None:
                 await asyncio.gather(*(_one(http, u) for u in pending))
             else:
-                async with httpx.AsyncClient(timeout=15.0, follow_redirects=False) as client:
+                limits = httpx.Limits(max_connections=10, max_keepalive_connections=6)
+                async with httpx.AsyncClient(timeout=25.0, limits=limits, follow_redirects=False) as client:
                     await asyncio.gather(*(_one(client, u) for u in pending))
 
         try:
@@ -123,13 +162,18 @@ async def _fetch_post_images(
             pass
 
     failed_urls = [u for u in urls if u not in result]
+    err_summary = ','.join(fail_details[u] for u in failed_urls[:4] if u in fail_details)
     _log_render_event(
         'FETCH_IMAGES',
         'PARTIAL' if failed_urls else 'OK',
         count=len(result),
         bytes=total_bytes,
         elapsed_ms=int((time.monotonic() - t0) * 1000),
-        reason=f'total={len(urls)},failed={len(failed_urls)},cached={len(urls)-len(pending)}',
+        reason=(
+            f'total={len(urls)},failed={len(failed_urls)},cached={len(urls)-len(pending)},'
+            f'conc={pacer.max_concurrency},retried={retried_count},gif_early={gif_early_count}'
+            + (f',errs={err_summary}' if err_summary else '')
+        ),
     )
     return result, failed_urls
 
