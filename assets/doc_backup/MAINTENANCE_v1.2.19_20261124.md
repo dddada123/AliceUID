@@ -1,0 +1,364 @@
+﻿# 1.2.19 · 2026-11-22
+
+- 新增 `nikke_message/persona.py` 统一管理 `AliceUID_NoticeStyle`（`爱丽丝风格` 默认 / `默认说明文`）双文风渲染，接入 `nikke_harvest`、`nikke_cdk`、`nikke_community`、`nikke_roster`、`nikke_export`。
+- `nikke_status/commands.py` 移除 `nk资源查询` 出图后附带的冗余缓存规则文本（保留单元素 `[MessageSegment.image(...)]` 列表）。
+- `nikke_community/notifications.py` 的 `messages()` 按 `(reason, attempts, signed, stopped, streak)` 合并同原因异常人员列表（每批最多 10 人共用一条原因与处理说明）；`nikke_community/runtime.py` `_send_summary` 新增 `AliceUID_SignNoticeForward`（默认 `True`）合并转发支持与普通发送回退。
+
+# 1.2.18 · 2026-11-22
+
+- 全量剩余卡片（`help.html`、`aliases.html`、`status.html` bosses 分支、`union.html`、`solo.html`、`roster.html`）接入 `alice_v2_tokens.css` 与 `v2_theme_tokens`（暗版 `#F6C15C`、亮版 `#D43D51`）及 `apply_font_html(..., embed=False)`。
+- `nikke_status/builder.py` 的 `CURRENCIES` 重排并显式绑定图标文件名；`nikke_status/draw.py` 配置 8 色条纹（`blue`/`red`/`gold`/`silver`/`rainbow`）与 `_chevron_pattern_uri()` 保管箱充能纹理，`bosses` 渲染宽度收窄至 `800px`，`render_version` 升级为 `alice-v1218-bento-status-1`。
+- `roster.html` 采用方案 A 平直无缝一体卡（`border-radius:14px` 整卡、`game-avatar` 仅上圆角、`.card-info` 亮 `0.52`/暗 `0.56` 半透明底），严格保留 `WIDTH=1400 / HEADER=176 / FOOTER=32 / ROW=160` 尺寸契约。
+- `tools_alice/build_release.py` `REQUIRED_TEMPLATES` 补充 `help_v2.css`、`aliases_v2.css`、`status_bosses_v2.css`、`union_v2.css`、`solo_v2.css`。
+- 迭代归档约定：打包发布后，根 `dist/` 仅保留最新两代安装包，根目录旧版代码工作区移入 `回收站/` 仅保留最新版。
+
+# 1.2.17 · 2026-11-22
+
+- `nikke_render/theme.py` 移除属性自适应变色 `V2_ELEMENT_ACCENTS`，改为 `V2_UNIFIED_ACCENTS`（暗版 `#F6C15C`、亮版 `#D43D51`）；`nikke_profile/draw.py` 同步采用统一主题色。
+- `WIDE_ART_BASE_SCALE` 调整为 `0.825`（等效 1.2.16 下 `-3%` 比例），`nikke_character/draw.py` `render_version` 升级为 `alice-v1217-bento-1`。
+- `profile.html` 与 `profile_v2.css` 复用 `card_badges.html`（`progression`、`role_corners`）与 `squad_badges.css`，消除 `.lead-core-badge b` 黑底方框并使右下角 4 名妮姬角标与 `union.html` 一致；`nikke_resource/service.py` `render_version` 升级为 `alice-profile-v1217-bento`。
+
+# 1.2.16 · 2026-11-22
+
+- 横版角色练度大立绘默认缩放基准 `WIDE_ART_BASE_SCALE` 调整为 `0.85`（在 1.2.15 `0.90` 基础上再缩 5%）；新增 `AliceUID_WideArtScaleOffset`（`GsStrConfig`，默认 `"0"`，接受 `-100`~`+100` 可带 `%` 整数）并在 `ValidatedStringConfig` 校验归一化、在 `draw_character` 缓存键加入 `wide_art_scale` 并升级 `render_version='alice-v1216-bento-1'`。
+- `profile.html` 主推角色 `.lead-role-icon` 改用 `.icon-stack` + `icon-shadow` + `alpha-effect` 双层阴影，`nikke_resource/service.py` `render_version` 升级为 `alice-profile-v1216-bento`。
+- `nikke_status/builder.py` 保管箱估算注记精简为 `保管箱按24时回满线性估算。`，`nikke_status/draw.py` `render_version` 升级为 `alice-v1216-bento-status-1`。
+- `nikke_cdk/commands.py` `result_text()` 汇总行仅对数量 `> 0` 的状态追加 Emoji（`✅`/`✅`/`❗`/`❌`/`❓`）。
+
+# 1.2.15 · 2026-11-22
+
+角色练度（横版 1280×820 / 纵版 570×1048）、指挥官名片（1280×740）与资源查询（730px）正式切换为 Bento 战术玻璃 v2 视觉体系；1.2.14 旧版模板与样式已备份至工作区 HistoryDoc/legacy_card_styles_1.2.14/，生产包内不再保留旧版样式。
+
+- AliceUID_CharacterCardStyle 与 AliceUID_CharacterRandomTheme 选项中文化（横版亮色/横版暗色/纵版亮色/纵版暗色、关闭随机/横版随机/纵版随机/全部随机），write_config 与 	heme.py 自动兼容旧英文值。
+- 
+ikke_cdk 单码命令命中本地 eceipts 时直接返回爱丽丝方案 A 提醒（北京时间 YYYY年MM月DD日 HH:MM），旧库记录默认视作插件已兑换。
+- 常规卡片由 GsCore 原生引擎（pytakumi）渲染，新增/修改样式须遵守无 	ransform、无 ::before/::after 关键视觉、无 ackdrop-filter 依赖与 .ui-pill 光学居中规则。
+
+# 1.2.14 · 2026-11-15
+
+用户反馈极速下角色更新出现212000；未获得官方码表，不能将该码确定解释为账号风控。移除极速、4路并发、0.8秒波次、ContextVar传输绕锁及所有批量并发读取分支。七个核心请求文件以已核验1.2.12源码为串行基线，再接入既有调速键；全局共享读槽恢复2个，同账号按事务与HTTP锁串行。保留1.2.13的收菜storage-only复核、登录文案和后台排序。
+
+策略键沿用AliceUID_PanelRiskStrategy；选项为高速/中速（推荐）/缓速，默认中速（推荐），启动间隔分别1/2/5秒。旧极速/turbo→中速（推荐）；旧快速/aggressive/fast→高速；旧低速/slow→缓速；旧中速/conservative/medium→中速（推荐）。旧标签允许在迁移/兼容保存中接收但立即规范化，不能恢复并发。保留5秒重复刷新/重试门槛与原403/429退避，212000仍停止、不自动重试、保留旧角色详情；已成功核对的持有列表可独立更新。
+
+说明文字：高速最快，遇错降至中速或缓速；中速速度与稳定性较平衡；缓速等待较长。个人突袭目录和策略保持与1.2.13逐文件一致。串行基线核验见handoff/serial_reference_1.2.14.json。收菜恢复笔记继续见handoff/harvest_rollback_1.2.13.md。
+
+# 1.2.13 · 2026-11-15
+
+沿用AliceUID_PanelRiskStrategy键；UI选项极速/快速/中速/低速，默认中速。旧aggressive→快速、conservative→中速；保存时规范化，非法值拒绝。串行间隔为1/2/5秒，极速最多4个独立在途请求，每批启动间隔0.8秒；不保证固定倍数提速。每个查询任务捕获档位，保存后新任务生效；缓存、首批/瞬态重试的5秒门槛及403/429退避不被档位覆盖。极速通过显式ContextVar仅放开Game/Get*只读传输锁；直接调用和个人突袭仍使用原传输锁。普通共享读槽仍2个，极速使用共用4个实际请求槽；并发组失败/取消时取消并等待所有兄弟任务。全量面板详情30人一批、公开导出仍20人一批，极速每组最多4批；名单、隐私、角色身份前置条件与发送前复核保持顺序。
+
+后台UI由CONFIG_DEFAULT稳定字典顺序控制：查询策略与缓存→登录地址与浏览器→账号与访问权限→卡片外观→消息转发→社区与签到→兑换码→公开数据库→高级渲染与AI。不新增依赖Core分组控件；Core调和元数据与保存时保持该顺序，未知用户键末尾保留。个人突袭选项内容不变，仅随外观组排序；nikke_solo目录逐文件SHA256应与1.2.12相同。社区签到、CDK写操作及数据库独立策略不接入四档。
+
+收菜恢复笔记见根handoff/harvest_rollback_1.2.13.md；原版源码归档和1.2.12安装包均保留。
+
+# 1.2.12 · 2026-11-15
+
+资源查询只读取basic与daily两个必需接口，删除未使用的outpost读取；复用AccountReads显式panel_interval=1.0、batch_start=True，保留同账号串行、全局2个在途请求、首批及重试5秒间隔、403/429共享退避。正常空闲账号的请求节拍等待由10秒降至1秒（不含网络、排队和渲染）。三轮瞬态重试只补未成功接口，鉴权/拒绝不重试；成功图片5分钟复用、绑定/权限检查保持。资源卡片眉题仅COMMANDER；模板指纹自动淘汰旧图。资源查询固定使用激进节奏，不受全量面板档位设置影响。
+
+# 1.2.11 · 2026-11-15
+
+union.html顶部改为左438px与右自适应两列，72px头像在左侧；日期、官方区间和fetched_at在左列，赛季标签、raid_status、source/coverage和Day1说明在右列。两列stretch同高，竖线分隔，统计等宽。所有union命令共用模板；原始记录、赛季判断、缓存与权限逻辑不变，模板指纹使旧图失效。
+
+# 1.2.10 · 2026-11-15
+
+仅调整资源卡片status.html的resources顶部布局：72px头像、左侧账号信息与右侧标题区，201px标题区配1px竖线及蓝色品牌字。保留既有资源数据、头像缓存和发送核验；模板指纹使旧图片自动失效。
+
+# 1.2.09 · 2026-11-15
+
+完整卡片使用display_assets适配器，已验证可读且来源匹配的本地图片立即使用。过期素材进入单工作者后台队列，最多512项、同资源去重、每2秒一个，保留ImageCache原有冷却及原图。前台仅两个工作者，共享12秒缺图预算、6秒网络超时和同一HTTP连接池；每次出图的原始图片、Data URI及重复角色图标复用。没有修改其它卡片的ImageCache默认策略。
+
+临时缺图成品记录partial，60秒后重查素材；文件补齐会改变依赖版本并重绘。全任务120秒等待上限；日志覆盖资料快照、成品命中、素材准备、渲染编码和发送，绑定与权限发送前核验保持。
+
+roster/finish.py生成2倍PNG透明蒙版：整卡圆角形状减去128×128、14px圆角头像形状，缩放后再按最终圆角轮廓硬裁剪，框内所有像素alpha为0，仅下方圆角缺口与名称区域保留50%毛玻璃。蒙版独立放在头像后面，不改写头像原像素。亮暗原生及浏览器预览核对内部像素不变。
+
+完整卡片72px指挥官头像及同步器等级来自已有账号资料；synchro_level缺失时使用缓存chars最高lv。资源卡片头像在顶部左侧，出刀卡片身份区在顶部右侧，均不新增账号接口请求。原头像缺失时显示昵称首字，公共头像素材可后台补齐。
+
+# 1.2.08 · 2026-11-15
+
+统一头像外框使用真实avatar-glass-edge元素；帮助高光改真实glass-highlight元素，避免pytakumi忽略伪元素。帮助外框/头像/高光显式20px；角色面板横版72px、竖版42px。源头像不预合成、不降质，生产字体/DPI保持。
+
+出刀grade/core可选保留并逐字段校验，优先记录，再用同成员本地PanelCache最新roster补齐。本人读取本人缓存；查询其他成员仅补充该成员现有本地绑定缓存中的grade/core，按bot/game/area/openid严格匹配，不触发额外账号请求。只复制grade/core，不覆盖历史等级、战力或皮肤。缓存仍缺失则省略突破角标；卡片脚注明缓存参考可能不同于出刀时。缓存补齐内容进入卡片指纹，模板与样式变更使旧图片失效。
+
+# 1.2.07 fix2 · 2026-11-14
+
+按用户更新参数：头像35px圆角、无外部阴影，降低高光与五层内阴影强度；保留158px尺寸和悬停位移动画。版本仍1.2.07，dist用fix2区分，1.2.06包原样保留。
+
+# 1.2.07 fix1 · 2026-11-14
+
+帮助头像按用户提供glass-icon样式：158×158、32px圆角、图片铺满、覆盖渐变高光和五层内阴影，无额外白色衬垫。保留本地ICON内联与标题右移，帮助缓存更新；版本仍1.2.07，发布包以fix1标识。登录回图链路不变，根dist保留1.2.06。
+
+# 1.2.07 · 2026-11-14
+
+登录会话在创建链接时保存内存completion_target和notification_ready事件；两种网页登录路径将会话交给save_login，在确认新绑定后交给同一schedule_login_prefetch。后台采集不等待聊天通知，只有最终发送前等待登录结果通知完成（最多60秒）；通知发送失败也释放事件。无目标的内部预取仍保持静默。手动刷新通过原_manual_requests合并最终回图；签到使用独立客户端/任务，不覆盖目标。发送保留绑定版本、权限和缓存一致性检查。帮助仅对hero应用160px爱丽丝ICON和圆角凸起玻璃壳，图片从共享assets/ICON.png内联，原始媒体不变；帮助缓存版本已更新。
+
+# 1.2.06 · 2026-11-14
+
+全量面板_RefreshReads固定DETAIL_BATCH_SIZE=30，在任务创建时读取AliceUID_PanelRiskStrategy（缺失/非法conservative=2秒；aggressive=1秒）。AccountReads只对该调用显式启用panel_interval；保留同账号锁、全局2个在途槽、首批防重复门槛与前台优先。每接口不重复last_batch五秒等待，普通轻量/资源/联盟/公开导出仍用旧节拍。请求级预算覆盖前置5项与最多500角色的分批，不层叠重试。
+
+BrowserQueue按完整prepare执行FIFO，缓存快路径不占队列；一次任务仅入队时发送一条等待/处理通知，不发送轮到通知。执行720秒期限从出队后开始，既有20秒无响应和共享3轮预算不变。失败、取消都释放队列。默认缓存先读取再核对HTTP赛季，更新检查失败时可明确标注旧缓存。
+
+nikke_privacy通过本人登录和分享标识读GetUserPrivacySetting，修改SetUserShiftyspadPrivacy。使用官网6字段完整表单，每次写前重新读，修改show_nikke_info，读回确认。保留0/1/2/3原范围，只有0/2/3临时修改；其他权限不联动。写前保存MAIN_PATH/privacy_restore/账号哈希.json，不存Cookie。推荐命令finally启动强引用后台恢复任务，第三条截图消息说明稍后恢复；没有第四条成功/失败推送，失败日志和状态命令明确显示待恢复。后台每60秒检查；活跃任务标记防止计算期间提前恢复。进程重启后日志仍可恢复，凭据失效则保留待恢复；解绑需先恢复或保留绑定以避免丢失唯一凭据。不能保证停机期间及时恢复，也不能撤回第三方缓存。官网无已确认CAS，外部选择相同值无法识别；其他字段合并最新快照降低覆盖风险。
+
+旧nk公开/隐藏继续只改is_public，不在帮助出现。新官网隐私命令执行本人绑定锁和Core/插件权限检查，手动开关意图更新恢复目标；隐藏使当前租约失效，不自动重开。接口写入仅通过明确隐私服务，不借用CDK写开关或签到预算。
+
+日志request_scope生成独立短随机ID，串起请求/批次/队列；保留数值测量字段，网站指定警告区域脱敏截断后记录，HTTP状态/业务码分开。真实账号测试仅在先前授权独立采集中完成201角色7批6.548秒/12请求11.858秒；本版隐私写入、浏览器推荐和消息链路以离线构造验证，未部署或真实发群。
+
+# 1.2.05 · 2026-11-14
+
+移除个人突袭browser.new_context的全局Cache-Control/Pragma；不增加跨任务持久缓存，Service Worker仍阻止，账号状态每轮隔离。排行/配置显式fetch使用no-store；公开HTTP接口的局部校验策略保持。排行sets路由仅在初始化与区服选择之后注册，保留来源阻断，不提前拦截静态资源。
+
+loading.LoadMonitor使用request/response/requestfinished/requestfailed及Chromium CDP Network.dataReceived观察关键资源传输，不使用route。仅中文翻译的HTTP错误/传输失败或仅翻译持续未完成触发BrowserRecovery；401/403/429访问限制不走语言降级。恢复状态按命令实例传递到capture，后续现有重试轮使用lang=ko，全新上下文重新导入。没有新增内层重试。韩语为网站原文，其I18N.ready不下载词典；不伪造空JSON、不跳过计算规则。
+
+关键API和页面脚本字节进度、业务SSE进度延长20秒空闲等待；图片/字体、访问统计、背景轮询不续命。控件等待仍受90秒阶段上限及全流程上限约束。账号框先等目标option与属性选项填充，再选中并复核。翻译以外的核心资源缺失仍失败；日志只记类别与阶段，不记录玩家链接/传输内容。
+
+结果必须通过五队25格、伤害、区服/赛季来源及推荐配置生效校验后才调用prepare_visuals。图片decode与字体ready共同最多等待4秒；坏图以保留尺寸的占位框替换，未完成/失败字体移出FontFaceSet并启用系统字体；若全局fonts.ready仍等待网络字体，使用Chromium CDP截取已校验区域，避免标准截图的全局字体等待。降级信息写入site和卡片notes，原始计算时间不修改。韩文伤害显示可能为억；前端文本不反推计算数值或属性。
+
+当前公开网站CSP不允许unsafe-eval，Playwright.wait_for_function内部eval会触发EvalError。个人突袭统一改用loading.wait_until：在宿主侧按截止时间轮询page.evaluate，支持取消和导航上下文替换；不启用bypass_csp、不放宽网站安全策略。匿名中韩双语言初始化与无unsafe-eval的完整配队浏览器回归验证此路径。
+
+# 1.2.04 · 2026-11-14
+
+按用户最终要求实现三轮总预算、连续20秒无响应检测，不采用早先讨论的120秒间隔或群聊5分钟冷却。RetryBudget在同一命令内共享赛季预检与网页计算的失败次数，最多3轮；无额外重试延迟或递归调度。HTTP超时/连接失败、408/5xx和明确网页网络超时可重试，401/403/429、登录、配置与区服校验错误不重试。
+
+capture_page以阶段进度、有效网页响应及/api/fetch|sim|sim-heavy/events的SSE消息刷新空闲计时；不把/api/live或/api/hit计为有效进度，不读取/上报事件内容。空闲时取消并等待当前页面任务结束，capture的finally关闭原上下文与浏览器后才能开始下一轮。预检以ContextVar隔离每请求响应进度；共享SiteMonitor不再用旧的网络冷却提前打断重试。20秒只约束无响应时间，正常排队和有进度的长计算仍受原有总等待上限约束。
+
+RequestGate按用户、平台和Bot实例区分在途任务，消息ID按用户/会话去重，内存有TTL与容量上限；不做群聊共享失败冷却。不同人分别最多3轮、各自一次最终回复。锁覆盖最终发送，防止发送前窗口重复计算；取消/换绑/权限撤销停止后续尝试。等待提示发送失败直接结束；最终发送失败只记录，不再发送“发送失败”的错误消息。旧缓存重绘失败退回原有错误文本，连接关闭错误只记录，避免异常处理链再次触发群提示。
+
+验证包括两阶段真实20秒×3故障注入，分别60.95秒与60.89秒结束，3次页面任务均被取消并关闭；外网全部阻断，无真实账号/消息操作。涵盖恢复成功、预算耗尽、同群多人分别回复、消息ID重放、在途重复、发送失败、取消/权限变化与已有推荐设置/默认回退/赛季/缓存回归。handoff共享，dist保留本版与1.2.03。
+
+# 1.2.03 · 2026-11-14
+
+notice模块在短通知内标准化HTML实体、NFKC全角字符、常见繁简属性词与不可见格式字符；结合推荐标识、唯一属性、有效日期和updated/update/更新提取结构化信息，避免电脑/火力等普通词误识别。通知属性与日期必须匹配公开配置。原生入口优先，类名变化时在可见通知内按套用/应用/导入等按钮名称受限回退；嵌套同一按钮去重，不同按钮冲突则拒绝。日期匹配仅验证来源，不推断游戏活动日数。
+
+没有匹配配置、可选配置接口读取失败或5秒内没有导入入口时继续默认模拟；可用但未套用的公开配置单独保存为recommended_available，revision比较可用配置指纹，避免重复重算。已经开始套用后的代码、内容、属性/日期冲突或生效校验失败仍报错。卡片顶部标明实际套用的推荐设置或默认配置，LAYOUT变化只重绘旧卡片，不修改原生成时间。
+
+handoff共享、dist两代保留继续执行。1.2.02已按用户给出的公开链接实测422.20亿并先行交付，1.2.03独立增加识别与无入口回退。
+
+# 1.2.02 · 2026-11-14
+
+nikke_solo.recommended读取/api/boss/rec及每份/api/boss?c=的公开配置，以真实SOLO属性匹配，不凭标题猜参数。多份同属性配置按一致且有效的更新日期确定唯一最新项；无法唯一确定则停止。公共配置指纹进入revision，同码内容变化也自动重算。浏览器从原生推荐按钮打开预览，必要时选中确切代码，核对实际响应指纹与预览代码，点击#bosslink-ok导入。检查nikke.settings.v2.soloRec及#bt-rec.is-using、弱点/时长；进入配置模式、执行前与结果后重复检查，防止设置被覆盖。不勾选可选的排行贡献。
+
+用户于本次会话明确授权对所给公开链接进行真实导入与推荐实测：日服、第43期燃烧、推荐ahm9fb（2026.11.12）、180秒，结果422.20亿。目标URL和账号标识不写入代码或交付报告，真实截图仅保存在外置private_preview；handoff仅保留脱敏汇总。安装包未部署或发送聊天。1.2.03的标题模糊识别另外独立实施。
+
+# 1.2.01 · 2026-11-14
+
+单人突袭顶部三栏均使用独立属性图标。draw.attribute_codes根据current_raid在保存的_listing中精确匹配网站赛季，实际参考属性取已核验的code；不会以计算器default_code或查询属性推断网站赛季。无匹配、重复或未知属性显示“属性未确认”。prepare_attribute_presentation复用五属性资源并按code去重加载，缺图降级文字。自动更新失败的旧结果仅更新展示所需的最新_listing，保留实际参考code/raid及原生成时间。LAYOUT修订使旧成品图自动失效重绘，不触发额外推荐重算。版本号按用户指定保留1.2.01，运行build为20261114.2。
+
+以下保留开发历史。
+
+# 1.2.0 · 2026-11-14
+
+nikke_solo.site统一resolve/automatic_code，current.raid匹配到的weakness_code决定默认属性；没有current则选最高有效raid，current尚未收录则停止默认计算。choose不再依赖列表顺序。SiteMonitor默认每次查询GET最新列表，schema2隔离旧公共状态；个人图缓存保留v2格式，policy进入revision后旧默认结果自动重算。手动属性仍按1/6小时检查。刷新或赛季变化必经owned_account与独立上下文导入，再fast-rank、精确区服、go；service要求观察本次POST /api/fetch成功，不以已有localStorage视为同步完成。已报告采集时间必须带时区且不早于10分钟前、不晚于1分钟后；缺少时间明确说明，不能承诺绕过上游隐藏服务缓存。浏览器与公共GET请求携带no-cache头，不臆造网站未公开的force参数。
+
+默认赛季预检失败不读旧推荐图；其他自动更新失败可明确标注旧图并用本次已核验的网站赛季重绘提醒，保留原图真实参考赛季及生成时间。layout、头像内容与展示状态纳入样式指纹。头像经prepare_commander复用官方映射，可从同绑定cached_profile回退首位展示角色，不为装饰拉取全量练度；装饰失败不影响推荐。顶部正常流布局三列指标和全宽警告，复用既有五属性图标，电图标键为elect。
+
+验证范围：离线浏览器虚构账号导入/区服/排行/截图与命令缓存流程、公共只读榜单及匿名计算器默认检查、浏览器和Core原生视觉验证、完整包清洁解压与逐文件哈希；不真实账号导入、部署或发群。压缩的JPG仅用于设计预览，正式DPI/截图/字体素材保持。
+
+以下保留开发历史。
+
+# AliceUID 1.1.18 维护与接手说明
+
+当前新增首次启动角色列表更新、未知角色补查及数据库命令权限提示。当前行为以README、DEVELOPMENT与CHANGELOG的1.1.18章节为准；以下内容保留为历史维护记录。
+
+# AliceUID 1.0.08 维护与接手说明
+
+## 1.0.08 当前规则
+
+- candidate3已由用户实机验收：nk卡片、nk帮助、nk出刀均成功。正式1.0.08保留完全相同的发送代码、默认值和节点结构，仅更新文档与发布包。下方“待实机”是历史阶段记录；不要为复测而重新改变已通过的发送链路。
+
+- 最新candidate3取代candidate2安装主线：只更新Core的AliceUID，默认fix1标准标题文字＋完整原图节点，不附外层at，过滤节点内at/at_all。用户再次确认该两节点方式曾实机成功，不能删去标题或否定这份成功证据。
+- ForwardReencode新增默认False；默认图像原字节缓存后直通，原尺寸/DPI/格式不变。True才启用既有JPG转换，保留质量95/0–100和旧设置。保留回执与一次普通回退/300秒暂停。额外NapCat配套不作为要求，已安装者要测试标准路线需先禁用并重启NapCat。
+- 下面candidate2与编码规则为历史说明，只有显式可选路径才适用。现有标准路线不能保证修复Highway网络超时，须实机验收。
+
+- 最新candidate2：成品图先由outbox.py原子保存并读回校验，再交给Core。64MiB/32份、15分钟有效，后续写入清理过期。缓存只传图，不缓存登录/二维码，不绕过权限或自动重放。
+- 原生转发需要单独安装NapCat配套，识别AliceUID帮助/图鉴/出刀标题及单图结构；先准备自身会话的全部节点，才合并发群，不改全局Packet。节点缺失不发仅标题转发，不重试Packet，8秒总预算、单项在途。禁用配套并重启可恢复；普通回退仍一次，迟到合并可能重复。
+- candidate1卡片也已实机未通过，不能再以旧卡片成功为当前通路正常的证据。候选包分开保存，进一步验收见handoff；以下完整单图/缓存/权限基础仍适用。
+- 用户要求优先复用曾成功的卡片写法：完整单图，不再按高度或体积分页；帮助标题/附注合并为一个文字节点，随后一张完整图。真正透明图保留完整PNG，合规现有JPG字节直通，其他不透明图转指定质量JPG。
+- JPG默认95、严格整数0–100，保留完整尺寸、DPI与ICC；完整输出8MiB上限，超出即普通发送原图，不降质量/缩放或丢弃尾部。原渲染器、二维码及普通发送不改。
+- 保留实验性标记、四默认开启、已有值、实际适配器身份、权限/绑定锁、一次回退及300秒连接暂停。日志增加实际格式、尺寸、体积、节点数与回执耗时，不保存用户内容或原异常。
+- 1.0.07已冻结；新包仅供实机验收。最早失败发生在分页引入前，不能认定分页是唯一根因；历史Highway连接超时也不能靠改图片格式保证消除。
+
+以下为历史规则，当前修正优先。
+
+## 1.0.07 历史规则
+
+- 正式封包状态：四类转发均为实验性功能，后台标识并说明自动回退。用户fix2实测帮助仍未转发成功，300秒暂停正常；不把回退成功冒充转发稳定。进一步发送修复移至独立1.0.08，1.0.07冻结。
+- 本节为1.0.07同目录fix2当前规则。按用户最新授权，Help/Roster/Union/Login四转发开关默认True，已有设置保留；不自动部署或推送。
+- 移除ForwardUseBotIdentity、身份控制段与NoneBot适配，头像昵称沿用实际NapCat适配器；不修改Core或第三方适配器源码。旧NoneBot实现与测试已可恢复归档。
+- 帮助首节点AliceUID帮助；图鉴首节点AliceUID·绑定游戏昵称·图鉴展示；出刀首节点AliceUID·查询公会名-出刀统计。普通消息/错误不附标题。
+- 识别WS_BOT_ID=napcat或napcat-*的OneBot通道，要求Core有_recall_waiters且_supports_recall非False，发送时wait_recall=True。成功消息ID列表才算确认；缺失/空回执回退普通内容一次，最长等待由Core控制（参考版本10秒）。旧Core/已锁定不支持直接普通，取消仍传播。
+- Core入队不代表平台投递。缺失回执可能是失败、丢失或仍在上传，有限回退可能重复；未确认后暂停该连接转发300秒，后续查询直接普通。其它适配器None/空列表仍不自动重发，不绕过权限/绑定锁、不重新取数或重绘。
+- 转发inline图片通过images.py有界处理，不透明图JPG质量默认95，后台整数0–100实时生效，4:4:4；完整按行分页，不缩放。符合限制的现有JPG直通，透明PNG保留，登录二维码和普通回退保留原消息。100仍非无损；源码注释与后台提示不可称其无损或文件压缩比例。
+- 实机Highway错误为上传服务器8080连接超时；图像编码处理不等于修复出站网络。不改第三方适配器或Core，具体排查见integrations/README.md。
+- 新主题默认random、毛玻璃20%，已有自定义保留，随机只在新渲染选亮暗，缓存不重新抽样；原字体、DPI、签到和短卡片不变。日志只记录阶段/类型/体积，不输出原异常或个人资料。
+
+以下节为历史规则，当前修正优先。
+
+## 1.0.06 当前规则
+
+- F26登录链接发送采用纯node，不在外层at_sender；OneBot私聊与Core全局禁止转发时直接普通发送，防止混合帧拒收或节点被静默丢弃。
+- 首次登录/重新登录共用_send_login_link(...,ev=ev)。文本使用明确text段，二维码按开关加入node；失败回退保留同一文本/二维码，不创建新链接。
+- 转发异常或显式False仅回退一次，None/空列表不自动重发。普通群消息可at，私聊不at，原发送权限包装保持。CancelledError不转普通消息。
+- _make_qr_png与转发回退日志仅记error_type，不能输出异常原文中的登录URL或会话标识。Core内部历史/平台投递不是插件回退成功的证明，实机仍需验收。
+- 本版继承1.0.05发布后README徽章、赞助、访问计数、六张预览及折叠：前五默认展开、总览长图收起；资源为预估与查询图内颜色提示，不是主动满仓推送。
+
+以下节为历史规则，当前修正优先。
+
+## 1.0.05 当前规则
+
+- CommunityRequestRange默认5-15，CommunityAccountRange默认10-120。请求起始时刻间隔与上一账号最后响应后的换号等待分别抽样，取较晚可发送时刻；SQLite持久化next_at/last_account/switch_at，保留旧预算和去重。修改范围后重启；原默认15迁为5-15，原非默认固定值迁同值范围。
+- Policy范围1～3600秒，后台最多三位小数；长等待自动延长租约。关闭授权、绑定变化和08:00边界仍在每次请求前重新核验；403/429/超时不重试。
+- 结果counts只累计本轮确认成功动作，signin_confirmed来自独立签到确认。后续失败不丢签到成功，也不能用整轮completed推断已签到；金币缺失不能补0。
+- nikke_commands在配置加载后捕获启动快照，所有SV注册和权限包装结束后重建自定义前缀Trigger，并通知Core候选索引。只替换prefix，复用原func及权限；改设置要完整重启，防止后台保存即改变提示却没改变实际指令。
+- 文案在源字符串中插入command_prefix()，不对发送结果做全局替换，用户昵称、账号与URL不被误改；静态REGION_HELP与RELOGIN在启动快照捕获后导入。登录网页通过受限前缀占位符映射。保留nk时提示仍用nk。
+- 帮助三个新衬底仅限.help-page作用域；背景图、字体、DPI、模糊强度和其它卡片布局不改变。
+
+以下1.0.04及更早节保留为历史，以当前节为准。
+
+## 1.0.04 当前规则
+
+- CommunitySignTime为HH:MM字符串，默认08:33，后台set_config严格校验并重排Core共享每日cron；失败恢复原配置。数据库周检02:33未改变。
+- cycle_day按北京时间08:00划周期；cycle_bjt08_v104迁移只执行一次，保留重叠旧预算/动作，不用last_day推断签到成功。缺少旧时间戳时优先避免重复写。
+- signin_confirmations独立记录请求确认/服务器已完成；group_seen记录本群近期使用者。群查询仅Core pm=0，使用当前群范围，本地只读，不加载成员客户端。名单来源是绑定/近30天使用记录，不是实时群全员。
+- 登录恢复：NikkeClient将HTTP401和业务401/300001归入NikkeLoginRequired；load_client在缓存之前拒绝本地过期或已知失效版本。cache/auth_invalid仅保存owner/revision摘要和错误码，不含Cookie。新凭据版本不会继承旧失效标记。
+- 现有私有查询及自动社区均给出明确重新登录入口；403拒绝、429限流和网络错误不标记为凭据失效。
+
+以下1.0.03及更早节为历史说明，时刻/周期以本节为准。
+
+
+## 1.0.03 当前规则（优先于历史记录）
+
+- ResourceStatusService.prepare_image持有本人/bot/账号/凭据版本工作锁，执行取数、渲染、图片校验后写入_ready，从成功出图时起算300秒。_cache仅为数据缓存，不能启动成功图片窗口。无ready图时丢弃旧数据快照并重新查询；并发成功只取一次、渲染一次。
+- ready图按24MiB总上限淘汰，过期清理；命中不延长时间。主题模式、语言、字体指纹、毛玻璃强度参与复用判断；随机主题命中不重新随机。旧disk资源图片缓存仍由draw保留，但没有ready状态时不以旧数据冒充新查询。
+- 取数/渲染失败只设置5秒故障门槛，403/429为60秒；成功图窗口与故障门槛分离。每接口仍用AccountReads保持5秒串行；仅1302127允许一次间隔补读，不认定其官方含义，不自动重试鉴权/限流。
+- 查询/渲染在途撤销用epoch阻止旧快照与ready图提交；调用前、生成前后及发送锁内核验绑定和权限。已生成图的发送失败保留图片供重发。重新登录新凭据键不会被旧版无图的5分钟时间戳阻塞。
+- 登录on_command增加登陆别名，五区参数与裸命令共享nikke_login_cmd；重新登录/重新登陆已有on_fullmatch继续使用。图文帮助与REGION_HELP明确别名。
+
+## 继承1.0.02行为
+
+
+
+- profile/builder提供真实星级、角色元信息与企业塔，resource/service只为首位请求MI，其余SI；不以静态皮肤/缓存存在推定拥有。profile模板720 CSS宽，首位图片contain、18px圆角，指挥官头像88px与UID末行底边对齐。
+- card_meta统一SSR/SR/R、grade+core、01～06/MAX与未知降级；metadata投影与素材哈希纳入图鉴指纹。十列图鉴128px头像+32px单层50%透明姓名区，ROW=160/FOOTER=32，197名1400×3560，203名1400×3728；编码与96DPI保持。
+- badges.py固定4个已审核URL，期望SHA256，按路径合并并发，复用匿名public_stream和2秒公共节流。磁盘路径仍rolemeta/breakthrough与rolemeta/power。成功origin=community_download；失败origin=reviewed_official_bundled_fallback并持久retry_after。带哈希文件名长期复用，无哈希core固定URL每7天条件校验；旧审核内置元数据及原始字节一致时直接复用并起算本地TTL，不立即重复下载；临时下载失败的fallback在冷却后可恢复下载。
+- base_icons资源补全含23个基础图标与4个徽章，数据库断点/剩余数/预算覆盖全部27项。PublicHTTP只扩展4个精确URL，禁止API、附加查询串和片段；无玩家凭据。同步static_badge_source仅返回内置数据URI，不写盘或覆盖来源。
+- 帮助图.region使用内容高度、flex横纵居中，.regions整组居中，主题背景alpha=.50；普通用户/Bot主亮暗双引擎验证。
+- 插件版本为1.0.02，安装名AliceUID、data/AliceUID和AliceBind不变；不要自动部署。固定哈希地址失效需更新受控清单，运行时不抓JS猜地址。
+
+## 继承1.0.01行为
+
+
+
+- 修复休赛期丢弃已取得完整名单的问题：优先赛季快照，没有时使用当前名单对照历史出刀并标来源，保留退出成员的真实记录；0刀本人和未完成名单红字恢复。members_reference随快照保存，不能重启后伪装成赛季名单。
+- 当前官方赛季表在每次查询时参与选择（公开表60秒缓存）；当期数据仍按可配置短TTL。仅超过结算期且历史接口成功取到出刀/血量的非空快照可标finalized长期复用；重查本人联盟/名单后复用，跨赛季/区服/联盟不得读旧组；刷新可重取。新赛季空数据不补造0刀。
+- glass_settings统一配置AliceUID_GlassStrength，整数0～100、默认10，映射0～80 CSS px背景模糊。通用卡片apply_theme、compact底图都使用同一参数，子模块不再次叠加模糊；前景不滤镜。角色/图鉴/状态缓存包含设置指纹，底图LRU包含强度；在途请求保持起始快照，后续新请求独立键。
+- 资源按用户/bot/账号/区服/凭据版本缓存成功图片300秒，成功窗口内含刷新指令均复用图；1.0.03开始失败不再启动5分钟窗口。请求basic→outpost→daily；仅日常1302127允许一次有间隔补查，其含义未由官方资料确认，不无限重试。其他鉴权/限流失败不重试。
+- 资源PNG保存在私有cache/resource_images，以owner和快照/风格指纹复用，内存LRU淘汰不强迫重绘。凭据撤销清理图片，在途旧渲染不能再次写回。发送仍检查绑定版本与权限。
+- 保管箱按快照容量和24小时周期估算北京时间90%/100%，>70%橙、>90%红、100%MAX；未知不推算。时间是快照估计，不自动领取或操作游戏。
+- aliases标签与status阶段标签使用显式flex居中/24px行高及自适应高度。roster保持128×180格和1400px整卡，信息区52px整体居中、头像底色透明；完整197名长图仍3976px CSS高。
+- 原DPI/字体/输出编码和公开图库保持，不为降低模型请求体牺牲实际输出质量。图像预览只用于离线构造验收，不等同用户Core实机。
+
+以下为旧版本基线记录；如有旧描述与本节冲突，以本节及本轮交付记录为准。
+
+## 1.0.0 接续
+
+- 休赛期会战走官方历史接口，按赛季选择并显式标记状态，快照回退同赛季隔离；默认180秒共享缓存不变。休赛期长期复用已于1.0.01实现，以上方当前行为为准。
+- 新命令与帮助：本人立即签到、全量开启立即执行、北京时间23点周期成功去重；角色别名头像查询；新增/注册别名取代旧写法。GsCore后台绑定管理注册保留脱敏和受控解绑边界。
+- 验证码移动参考线以蓝色滑块初始中心加实际位移计算；角色卡署名与UID同行、去掉原底部占位；图鉴顶部玻璃与末行完整保留。
+- 血量与资源共用status.html：背景使用cover保持比例铺满实际高度，防止预计背景高度小于排版高度时露出纯色底；draw_status缓存版本alice-v100-status-footer-2。原生/浏览器亮暗、空数据与无限血量均有像素检查。
+- 当前保留输出DPI、字体、编码质量及全局0～100%毛玻璃强度（默认10%）；1.0.02按确认方案调整信息卡/图鉴布局尺寸。
+- 开发记录和完整结果在独立版本工作区handoff/当前进度_恢复入口.md、v100_scope.md与发布交付记录；安装包不携带开发依赖、预览或真实账号信息。
+
+## 0.6.0 基线
+
+0.6.0为独立更名迭代：保留NikkeUID稳定版，使用新的AliceUID数据目录和AliceBind绑定表，测试用户重新登录，不迁移旧Cookie。新增资源/保管箱、会战血量与爱心好感度；维护细节见 [新状态卡模块](AliceUID/nikke_status/MAINTENANCE.md)。工作区回归入口为 tests_alice/ 和 tools_alice/；旧 tests/ 和 tools/ 保留验证冻结稳定版。
+
+> 先看[用户说明](<README.md>)。源码与开发记录有持续更新，最终发布的测试数、资源数量、压缩包哈希以交付manifest及总体报告为准。未在用户NAS/Docker操作，未发真实邮件/社区互动，未作线上提交。
+
+## 0.5.0 接入点
+
+- compact: 660CSS宽，portraits按完整256×512比例显示并圆角裁剪；总览与四装备等高、内容纵向居中、两列底边一致。超过3种总属性用双列简称，最多6种，装备始终全称。
+- T10: Integer/Percent已知函数按百分之一百分比解释，保留原字段。1～11普通、12～14高值、15满值。命中/蓄速按正增益显示，未知ID不得靠猜测填阶。
+- 主题: dark/light/random、显示语言zh-CN/zh-TW。照片只位于页面底层；信息/联盟/帮助/阵容子模块只用主题底色，禁止将frost_panel图片拉伸进模块。角色compact使用与固定几何匹配的整幅背景。
+- 缓存: cache/panels纯数据+派生PNG；按绑定版本隔离，显式刷新、重新获取资料、解绑清理；图片命中先于随机与昂贵渲染。联盟按同服同联盟共享快照，默认180秒，WebUI可设60/0；缓存访问不顺延原始过期时间。
+- 命令: 角色“面板”与“练度”等价；省略符号；pm0角色别名写入character_aliases.json。出刀双榜：总伤害前三、击杀前三（同击杀仅比较尾刀伤害）。
+- 验证码: 图像解码和非空内容检查、CSS像素截图、刷新挑战校验、移动缩放重排。真实平台挑战仍可能变化，离线回归不能保证免风控。
+- 传输: 私有请求失败不自动重试，不携带Cookie跟随跳转，错误正文不回显；公共资源增量队列与冷却保持。
+
+## 不可破坏的约束
+
+- 保留外壳、`__nest__.py`及内层同名包。资源由 `get_res_path()/AliceUID` 派生，不能硬编码NAS或开发者D盘路径。
+- 账号始终 `user_id + bot_id` 归属。用户输入的UID、@对象不决定凭据；不借Bot主Cookie代查。
+- 既有绑定不覆盖。保存、公开状态必须核对底层返回码和提交后新查询；解绑显式SQL DELETE，不能恢复使用固定Core存在问题的临时实例 `delete_data()`。
+- Cookie只加密落库，密钥与核心数据库须安全备份；密码/邮件码不写文件/日志。异常只记阶段/类型/错误码，不回显数据库参数、HTML、Cookie或SDK正文。
+- 相同ID不能同时入同类黑白表；双空允许，白非空先限定再判黑；用户规则对群私、帮助/登录/维护全适用，没有Bot主聊天白豁免。
+- 公开资源与实际穿戴分离：静态皮肤清单、URL参数、已缓存文件不能证明玩家拥有。以接口报告服装ID映射，缺图回退标实际来源。
+
+## 模块与接口
+
+| 模块 | 核心接口/注意 |
+|---|---|
+| `nikke_login` | 账号密码默认/OTP热切换；session身份+generation；`still_current`防旧任务保存；手机取码窗口内不按35秒冻结误杀 |
+| `nikke_user` | 单owner绑定锁、Fernet、持久化复查；解绑完成后清session与当前actor衍生卡，不因清缓存失败假报Cookie未删 |
+| `nikke_api` | 显式服验证；详情name_code关联；游戏UID=role_id不是gsn；枪种在shot_id.element.weapon_type |
+| `nikke_permissions` | ValidatedStringConfig必须首次构造；共享runtime policy；全部SV注册后统一guard，发送时再检查用户 |
+| `nikke_profile` | 只用SI ICON，当前皮肤来源一致；缓存与刷新同锁，不在普通查询里每日检查公共库 |
+| `nikke_character` | 原始逐条T10保留；总属性Decimal分组汇总；unknown不0；构造预览标明非实际玩家 |
+| `nikke_roster` | 十列128px SI，1400宽；只名称/突破/核心；真实所有owned不截断；版本/主题入两次hash |
+| `nikke_resource` | 七表+收藏/魔方按需缓存；image resolver返回请求与实际皮肤/hash/missing；内嵌alpha裁剪不改原图 |
+| `nikke_database` | 公共队列、基础图标+人物共预算、2秒节流/源拒冷却、周五02:33；import不下载 |
+| `nikke_union` | 单命令前缀解析；Day1不缺刀；Day2=day1；成员表补0；无名单未知、超过3不截断；赛季未知明示 |
+| `nikke_render` | 主题与布局两轴；原生与浏览器都验；不能只靠不受支持CSS滤镜宣称真磨砂 |
+| `nikke_community` | 按账号默认关、签/浏览授权、点赞另开；持久预占/去重/租约，异常停止，不重试不确定写入 |
+| `nikke_uid` | 独立SQLite、TEXT ID与namespace；登记不创建空Cookie；解析分享不请求其目标 |
+| `nikke_proxy` | 仅预留协议/单固定节点适配；未激活新出口，不宣称每人独立IP |
+
+详细维护资料：
+
+- [邮箱认证状态机](<AliceUID/nikke_login/EMAIL_MAINTENANCE.md>)
+- [访问控制与真实Core保存链](<AliceUID/nikke_permissions/MAINTENANCE.md>)
+- [数据库队列、预算与接线](<AliceUID/nikke_database/MAINTENANCE.md>)
+- [社区授权/持久限频](<AliceUID/nikke_community/MAINTENANCE.md>)
+- [UID登记边界](<AliceUID/nikke_uid/MAINTENANCE.md>)
+- [联盟数据口径](<AliceUID/nikke_union/MODULE_MAINTENANCE.md>)
+
+## 关键修复与复盘
+
+1. **解绑无响应根因**：固定Core用瞬态对象 `session.delete(cls(...))`，SQLAlchemy拒绝；现用owner谓词DELETE、提交后查空，失败有清晰回复。
+2. **假成功**：Core update_data即使0行匹配也可返0，不能只靠返回码。保存/公开/解绑都做新查询复核。
+3. **命令前缀**：无参数命令fullmatch；出刀只一个handler解析子参数；练度command/suffix用真实Trigger测试单回复。
+4. **缓存竞争**：刷新与抓取锁/epoch配套；绑定版本和发图前身份、权限重新校验；被禁后后台send返回False不续缓存。
+5. **皮肤与图类**：信息页误用MI的问题已改SI；不再强制所有当前皮肤回基础。映射依服务器报告，三类分别保实际回退索引。
+6. **公开数据schema**：角色小写zh-tw目录203条，大写旧目录仍200但177条；装备源records包装的旧数量须解包再检截断。枪种不在顶层，电击枚举Electronic，不能让合成fixture掩盖。
+7. **发布漏模板（重要）**：旧0.2.0构建白名单未含HTML/CSS，实际ZIP没有login/profile模板，合并升级可能残留旧模板。新脚本必含全部模板，解压到空目录校对哈希、Jinja编译，并用旧模板哨兵验证覆盖；禁止再只验py编译就发布。
+8. **配置损坏**：已有配置变空对象/null/部分权限键或冲突时拒绝，不重建全允许；合法旧非空配置可迁移。Core批量保存逐项且可能部分成功，不能称事务。
+9. **超长分享图**：旧五列MI约17k高已废止；十列SI示例197/203名为3976/4164高，旧图只保历史，不作验收。
+
+## 回归与资源复现
+
+开发工作区依赖隔离在 `.runtime/packages`，需加入PYTHONPATH；不要改系统Python或复制Windows字体到Linux发布包。
+
+```text
+python -m pytest tests_alice -q
+python tools_alice/check_plugin.py AliceUID
+python tools_alice/audit_resources.py
+python tools_alice/verify_database_live.py --tasks 3
+python tools_alice/complete_public_gallery.py
+python tools_alice/preview_character.py
+python tools_alice/preview_roster.py --theme dark
+python tools_alice/build_release.py
+```
+
+公开源码证据在开发工作区 `.references`，固定Core `1ce50ba381e0d9f48dc42385e35a7310dc5ed0f4`，XWUID `4c1727580c613ef3034a391dc3156a1570cd5260`，NKAS `44fede537982ec3ecb14f9300440eda3be67f81a`；原生核心为pytakumi，不可称固定Playwright回退。必要Core方法仅在临时SQLite/AST契约harness执行，不初始化下载的完整Core。
+
+Windows开发预览用本机中文字体和真实公共PNG，但玩家数值均构造；真实邮件、QQ发送、用户容器字体/网络仍须部署验收。唯一Windows符号链接权限skip不通过改系统ACL掩盖；Linux机制另需真实环境验证。
+
+## 发布与升级门槛
+
+- 生产代码升级完整重启Core，后台主题正常读取热变；旧config单例不能靠页面刷新迁成新工厂。
+- 备份核心账号数据库与secret.key，不清data解决模板/权限问题。旧策略交叉冲突按明确错误先移出其中一表，不能自动清名单开放。
+- 插件包仅源码、模板、必要品牌素材与小体积公共兜底表；资源包只允许公开表和来源/哈希匹配图片。禁止config、secret、UID/社区SQLite、Cookie、私有渲染cache、.runtime/.references及开发临时文件。
+- 全新解压验证、源码/包内哈希一致、旧模板覆盖、ZIP CRC、源码编译与最新完整测试均通过后再交付。
+- 全库“complete”仅当前公开清单；真实检测到源变化/预算/失败时要准确显示pending，不拿旧表或部分成功冒充全齐。
+
+## 仍不承诺
+
+单人突袭榜、自动续期、跨成员私有练度、历史赛季/分页查刀、多worker登录状态共享或数据库owner唯一约束迁移未实现。当前锁/会话/渲染任务主要单进程；自动社区另有SQLite租约。代理接口没有把浏览器、验证、API全链路变成每用户独立IP，也不保证供应商IP固定。
