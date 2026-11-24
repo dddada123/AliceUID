@@ -42,6 +42,28 @@ def current_request():
     return _request.get()
 
 
+_SENSITIVE_CMD_RE = re.compile(r'(?i)(导入\s*cookie|绑定\s*cookie|cookie|密码|password|token|验证码)')
+
+
+def sanitize_command_text(raw) -> str:
+    """Sanitize triggered command text before logging; never retain credentials or PII."""
+    collapsed = ' '.join(str(raw or '').replace('\r', ' ').replace('\n', ' ').split()).strip()
+    if not collapsed:
+        return '[空指令]'
+    m = _SENSITIVE_CMD_RE.search(collapsed)
+    if m:
+        head = collapsed[:m.end()].strip()
+        return redact(f'{head} [凭据已脱敏]')[:120]
+    return redact(collapsed)[:120]
+
+
+def record_command(role: str, route: str, raw_command: str, *, result: str = 'ALLOWED'):
+    safe_role = 'bot主' if role == 'bot主' else '普通成员'
+    safe_route = 'group' if route == 'group' else 'dm'
+    cmd = sanitize_command_text(raw_command)
+    append(time.time(), 'INFO', f'[AliceUID] 收到命令 sender=[{safe_role}] route={safe_route} cmd="{cmd}" result={result}')
+
+
 def event(operation, stage, result, **metrics):
     allowed = {'count', 'elapsed_ms', 'queue_wait_ms', 'pace_wait_ms', 'network_ms',
                'http_status', 'business_code', 'batch_index', 'batch_total', 'batch_size',
@@ -232,6 +254,10 @@ def export_markdown(minutes, core_rows=(), now=None):
     except PackageNotFoundError:
         playwright_version = '未安装'
     try:
+        pytakumi_version = version('pytakumi')
+    except PackageNotFoundError:
+        pytakumi_version = '未安装'
+    try:
         core_version = version('gsuid-core')
     except PackageNotFoundError:
         try:
@@ -241,12 +267,12 @@ def export_markdown(minutes, core_rows=(), now=None):
     def clock(stamp):
         return datetime.fromtimestamp(stamp, TZ).isoformat(timespec='seconds')
     lines = ['# AliceUID 插件诊断日志', '', f'- 插件版本：{VERSION}；构建：{BUILD}',
-             f'- GsCore：{core_version}；Playwright：{playwright_version}',
+             f'- GsCore：{core_version}；PyTakumi：{pytakumi_version}；Playwright：{playwright_version}',
              f'- Python：{platform.python_version()}；平台：{platform.system()} {platform.machine()}',
              f'- 请求范围：{clock(since)} ～ {clock(now)}（最近{minutes}分钟，Asia/Shanghai）',
              f'- 采集器启动：{clock(STARTED)}；导出条数：{len(rows)}',
              '- 仅插件日志。内存最多10000条/约2MB/24小时，重启会清空；Core补充历史也有容量限制，范围内记录可能不完整。',
-             '- 标识和凭据已脱敏；保留公开站点路径（移除查询参数）、错误堆栈、状态码与耗时/大小；不采集原始聊天。',
+             '- 标识和凭据已脱敏；记录触发命令文本（仅标注 [bot主]/[普通成员]，不含发送者姓名/QQ/群号，敏感参数已脱敏）、公开站点路径、错误堆栈与耗时；不采集非指令闲聊。',
              '- stage表示失败阶段；TIMEOUT为等待超时，ERR_*为网络类别，MISSING_BINARY为缺配套浏览器。', '', '```text']
     lines.extend(f'{clock(stamp)} [{level}] {text}' for stamp, level, text in rows)
     if not rows:

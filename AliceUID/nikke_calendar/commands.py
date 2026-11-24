@@ -5,10 +5,10 @@ from ..nikke_commands import command_prefix
 from .service import CalendarUnavailable, get_calendar
 
 HELP = (f'命令：{command_prefix()}日历\n'
-        '发送官网当前默认活动日历的真实网页截图，无需绑定账号。\n'
+        '基于官网公开日程数据与官方 Banner/头像资源渲染当前活动日历，无需绑定账号。\n'
         f'{command_prefix()}日历 帮助：查看说明。暂不支持历史月份、指定日期或区服参数。\n'
-        '不会按绑定区服筛选；多标签只截图当前选中项，Raid仅为活动日程。\n'
-        '截图缓存30分钟；官网异常时可能发送标明拍摄时间的旧图，失败后至少冷却5分钟。')
+        '不会按绑定区服筛选，Raid仅为活动日程，不含阵容或分数。\n'
+        '图片缓存30分钟；官网异常时可能发送标明生成时间的旧图，失败后至少冷却5分钟。')
 
 
 class CalendarCommands:

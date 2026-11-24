@@ -15,6 +15,7 @@ from .matcher import build_name_code_resolver, dedupe_recent_guides, match_guide
 from .registry import CATEGORY_LABELS, GUIDE_CATEGORIES, GuideAuthor, load_authors
 from .source import (
     GuideError,
+    PostNotFoundError,
     download_image_bytes,
     fetch_author_posts,
     fetch_post_detail,
@@ -28,8 +29,26 @@ _POST_LOCKS: dict[str, asyncio.Lock] = {}
 _BJ_TZ = timezone(timedelta(hours=8))
 
 SYNC_COOLDOWN_SECONDS = 1800
+LIST_CHECK_COOLDOWN_SECONDS = 60
 ERROR_COOLDOWN_SECONDS = 300
+MISSING_DELETE_SECONDS = 86400
 EXPERIMENTAL_NOTICE = '※ 实验性功能：目前仅适配作者【在舒恩裡面卍解【Syuen】】的攻略特征'
+
+
+def _log_event(stage: str, result: str, **metrics):
+    try:
+        from ..nikke_logs.store import event
+        event('攻略查询', stage, result, **metrics)
+    except Exception:
+        pass
+
+
+def _log_failure(stage: str, exc: BaseException):
+    try:
+        from ..nikke_logs.store import record_failure
+        record_failure('攻略查询', stage, exc)
+    except Exception:
+        pass
 
 
 @dataclass(frozen=True)
@@ -115,22 +134,46 @@ class GuideService:
         if self.alias_store is not None:
             return self.alias_store
         try:
-            from ..nikke_config.config import MAIN_PATH
-            return AliasStore(MAIN_PATH)
-        except Exception:
+            from ..nikke_character.aliases import get_alias_store
+            return get_alias_store()
+        except Exception as exc:
+            _log_failure('ALIAS_STORE', exc)
             return None
 
     def authors(self) -> list[GuideAuthor]:
         return load_authors(self.authors_path)
 
-    async def ensure_indexed(self, *, force: bool = False, on_first_index=None) -> list[GuideAuthor]:
+    def is_initialized(self) -> bool:
+        authors = self.authors()
+        if not authors:
+            return True
+        for author in authors:
+            state = self.store.get_author_state(author.author_id)
+            if not bool(state.get('full_backfill_done')):
+                return False
+        return True
+
+    async def ensure_indexed(
+        self,
+        *,
+        force: bool = False,
+        on_first_index=None,
+        cooldown_seconds: int = SYNC_COOLDOWN_SECONDS,
+        allow_stale_on_error: bool = False,
+    ) -> list[GuideAuthor]:
         """Ensure all enabled authors are indexed in SQLite; runs full backfill on first use."""
         authors = self.authors()
         async with _SYNC_LOCK:
             now = int(self.clock())
             static = self._static()
             aliases = self._aliases()
-            alias_map = aliases.read(static=static) if aliases is not None else {}
+            alias_map = {}
+            if aliases is not None:
+                try:
+                    alias_map = aliases.read(static=static)
+                except Exception as exc:
+                    _log_failure('ALIAS_READ', exc)
+                    alias_map = {}
             resolver = build_name_code_resolver(static, alias_map)
 
             first_run_notified = False
@@ -139,7 +182,7 @@ class GuideService:
                 backfill_done = bool(state.get('full_backfill_done'))
                 last_sync = int(state.get('last_sync_at') or 0)
                 retry_after = int(state.get('retry_after') or 0)
-                if not force and backfill_done and (now - last_sync) < SYNC_COOLDOWN_SECONDS:
+                if not force and backfill_done and (now - last_sync) < cooldown_seconds:
                     continue
                 if not force and now < retry_after:
                     continue
@@ -159,7 +202,7 @@ class GuideService:
                         if uname:
                             latest_name = uname
                             break
-                    self.store.upsert_posts(
+                    changed = self.store.upsert_posts(
                         author,
                         raw_posts,
                         norm_fn=norm_key,
@@ -172,13 +215,22 @@ class GuideService:
                         full_backfill_done=backfill_done or reached_end or bool(raw_posts),
                         retry_after=0,
                     )
-                except Exception:
+                    _log_event(
+                        'INDEX_SYNC',
+                        'OK',
+                        count=len(raw_posts),
+                        reason=f'author={author.author_id},backfill={int(not backfill_done)},changed={len(changed)}',
+                    )
+                except Exception as exc:
+                    _log_failure('INDEX_SYNC', exc)
                     self.store.save_author_state(
                         author,
                         retry_after=now + ERROR_COOLDOWN_SECONDS,
                     )
                     if not backfill_done and self.store.count_posts(author.author_id) == 0:
                         raise GuideError('首次拉取作者攻略索引失败，请稍后重试。') from None
+                    if not allow_stale_on_error:
+                        _log_event('INDEX_SYNC', 'DEGRADED', reason=f'author={author.author_id},keep_local=1')
         return authors
 
     async def recent_posts(
@@ -188,7 +240,12 @@ class GuideService:
         limit: int = 10,
         on_first_index=None,
     ) -> tuple[list[IndexedPost], dict[str, GuideAuthor]]:
-        authors = await self.ensure_indexed(on_first_index=on_first_index)
+        # `nk攻略查询` always performs a lightweight incremental check for newly published posts.
+        authors = await self.ensure_indexed(
+            on_first_index=on_first_index,
+            cooldown_seconds=LIST_CHECK_COOLDOWN_SECONDS,
+            allow_stale_on_error=True,
+        )
         authors_by_id = {a.author_id: a for a in authors}
         clean = str(filter_text or '').strip()
         include_all = clean in ('全部', 'all', 'ALL')
@@ -235,6 +292,19 @@ class GuideService:
         )
         return status, posts, authors_by_id
 
+    def _handle_post_unavailable(self, post: IndexedPost, *, now: int | None = None, exc: BaseException | None = None) -> GuideError:
+        stamp = int(self.clock() if now is None else now)
+        first_missing = self.store.mark_post_missing(post.post_uuid, now=stamp)
+        elapsed = stamp - first_missing
+        if elapsed >= MISSING_DELETE_SECONDS:
+            self.store.delete_post(post.post_uuid)
+            _log_event('DEAD_LINK', 'DELETED', elapsed_ms=elapsed * 1000, reason=f'uuid={post.post_uuid}')
+            return GuideError('该攻略原帖已连续超过24小时无法访问，已从本地索引移除。')
+        if exc is not None:
+            _log_failure('DEAD_LINK_GRACE', exc)
+        _log_event('DEAD_LINK', 'GRACE', elapsed_ms=max(0, elapsed) * 1000, reason=f'uuid={post.post_uuid}')
+        return GuideError('该攻略暂时无法读取（可能是网络波动），已保留索引，请稍后再试。')
+
     async def render_or_get(
         self,
         post: IndexedPost,
@@ -248,6 +318,21 @@ class GuideService:
         resolved_theme = get_card_theme(theme, default='light')
 
         async with _post_lock(post.post_uuid):
+            now = int(self.clock())
+            # If previously marked missing, re-verify live post before trusting cached media.
+            if post.missing_since > 0:
+                try:
+                    probe = await self.detail_fetcher(
+                        post.post_uuid,
+                        target_lang=lang,
+                        referer=post.post_url,
+                    )
+                except Exception as exc:
+                    raise self._handle_post_unavailable(post, now=now, exc=exc) from None
+                if not probe:
+                    raise self._handle_post_unavailable(post, now=now)
+                self.store.clear_post_missing(post.post_uuid)
+
             cached = self.store.read_media(post.post_uuid, post.modified_on, lang, resolved_theme)
             if cached is not None:
                 return GuideResult(
@@ -269,11 +354,18 @@ class GuideService:
 
             # Auto-translate non-Chinese original posts via Blablalink anonymous GetPost
             if not str(post.original_language or '').lower().startswith('zh'):
-                detail = await self.detail_fetcher(
-                    post.post_uuid,
-                    target_lang=lang,
-                    referer=post.post_url,
-                )
+                try:
+                    detail = await self.detail_fetcher(
+                        post.post_uuid,
+                        target_lang=lang,
+                        referer=post.post_url,
+                    )
+                except PostNotFoundError as exc:
+                    raise self._handle_post_unavailable(post, now=now, exc=exc) from None
+                except GuideError as exc:
+                    raise self._handle_post_unavailable(post, now=now, exc=exc) from None
+                except Exception as exc:
+                    raise self._handle_post_unavailable(post, now=now, exc=exc) from None
                 if detail and str(detail.get('language') or '').lower().startswith('zh'):
                     display_title = str(detail.get('title') or display_title).strip()
                     content_html = str(detail.get('content') or content_html)

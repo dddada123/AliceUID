@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 import io
 from pathlib import Path
 
@@ -12,7 +14,8 @@ from PIL import Image
 
 from ..nikke_render.fonts import apply_font_html
 from ..nikke_render.language import get_card_language, localize_html
-from ..nikke_render.theme import get_card_theme
+from ..nikke_render.theme import get_card_theme, v2_theme_tokens
+from ..nikke_resource.media import media_path
 from .source import (
     MAX_IMAGE_BYTES,
     POST_URL,
@@ -92,6 +95,38 @@ def _ensure_jpeg_under_limit(data: bytes, *, max_bytes: int = MAX_IMAGE_BYTES) -
         return buf.getvalue()
 
 
+@lru_cache(maxsize=1)
+def _alice_icon_uri() -> str:
+    for p in (media_path('assets/ICON.png'), Path(__file__).resolve().parents[2] / 'ICON.png'):
+        if p.is_file():
+            try:
+                return 'data:image/png;base64,' + base64.b64encode(p.read_bytes()).decode('ascii')
+            except OSError:
+                pass
+    return ''
+
+
+def _qr_data_uri(url: str) -> str:
+    if not url:
+        return ''
+    try:
+        import qrcode
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=6,
+            border=2,
+        )
+        qr.add_data(url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color='#111827', back_color='#ffffff').convert('RGB')
+        buf = io.BytesIO()
+        img.save(buf, format='PNG', optimize=True)
+        return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+    except Exception:
+        return ''
+
+
 def render_guide_html(
     *,
     title: str,
@@ -112,8 +147,11 @@ def render_guide_html(
         'author_name': author_name,
         'category_label': category_label,
         'post_url': post_url,
+        'hero_art': _alice_icon_uri(),
+        'qr_uri': _qr_data_uri(post_url),
         'published_text': _format_published(published_on),
         'card_theme': resolved_theme,
+        'palette': v2_theme_tokens(None, resolved_theme)['palette'],
         'html_lang': resolved_lang,
         'translated_from': translated_from,
         'font_family': 'MiSans',

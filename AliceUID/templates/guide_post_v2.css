@@ -20,7 +20,6 @@
   background-color: #0e131d;
 }
 
-/* Keep the Blablalink article paper crisp white so author inline text colors & highlights stay 100% readable */
 .guide-shell {
   width: 100%;
   border-radius: 20px;
@@ -35,23 +34,45 @@
 
 .guide-header {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  flex-direction: row;
+  align-items: center;
+  gap: 18px;
   padding-bottom: 18px;
   border-bottom: 2px solid #e7edf5;
+}
+
+.guide-avatar {
+  width: 86px;
+  height: 86px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.guide-avatar > img {
+  width: 86px;
+  height: 86px;
+  border-radius: 20px;
+}
+
+.guide-header-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .guide-badges {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 8px;
 }
 
 .badge {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
-  padding: 4px 12px;
+  padding: 3px 11px;
   border-radius: 999px;
 }
 
@@ -72,16 +93,13 @@
 }
 
 .guide-title {
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 800;
-  line-height: 1.3;
+  line-height: 1.28;
   color: #111827;
 }
 
 .guide-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
   font-size: 15px;
   color: #5b6578;
 }
@@ -158,16 +176,59 @@
 
 .guide-footer {
   margin-top: 8px;
-  padding-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
+  padding-top: 18px;
   border-top: 1px solid #e7edf5;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
   color: #64748b;
 }
 
-.brand-credit {
+.guide-footer-left {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 14px;
+}
+
+.footer-author {
+  color: #334155;
+  font-size: 15px;
+}
+
+.footer-hint {
   font-size: 13px;
+  color: #64748b;
+}
+
+.guide-qr-card {
+  background-color: #ffffff;
+  border: 1px solid #dbe3ef;
+  border-radius: 12px;
+  padding: 6px 6px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.guide-qr-img {
+  width: 96px;
+  height: 96px;
+  display: block;
+}
+
+.guide-qr-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  line-height: 1.2;
+}
+
+.brand-credit {
+  font-size: 12px;
   opacity: 0.85;
 }

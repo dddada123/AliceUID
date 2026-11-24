@@ -35,6 +35,7 @@ class IndexedPost:
     modified_on: int
     content_html: str
     indexed_at: int
+    missing_since: int = 0
 
 
 class GuideStore:
@@ -81,7 +82,8 @@ class GuideStore:
                     created_on INTEGER NOT NULL,
                     modified_on INTEGER NOT NULL,
                     content_html TEXT NOT NULL,
-                    indexed_at INTEGER NOT NULL
+                    indexed_at INTEGER NOT NULL,
+                    missing_since INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE INDEX IF NOT EXISTS idx_posts_author_created
                     ON posts(author_id, created_on DESC);
@@ -99,6 +101,9 @@ class GuideStore:
                 );
                 """
             )
+            cols = {str(r['name']) for r in conn.execute('PRAGMA table_info(posts)').fetchall()}
+            if 'missing_since' not in cols:
+                conn.execute('ALTER TABLE posts ADD COLUMN missing_since INTEGER NOT NULL DEFAULT 0')
 
     def get_author_state(self, author_id: str) -> dict:
         with self._connect() as conn:
@@ -160,10 +165,17 @@ class GuideStore:
                 uid = str(p.get('post_uuid') or '').strip()
                 if not uid:
                     continue
-                title = str(p.get('title') or '').strip()
-                content = str(p.get('content') or '')
                 created_on = int(p.get('created_on') or 0)
                 modified_on = int(p.get('modified_on') or created_on or 0)
+                if uid in existing_mods and existing_mods[uid] == modified_on:
+                    # Skip unchanged existing posts without re-parsing; clear transient missing flag if re-listed.
+                    conn.execute(
+                        'UPDATE posts SET missing_since = 0 WHERE post_uuid = ? AND missing_since != 0',
+                        (uid,),
+                    )
+                    continue
+                title = str(p.get('title') or '').strip()
+                content = str(p.get('content') or '')
                 lang = str(p.get('language') or 'zh-TW').strip()
                 orig_lang = str(p.get('original_language') or lang).strip()
                 plate_id = int(p.get('plate_id') or 0)
@@ -179,8 +191,8 @@ class GuideStore:
                     INSERT INTO posts(
                         post_uuid, author_id, title, title_norm, language, original_language,
                         plate_id, tags_json, category, subject, name_code, post_url,
-                        lead_image_url, created_on, modified_on, content_html, indexed_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        lead_image_url, created_on, modified_on, content_html, indexed_at, missing_since
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                     ON CONFLICT(post_uuid) DO UPDATE SET
                         author_id = excluded.author_id,
                         title = excluded.title,
@@ -197,7 +209,8 @@ class GuideStore:
                         created_on = excluded.created_on,
                         modified_on = excluded.modified_on,
                         content_html = excluded.content_html,
-                        indexed_at = excluded.indexed_at
+                        indexed_at = excluded.indexed_at,
+                        missing_since = 0
                     """,
                     (
                         uid, author.author_id, title, title_norm, lang, orig_lang,
@@ -229,6 +242,7 @@ class GuideStore:
             modified_on=int(row['modified_on']),
             content_html=str(row['content_html']),
             indexed_at=int(row['indexed_at']),
+            missing_since=int(row['missing_since']) if 'missing_since' in row.keys() and row['missing_since'] is not None else 0,
         )
 
     def list_posts(
@@ -273,6 +287,31 @@ class GuideStore:
             else:
                 row = conn.execute('SELECT COUNT(*) AS c FROM posts').fetchone()
             return int(row['c']) if row else 0
+
+    def mark_post_missing(self, post_uuid: str, *, now: int | None = None) -> int:
+        """Record first failure timestamp for a dead/unreachable post without deleting immediately."""
+        stamp = int(self.clock() if now is None else now)
+        uid = str(post_uuid)
+        with self._connect() as conn:
+            row = conn.execute('SELECT missing_since FROM posts WHERE post_uuid = ?', (uid,)).fetchone()
+            if not row:
+                return stamp
+            existing = int(row['missing_since'] or 0)
+            if existing > 0:
+                return existing
+            conn.execute('UPDATE posts SET missing_since = ? WHERE post_uuid = ?', (stamp, uid))
+            return stamp
+
+    def clear_post_missing(self, post_uuid: str):
+        with self._connect() as conn:
+            conn.execute('UPDATE posts SET missing_since = 0 WHERE post_uuid = ? AND missing_since != 0', (str(post_uuid),))
+
+    def delete_post(self, post_uuid: str) -> bool:
+        uid = str(post_uuid)
+        self.invalidate_post_media(uid)
+        with self._connect() as conn:
+            cur = conn.execute('DELETE FROM posts WHERE post_uuid = ?', (uid,))
+            return cur.rowcount > 0
 
     def _cache_dir(self, cache_key: str) -> Path:
         return self.media_root / cache_key

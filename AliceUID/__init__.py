@@ -72,6 +72,8 @@ if os.environ.get("ALICEUID_STANDALONE") != "1":
     setup_raid_guide(policy)
     from .nikke_guide.commands import setup as setup_guide
     setup_guide(policy)
+    from .nikke_guide.scheduler import setup as setup_guide_scheduler
+    setup_guide_scheduler()
     setup_database_commands(_database_config)
     setup_database_scheduler(_database_config)
     setup_community(policy=policy)

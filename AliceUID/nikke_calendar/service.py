@@ -19,6 +19,7 @@ from ..nikke_time import beijing_text, time_metadata
 from PIL import Image
 
 CALENDAR_URL = 'https://www.blablalink.com/activity-calendar'
+CALENDAR_API_URL = 'https://api.blablalink.com/api/ugc/direct/standalonesite/Dynamics/GetCalendarDetail'
 CALENDAR_SELECTOR = '[class*="bg-calendar-line"]'
 MAX_SCREENSHOT_BYTES = 12 * 1024 * 1024
 MAX_SCREENSHOT_PIXELS = 16_000_000
@@ -40,9 +41,9 @@ class CalendarImage:
 
     def caption(self) -> str:
         stamp = beijing_text(self.captured_at)
-        state = '官网暂不可用，以下为旧缓存，活动可能已变化。' if self.stale else '官网当前默认活动日历（裁剪日历内容）。'
-        return (f'{state}\n拍摄时间：{stamp}\n来源：{CALENDAR_URL}\n'
-                '官网默认页面，不按绑定区服筛选；多标签仅展示当前选中项。\n'
+        state = '官网暂不可用，以下为旧缓存，活动可能已变化。' if self.stale else '官网当前活动日历（全板块一览）。'
+        return (f'{state}\n生成时间：{stamp}\n来源：{CALENDAR_URL}\n'
+                '官网默认公开日程，不按绑定区服筛选；\n'
                 '不支持历史月份；Raid仅为活动日程，不含阵容或分数。')
 
 
@@ -123,25 +124,39 @@ async def capture_page(page) -> bytes:
     return data
 
 
-async def capture_calendar(*, channel: str = 'auto') -> bytes:
-    """Use a fresh anonymous, nonpersistent browser; never reuse login storage."""
-    from ..nikke_browser.runtime import manager, playwright as browser_playwright
-    async with browser_playwright(error_type=CalendarUnavailable, operation="官网日历") as playwright:
-        browser = await manager.launch(playwright, channel=channel, headless=True)
-        context = None
-        try:
-            context = await browser.new_context(
-                viewport={'width': 1440, 'height': 1000}, device_scale_factor=1,
-                locale='zh-TW', timezone_id='Asia/Shanghai',
-            )
-            page = await context.new_page()
-            return await capture_page(page)
-        finally:
-            try:
-                if context is not None:
-                    await context.close()
-            finally:
-                await browser.close()
+async def fetch_calendar_detail(*, http=None) -> dict:
+    """Fetch public anonymous GetCalendarDetail JSON from Blablalink."""
+    import httpx
+    headers = {
+        'Origin': 'https://www.blablalink.com',
+        'Referer': CALENDAR_URL,
+        'x-language': 'zh-tw',
+        'x-channel-type': '2',
+        'x-common-params': json.dumps({
+            'game_id': '16', 'area_id': 'global', 'intl_game_id': '29080',
+            'language': 'zh-tw', 'source': 'pc_web', 'env': 'prod',
+        }),
+    }
+    if http is not None:
+        resp = await http.post(CALENDAR_API_URL, json={}, headers=headers)
+        resp.raise_for_status()
+        payload = resp.json()
+    else:
+        async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
+            resp = await client.post(CALENDAR_API_URL, json={}, headers=headers)
+            resp.raise_for_status()
+            payload = resp.json()
+    if not isinstance(payload, dict) or payload.get('code') != 0 or not isinstance(payload.get('data'), dict):
+        raise CalendarUnavailable('官网日历接口返回异常。')
+    return payload
+
+
+async def render_calendar_from_api(*, assets_cache_dir: Path | None = None, clock=time.time) -> bytes:
+    from .draw import render_calendar_png
+    payload = await fetch_calendar_detail()
+    data = await render_calendar_png(payload, assets_cache_dir=assets_cache_dir, now=clock())
+    _validate_png(data)
+    return data
 
 
 class CalendarService:
@@ -199,14 +214,9 @@ class CalendarService:
             _atomic_write(self.meta_path, json.dumps(meta, ensure_ascii=False).encode())
             try:
                 capture = self.capture
-                if capture is None:
-                    from ..nikke_browser.runtime import manager, BrowserUnavailable
-                    try:
-                        await manager.prepare(channel=self.channel, headless=True)
-                    except BrowserUnavailable as exc:
-                        raise CalendarUnavailable(str(exc)) from None
                 data = await asyncio.wait_for(
-                    capture() if capture else capture_calendar(channel=self.channel), timeout=150,
+                    capture() if capture else render_calendar_from_api(assets_cache_dir=self.root / 'assets', clock=self.clock),
+                    timeout=150,
                 )
                 _validate_png(data)
                 captured_at = self.clock()

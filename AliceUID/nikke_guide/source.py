@@ -30,6 +30,10 @@ class GuideError(Exception):
     pass
 
 
+class PostNotFoundError(GuideError):
+    """Raised when a post is confirmed unavailable/deleted on Blablalink."""
+
+
 def validate_image_url(value: str) -> str:
     parsed = urlsplit(str(value or '').strip())
     if (parsed.scheme != 'https' or parsed.username or parsed.password
@@ -175,6 +179,8 @@ async def fetch_post_detail(
 
     async def _run(client: httpx.AsyncClient):
         resp = await client.post(POST_DETAIL_URL, json=body, headers=headers)
+        if resp.status_code in (404, 410):
+            raise PostNotFoundError('攻略原帖不可访问或已下架。')
         resp.raise_for_status()
         payload = resp.json()
         if payload.get('code') != 0:

@@ -1,4 +1,8 @@
-﻿# 1.3.05 · 2026-11-24
+﻿# 1.3.06 · 2026-11-24
+
+新增 `nikke_calendar/assets.py` 官方 CDN 素材拉取与 14 天缓存，将 `nk日历` 全面迁移至 `pytakumi` 高还原官网卡片（含 `3:1` Banner、头像条、奖励图标、模拟室双倒计时、竞技场双赛程表）；`guide_post.html` 左上角接入 `.avatar-glass` 爱丽丝 ICON，右下角嵌入 `qrcode` 原帖直达二维码并移除长图内文字 URL。
+
+# 1.3.05 · 2026-11-24
 
 新增 `nikke_guide` 通用 Blablalink 多作者攻略系统（SQLite 持久索引 + 30 天媒体 TTL 缓存 + 匿名 `GetPost` 自动中文翻译 + `nikke_message` `preserve_order=True` 保序转发），并同步将 `nikke_raid_guide`（`nk会战攻略`）与 `nikke_calendar`（`nk日历`）全面迁移至 GsCore 内置 `pytakumi` 渲染引擎。
 

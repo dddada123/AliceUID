@@ -41,6 +41,22 @@ def _format_list_message(posts, authors_by_id, *, filter_text: str = '') -> str:
     return '\n'.join(lines)
 
 
+def _log_cmd_failure(stage: str, exc: BaseException):
+    try:
+        from ..nikke_logs.store import record_failure
+        record_failure('攻略查询', stage, exc)
+    except Exception:
+        pass
+
+
+def _log_cmd_event(stage: str, result: str, **metrics):
+    try:
+        from ..nikke_logs.store import event
+        event('攻略查询', stage, result, **metrics)
+    except Exception:
+        pass
+
+
 class GuideCommands:
     def __init__(
         self,
@@ -128,15 +144,27 @@ class GuideCommands:
             return
 
         service: GuideService = self.service_factory()
-        async def on_first(author):
-            await self._send_text(bot, ev, f'首次使用攻略查询，正在为作者【{author.display_name}】建立本地攻略索引，请稍候…')
+        notified = False
+
+        async def _notify_init():
+            nonlocal notified
+            if not notified:
+                notified = True
+                await self._send_text(bot, ev, '攻略索引正在初始化，请稍候…')
+
+        if not service.is_initialized():
+            await _notify_init()
+
+        async def on_first(_author):
+            await _notify_init()
 
         try:
             status, posts, authors_by_id = await service.search(query, on_first_index=on_first)
         except GuideError as exc:
             await self._send_text(bot, ev, str(exc))
             return
-        except Exception:
+        except Exception as exc:
+            _log_cmd_failure('KEYWORD_SEARCH', exc)
             await self._send_text(bot, ev, '攻略索引暂不可用，请稍后再试。')
             return
 
@@ -144,6 +172,7 @@ class GuideCommands:
             return
 
         if status == 'none' or not posts:
+            _log_cmd_event('KEYWORD_MATCH', 'NONE')
             await self._send_text(
                 bot,
                 ev,
@@ -153,6 +182,7 @@ class GuideCommands:
             return
 
         if status == 'multiple' and len(posts) > 1:
+            _log_cmd_event('KEYWORD_MATCH', 'MULTIPLE', count=len(posts))
             self._save_session(ev, posts[:10])
             msg = _format_list_message(posts[:10], authors_by_id, filter_text=query)
             sender = self.forward_sender
@@ -163,6 +193,7 @@ class GuideCommands:
             return
 
         post = posts[0]
+        _log_cmd_event('KEYWORD_MATCH', 'HIT', reason=f'uuid={post.post_uuid}')
         author = authors_by_id.get(post.author_id, SYUEN_AUTHOR)
 
         async def on_render(p):
@@ -173,7 +204,8 @@ class GuideCommands:
         except GuideError as exc:
             await self._send_text(bot, ev, str(exc))
             return
-        except Exception:
+        except Exception as exc:
+            _log_cmd_failure('KEYWORD_RENDER', exc)
             await self._send_text(bot, ev, '攻略内容抓取或生成失败，请稍后再试。')
             return
 
@@ -186,9 +218,19 @@ class GuideCommands:
             return
         filter_text = str(getattr(ev, 'text', '') or '').strip()
         service: GuideService = self.service_factory()
+        notified = False
 
-        async def on_first(author):
-            await self._send_text(bot, ev, f'首次使用攻略查询，正在为作者【{author.display_name}】建立本地攻略索引，请稍候…')
+        async def _notify_init():
+            nonlocal notified
+            if not notified:
+                notified = True
+                await self._send_text(bot, ev, '攻略索引正在初始化，请稍候…')
+
+        if not service.is_initialized():
+            await _notify_init()
+
+        async def on_first(_author):
+            await _notify_init()
 
         try:
             posts, authors_by_id = await service.recent_posts(
@@ -199,7 +241,8 @@ class GuideCommands:
         except GuideError as exc:
             await self._send_text(bot, ev, str(exc))
             return
-        except Exception:
+        except Exception as exc:
+            _log_cmd_failure('LIST_QUERY', exc)
             await self._send_text(bot, ev, '攻略列表暂不可用，请稍后再试。')
             return
 
@@ -245,7 +288,8 @@ class GuideCommands:
         except GuideError as exc:
             await self._send_text(bot, ev, str(exc))
             return
-        except Exception:
+        except Exception as exc:
+            _log_cmd_failure('PICK_RENDER', exc)
             await self._send_text(bot, ev, '攻略内容抓取或生成失败，请稍后再试。')
             return
 
