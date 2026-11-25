@@ -255,14 +255,17 @@ def account_status_summary(bind: AliceBind, ev=None) -> str:
     # 1. Local panel & profile cache
     try:
         from ..nikke_character.cache import PanelCache, panel_identity
+        from ..nikke_resource.cache import read_metadata
         store = PanelCache(MAIN_PATH / 'cache/panels')
         ident = panel_identity(bind)
-        prof = store.read_profile(ident)
+        prof = read_metadata(store.path(ident, 'profile.json'))
         snap = store.read(ident)
-        p_time = beijing_text(prof['_checked_at']) if prof and prof.get('_checked_at') else '未缓存'
-        if snap and snap.get('roster_checked_at'):
-            r_count = len(snap.get('characters') or {})
-            r_time = f'已缓存 {r_count} 名（{beijing_text(snap["roster_checked_at"])}）'
+        p_epoch = prof.get('checked_at') or snap.get('profile_checked_at') or snap.get('saved_at')
+        p_time = beijing_text(p_epoch) if p_epoch else '未缓存'
+        roster_rows = snap.get('roster') if isinstance(snap.get('roster'), list) else None
+        r_epoch = snap.get('roster_checked_at') or snap.get('saved_at')
+        if roster_rows is not None and r_epoch:
+            r_time = f'已缓存 {len(roster_rows)} 名（{beijing_text(r_epoch)}）'
         else:
             r_time = '未缓存'
         lines.append(f'名片资料：{p_time}')
@@ -277,59 +280,68 @@ def account_status_summary(bind: AliceBind, ev=None) -> str:
         from ..nikke_community.service import CommunityService
         account, owner = comm_identity(CommunityService, bind)
         st = recovery_store().state(account)
+        global_paused = bool(AliceUIDConfig.get_config('AliceUID_CommunityPaused').data)
         if st.get('owner') == owner and st.get('enabled'):
             like_tag = '含点赞' if st.get('likes') else '不含点赞'
-            fail_tag = f'｜连续失败{st["fail_count"]}/3' if st.get('fail_count') else ''
-            lines.append(f'自动签到：开启（{like_tag}，每日 {configured_sign_time()}{fail_tag}）')
+            extras = []
+            if global_paused:
+                extras.append('全局已暂停')
+            if st.get('paused'):
+                extras.append(f'已暂停：{st["paused"]}')
+            if st.get('fail_count'):
+                extras.append(f'连续失败{st["fail_count"]}/3')
+            extra_str = '｜' + '｜'.join(extras) if extras else ''
+            lines.append(f'自动签到：开启（{like_tag}，每日 {configured_sign_time()}{extra_str}）')
         elif st.get('owner') == owner and st.get('auto_disabled'):
-            lines.append('自动签到：已因连续失败自动暂停')
+            lines.append(f'自动签到：已因连续失败自动暂停（发 {command_prefix()}开启全量签到 可恢复）')
+        elif st.get('owner') == owner:
+            lines.append(f'自动签到：已关闭（发 {command_prefix()}开启全量签到 可开启）')
+        elif st.get('paused') == '绑定已变更':
+            lines.append(f'自动签到：未开启（绑定曾变更，发 {command_prefix()}开启全量签到 重新开启）')
         else:
-            lines.append('自动签到：未开启')
+            lines.append(f'自动签到：未开启（发 {command_prefix()}开启全量签到 可开启）')
     except Exception:
         pass
 
-    # 3. Auto CDK
+    # 3. Auto CDK (uses AutoStore.auto_preferences, opt-out: enabled by default unless user turned off)
     try:
         from ..nikke_cdk.store import Store as CdkStore
-        from ..nikke_cdk.models import identity as cdk_identity
+        from ..nikke_cdk.automatic import AutoStore
         cdk_db = MAIN_PATH / 'cdk.sqlite3'
-        user_on = False
-        if cdk_db.is_file():
-            cstore = CdkStore(cdk_db)
-            acct_key = cdk_identity(bind)
-            meta_val = cstore.meta(f'auto_user:{acct_key}')
-            if meta_val is None:
-                # Check automatic_users table if present
-                with cstore.tx() as db:
-                    row = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='automatic_users'").fetchone()
-                    if row:
-                        rec = db.execute('SELECT enabled FROM automatic_users WHERE account=?', (acct_key,)).fetchone()
-                        user_on = bool(rec and rec['enabled'])
-            else:
-                user_on = bool(meta_val)
+        user_on = AutoStore(CdkStore(cdk_db)).enabled(bind.bot_id, bind.user_id) if cdk_db.is_file() else True
         sys_on = AliceUIDConfig.get_config('AliceUID_AutoCDKEnabled').data is True
         write_on = AliceUIDConfig.get_config('AliceUID_EnableWriteOps').data is True
-        if user_on and sys_on and write_on:
+        if not user_on:
+            lines.append(f'自动兑换码：个人已关闭（发 {command_prefix()}自动兑换码 可重新开启）')
+        elif sys_on and write_on:
             lines.append('自动兑换码：开启（系统已就绪）')
-        elif user_on:
-            lines.append('自动兑换码：个人已开启（等待后台开启兑换权限/总开关）')
+        elif not write_on:
+            lines.append('自动兑换码：个人已开启（未生效：后台未开启「允许本人CDK兑换」）')
         else:
-            lines.append('自动兑换码：未开启')
+            lines.append('自动兑换码：个人已开启（未生效：后台总开关已停用）')
     except Exception:
         pass
 
     # 4. Harvest reminder for current conversation
     if ev is not None:
         try:
-            from ..nikke_harvest.planner import route_from_event
+            from ..nikke_harvest.planner import account_key as harvest_account_key, route_from_event
             from ..nikke_harvest.runtime import get_runtime
             route = route_from_event(ev)
-            sub = get_runtime().store.sub(route['id'])
+            h_store = get_runtime().store
+            sub = h_store.sub(route['id'])
             if sub and sub.get('enabled'):
                 quiet = sub.get('quiet') or '关闭'
                 lines.append(f'收菜提醒：本会话已开启（免打扰：{quiet}）')
             else:
-                lines.append('收菜提醒：本会话未开启')
+                other_active = [
+                    s for s in h_store.subs(harvest_account_key(bind), active=True)
+                    if s.get('id') != route['id']
+                ]
+                if other_active:
+                    lines.append(f'收菜提醒：本会话未开启（其他会话已开启 {len(other_active)} 处）')
+                else:
+                    lines.append('收菜提醒：本会话未开启')
         except Exception:
             pass
 

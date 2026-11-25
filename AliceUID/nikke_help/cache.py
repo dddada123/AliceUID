@@ -11,7 +11,7 @@ from pathlib import Path
 from ..nikke_resource.cache import atomic_write
 
 TTL = 30 * 24 * 60 * 60
-CACHE_VERSION = '1.4.01'
+CACHE_VERSION = '1.4.02'
 PNG_HEADER = b'\x89PNG\r\n\x1a\n'
 
 
