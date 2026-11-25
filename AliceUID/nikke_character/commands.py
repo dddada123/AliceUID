@@ -25,11 +25,45 @@ USAGE = (f'用法：{command_prefix()}爱丽丝练度 / {command_prefix()}爱丽
          f'仅查询本人已绑定账号持有的角色；全量表格请发送 {command_prefix()}练度全量导出。')
 
 
-def _arguments(text: str) -> str:
+def _arguments(text: str) -> tuple[str, bool]:
     name = str(text or '').strip()
+    refresh = False
+    if name.endswith('刷新'):
+        refresh = True
+        name = name[:-2].strip()
     if name.endswith(('练度', '面板')):
         name = name[:-2].strip()
-    return name
+    return name, refresh
+
+
+def _format_candidate_message(exc: CharacterLookupError, static) -> str | None:
+    codes = getattr(exc, 'codes', None) or getattr(exc, 'suggestions', None) or []
+    if not codes:
+        return None
+    from .aliases import aliases_for_code
+    prefix = command_prefix()
+    header = '角色名不唯一，请确认要查询的角色：' if getattr(exc, 'codes', None) else f'{exc}\n您是不是想找：'
+    lines = [header]
+    for idx, code in enumerate(codes[:10], 1):
+        cname = static.name(code)
+        aliases = sorted(set(aliases_for_code(code)), key=len)[:2]
+        alias_str = f'（别名：{"、".join(aliases)}）' if aliases else ''
+        lines.append(f'{idx}. {cname}{alias_str}')
+    lines.append(f'请在 120 秒内回复 {prefix}查询1 ～ {prefix}查询{len(codes[:10])}，或直接发送完整角色名。')
+    return '\n'.join(lines)
+
+
+def _guide_hint_line(name_code: int | None, canonical: str) -> str:
+    if name_code is None:
+        return ''
+    try:
+        from ..nikke_guide.service import get_guide_service
+        svc = get_guide_service()
+        if svc.is_initialized() and svc.store.find_by_name_code(int(name_code), limit=1):
+            return f'\n可发 {command_prefix()}{canonical}攻略 查看养成指南'
+    except Exception:
+        pass
+    return ''
 
 
 def _cache_ttl() -> int:
@@ -48,12 +82,14 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
         return (f'请稍后使用 {command_prefix()}刷新{name}面板 重试，'
                 f'或使用 {command_prefix()}刷新面板 同步社区数据。')
     try:
-        name = _arguments(text)
+        parsed_name, trailing_refresh = _arguments(text)
+        name = parsed_name
+        refresh = refresh or trailing_refresh
         if not refresh and '全量导出' in name:
             return  # Reserved for the exact export command.
         from ..nikke_message.persona import send_reply
-        if not refresh and name.endswith(('刷新', '更新')):
-            await send_reply(bot, ev, f'单角色更新请使用 {command_prefix()}刷新爱丽丝面板（替换角色名）。', at_sender=True)
+        if not refresh and name.endswith('更新'):
+            await send_reply(bot, ev, f'单角色更新请使用 {command_prefix()}{name[:-2] or "爱丽丝"}练度 刷新 或 {command_prefix()}刷新爱丽丝面板。', at_sender=True)
             return
         if not name:
             await send_reply(bot, ev, USAGE, at_sender=True)
@@ -102,13 +138,18 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
         sent = False
         async with binding_lock(ev.user_id, ev.bot_id):
             if await current() and character_queries.context_current(context,bind):
+                import time as _time
                 from ..nikke_time import beijing_text
                 from ..nikke_message.persona import send_reply
                 stamp = context.get('_detail_checked_at')
                 canonical = context['name']  # Canonical static name, already resolved by name_code.
-                text = ('角色资料最近核对：'+beijing_text(stamp)+'\n') if stamp else ''
-                text += ('如卡片数据不是最新，请发送以下命令重新获取最新数据：\n'
-                         f'{command_prefix()}刷新{canonical}面板')
+                if stamp and 0 <= (_time.time() - float(stamp)) < 600:
+                    text = f'最近核对：{beijing_text(stamp)}'
+                elif stamp:
+                    text = f'最近核对：{beijing_text(stamp)} ｜ 刷新：{command_prefix()}刷新{canonical}面板'
+                else:
+                    text = f'刷新：{command_prefix()}刷新{canonical}面板'
+                text += _guide_hint_line(context.get('name_code'), canonical)
                 result = await send_reply(bot, ev, [MessageSegment.image(png), text], at_sender=True, newline=True)
                 sent = result is not False
         if sent and context.get('_needs_full_refresh'):
@@ -117,11 +158,25 @@ async def _query(bot: Bot, ev: Event, text: str, *, refresh: bool = False):
                 schedule_silent_refresh(bind, ev, get_policy())
             except Exception as exc:
                 logger.warning(f'[AliceUID] silent refresh scheduling failed error_type={type(exc).__name__}')
-    except (CharacterLookupError, CharacterCooldown, CharacterNotOwned, CharacterDataError) as exc:
+    except CharacterLookupError as exc:
         from ..nikke_message.persona import send_reply
-        text = str(exc)
-        if not isinstance(exc, (CharacterLookupError, CharacterNotOwned)):
-            text += '\n' + refresh_hint()
+        static = get_resources().load_static()
+        candidate_msg = _format_candidate_message(exc, static)
+        if candidate_msg:
+            codes = (getattr(exc, 'codes', None) or getattr(exc, 'suggestions', None) or [])[:10]
+            from ..nikke_commands.selection import register_selection
+            async def _pick_character(b, e, idx: int, _codes=codes, _refresh=refresh):
+                if not 1 <= idx <= len(_codes):
+                    await send_reply(b, e, f'编号超出范围，请回复 {command_prefix()}查询1 ～ {command_prefix()}查询{len(_codes)}。', at_sender=True)
+                    return
+                await _query(b, e, str(_codes[idx - 1]), refresh=_refresh)
+            register_selection(ev, _pick_character)
+            await send_reply(bot, ev, candidate_msg, at_sender=True)
+        else:
+            await send_reply(bot, ev, str(exc), at_sender=True)
+    except (CharacterCooldown, CharacterNotOwned, CharacterDataError) as exc:
+        from ..nikke_message.persona import send_reply
+        text = str(exc) + '\n' + refresh_hint()
         await send_reply(bot, ev, text, at_sender=True)
     except NikkeLoginRequired:
         from ..nikke_message.persona import send_reply
@@ -189,3 +244,14 @@ async def nikke_character_panel_suffix_cmd(bot: Bot, ev: Event):
         await _query(bot, ev, text[len('刷新'):].strip(), refresh=True)
     else:
         await _query(bot, ev, text)
+
+
+@sv_character.on_suffix('刷新')
+async def nikke_character_refresh_suffix_cmd(bot: Bot, ev: Event):
+    text = (ev.text or '').strip()
+    if not text:
+        return
+    if text.endswith(('练度', '面板')):
+        role = text[:-2].strip()
+        if role and role not in ('更新', '刷新', '信息', '卡片', '图鉴'):
+            await _query(bot, ev, role, refresh=True)

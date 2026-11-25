@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.4.0-ff69b4?style=flat-square" alt="Version: 1.4.0"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.4.01-ff69b4?style=flat-square" alt="Version: 1.4.01"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
@@ -37,11 +37,11 @@
 
 ---
 
-> **当前版本：1.4.0**
+> **当前版本：1.4.01**
 >
-> - **Blablalink 通用攻略查询系统**：支持 `nk<角色/别名/关键词>攻略` 与 `nk攻略查询`（`nk查询1~10` 点选），内置角色别名联动与原皮/异格精准区分（未命中时主动提示同系异格），支持外语原帖自动中文翻译、长图 + 原帖直达二维码 + 纯文字保序合并转发，并具备自适应并发防风控与缺图增量补全。
-> - **官网活动日历与全卡片原生渲染升级**：`nk日历`、`nk会战攻略` 与通用攻略全面迁移至 GsCore 内置原生渲染引擎，无需启动浏览器即可生成高还原官方活动日历（默认合并转发）；`nk信息` 升级 Bento v3 非对称布局；拆分 `nk卡片`（主力妮姬）与 `nk图鉴`（含灰阶未解锁角色）。
-> - **全局主题随机策略与爱丽丝双文风**：后台新增卡片主题随机策略（`纯随机` / `交替` / `昼夜`，兼容宽/窄角色练度卡）；支持 `爱丽丝风格`（默认）与 `默认说明文` 双通知口吻，内置常用角色别名表并支持导出/注销管理。
+> - **全新 Bento 视觉体系与亮暗双主题精调**：全面升级 `nk信息`（Bento v3 非对称名片）、横/纵版角色练度卡（支持亮色图标 90% 深灰反色与低扩散白外发光、通透玻璃衬底）及 `nk出刀` 双列「龙傲天 / 活菩萨」榜单；拆分 `nk卡片`（主力妮姬）与 `nk图鉴`（含灰阶未解锁角色）。
+> - **Blablalink 通用攻略查询与官网活动日历**：无需登录即可查询 `nk<角色/别名/关键词>攻略`、`nk攻略查询`（支持翻页、默认双气泡 20 条与 120 秒 `nk查询1~20` 点选，与角色歧义/拼写相近候选共用点选路由）、`nk会战攻略` 与高还原 `nk日历`，全面迁移至 GsCore 内置原生渲染引擎。
+> - **交互体验与运维能力增强**：统一支持后置 `刷新` 语法（如 `nk信息 刷新`、`nk爱丽丝练度 刷新`、`nk卡片 刷新`）；增强 `nk我的账号` / `nk我的状态` 总览；补全 `爱丽丝风格`（默认）与 `默认说明文` 双文风，支持全局主题随机策略（`纯随机` / `交替` / `昼夜`）；新增 Bot 主 `nk自检` 与 `nk清理缓存`。
 > - **稳定三档串行查询与隐私保护**：游戏查询提供高速（1 秒）/ 中速（推荐，默认 2 秒）/ 缓速（5 秒）三档串行速率；`nk日志导出` 自动脱敏发送者身份与敏感凭据。默认指令前缀为 `nk`，可在 Core 插件管理中自定义。
 
 ---
@@ -104,7 +104,7 @@ python -m pip install -r plugins/AliceUID/requirements.txt
 |---|---|
 | `nk登录日服` | 五区登录（日服 / 国际服 / 北美服 / 韩服 / 东南亚服） |
 | `nk重新登录` | 更新原账号同区服 Cookie，失败保留原绑定 |
-| `nk我的账号` / `nk解绑` | 查看绑定摘要或解除当前绑定 |
+| `nk我的账号` / `nk我的状态` / `nk解绑` | 查看绑定、缓存与自动化状态总览，或解除当前绑定 |
 | `nk妮姬公开` / `nk妮姬隐藏` / `nk妮姬公开状态` | 管理本人官网妮姬资料公开范围与待恢复状态 |
 | `nk绑定UID` / `nk我的UID` / `nk解绑UID` | 登记或清理个人分享标识（不能代替登录） |
 
@@ -112,12 +112,12 @@ python -m pip install -r plugins/AliceUID/requirements.txt
 | 命令 | 说明 |
 |---|---|
 | `nk信息` / `nk名片` | Bento v3 指挥官名片与主页展示队伍（第 3 槽位为大立绘） |
-| `nk信息刷新` / `nk刷新信息` | 轻量刷新名片资料 |
+| `nk信息刷新` / `nk信息 刷新` | 轻量刷新名片资料（同步支持 `nk刷新信息`） |
 | `nk刷新面板` | 全量更新全部角色练度与皮肤缓存 |
-| `nk爱丽丝练度` / `nk爱丽丝面板` | 查看指定角色练度卡（横版 / 纵版与主题策略由后台控制） |
+| `nk爱丽丝练度` / `nk爱丽丝面板 [刷新]` | 查看指定角色练度卡（歧义或拼写相近时支持 120 秒 `nk查询1~20` 点选） |
 | `nk刷新爱丽丝面板` | 仅刷新指定角色练度与对应循环室数据 |
-| `nk卡片` / `nk阵容卡片` | 主力妮姬卡片（展示任一技能 ≥ Lv.7 的已持有角色） |
-| `nk图鉴` / `nk妮姬图鉴` | 全量角色与皮肤图鉴（含灰阶未解锁妮姬展示） |
+| `nk卡片 [刷新]` / `nk阵容卡片` | 主力妮姬卡片（展示任一技能 ≥ Lv.7 的已持有角色） |
+| `nk图鉴 [刷新]` / `nk妮姬图鉴` | 全量角色与皮肤图鉴（含灰阶未解锁妮姬展示） |
 | `nk黑莲别名查询` | 查询角色官方名称及已注册别名（无需登录） |
 | `nk练度全量导出` / `nk练度全量导出json` | 导出本人实际等级 Excel / JSON |
 | `nk400练度全量导出` / `nk1000全量导出JSON` | 导出原始与指定等级模拟对照（支持自定义等级与公开链接组合） |
@@ -126,8 +126,8 @@ python -m pip install -r plugins/AliceUID/requirements.txt
 | 命令 | 说明 |
 |---|---|
 | `nk<角色/别名/关键词>攻略` | 查询角色、单人突袭或机制攻略（如 `nk红莲攻略`、`nk黑莲攻略`、`nk魔方攻略`） |
-| `nk攻略查询 [筛选/全部]` | 查看最近 10 篇攻略并检查新帖（支持按分类筛选或列出全部） |
-| `nk查询1` ～ `nk查询10` | 收到攻略列表或相关角色建议后 60 秒内回复编号获取对应攻略 |
+| `nk攻略查询 [筛选/页码]` | 查看最新攻略并检查新帖（默认双气泡转发 20 篇，支持分类筛选与翻页） |
+| `nk查询1` ～ `nk查询20` | 收到攻略列表或角色候选提示后 120 秒内回复编号获取对应结果 |
 | `nk会战攻略` / `nk会战阵容` | 转发当前或最近一期联盟战攻略（标题来源、组队原图、完整长图） |
 
 ### 联盟会战、资源与个人突袭
@@ -157,6 +157,7 @@ python -m pip install -r plugins/AliceUID/requirements.txt
 ### Bot 主管理指令
 | 命令 | 说明 |
 |---|---|
+| `nk自检` / `nk清理缓存 [确认]` | 检查插件目录、依赖与缓存健康度，或安全清理可再生衍生缓存 |
 | `nk日志导出[数字]` | 导出最近 `1~1440` 分钟脱敏诊断日志 MD（推荐 `nk日志导出5`） |
 | `nk攻略重索引 [清空]` | 重新回溯全量攻略索引（默认保留长图缓存；追加 `清空` 则清库重建） |
 | `nk数据库更新` / `nk数据库更新 状态` | 手动触发或查看公开角色库与图库维护进度 |
@@ -178,7 +179,7 @@ python -m pip install -r plugins/AliceUID/requirements.txt
 
 ### 通用攻略查询与会战攻略
 - **多维度精准检索**：无需登录即可查询 Blablalink 已收录作者（首批内置 `在舒恩裡面卍解【Syuen】`）的角色袖珍指南、单人突袭、联盟突袭与魔方/机制专题。支持内置/自定义别名自动映射、跨简繁与中英检索，并忽略全/半角冒号、空格与双词词序。
-- **原皮与异格精准区分**：严格区分同名角色原皮与异格（如 `灰姑娘` 与 `灰姑娘：琉璃波光`）。若目标角色暂未收录但存在同系异格攻略，会主动询问是否查看对应异格并附带快捷指令与 60 秒 `nk查询1~N` 编号选择。
+- **原皮与异格精准区分**：严格区分同名角色原皮与异格（如 `灰姑娘` 与 `灰姑娘：琉璃波光`）。若目标角色暂未收录但存在同系异格攻略，会主动询问是否查看对应异格并附带快捷指令与 120 秒 `nk查询1~20` 编号选择。
 - **自动中文翻译与保序转发**：命中外语原帖时自动获取官方中文译文并渲染中文长图（右下角附带原帖直达二维码）；合并转发严格按序发送「标题/作者/原帖与主页链接」→「完整攻略长图」→「纯文字正文（含图片位置标注）」。
 - **自动增量更新**：插件启动自动初始化索引，每天北京时间 `04:15` / `14:15` 自动检查新帖；若极少数配图因网络波动未拉取成功，过 60 秒短冷却后再次查询将仅增量补全缺失配图并重绘完整长图。
 - **联盟会战攻略**：`nk会战阵容` / `nk会战攻略` 同样无需绑定，自动核对官方赛季归属并依次转发原标题来源、组队示例原图与正文完整长图。
@@ -222,95 +223,247 @@ Bot 主可在 GsCore WebUI 调整以下配置（修改 Core 插件前缀或开�
 
 ## 效果预览
 
-**点击每张图片上方的标题或小三角，即可展开或收起图片。** 前五组默认展开，Day2 出刀总览较长默认折叠；点击图片可查看高清原图（以下示例采用默认 `nk` 前缀，实际渲染以当前版本为准）。
+> **浏览说明**：核心主卡片默认展开，次要主题、高信息密度长图与帮助菜单默认折叠以保持页面清爽。**点击标题或小三角即可展开 / 收起，点击任意图片可查看高清原图**（以下示例均由 `1.4.01` 原生渲染引擎生成，个人昵称与 UID 已做脱敏处理）。
+
+### 1. 角色练度面板（横版 & 纵版 · 亮暗双主题）
+
+使用 `nk角色名练度`（如 `nk爱丽丝练度`，加 `刷新` 可实时同步），完整呈现角色立绘/皮肤、装备超载词条、技能练度、收藏品、魔方与循环室；支持横版与纵版自由切换，以及亮/暗主题与全局随机策略。
 
 <details open>
-<summary><strong>图1 · 妮姬练度查询｜点击展开 / 收起</strong></summary>
+<summary><strong>横版角色练度卡 · 亮色 &amp; 暗色｜点击展开 / 收起</strong></summary>
 
-使用 `nk角色名练度`（如 `nk爱丽丝练度`），查看本人角色的装备超载词条、技能、魔方、收藏品与循环室。
-
-<p align="center"><strong>宽版亮色</strong></p>
+<p align="center"><strong>横版亮色（90% 深灰反色图标 + 轻透玻璃衬底）</strong></p>
 <p align="center">
-  <a href="https://s1.imagehub.cc/images/2026/10/29/2bfd48fe190ca4da68c49d29739fc3da.png">
-    <img src="https://s1.imagehub.cc/images/2026/10/29/2bfd48fe190ca4da68c49d29739fc3da.png" width="900" alt="宽版亮色角色练度卡：角色立绘、装备词条、技能与循环室">
-  </a>
-</p>
-<p align="center"><strong>宽版暗色</strong></p>
-<p align="center">
-  <a href="https://s1.imagehub.cc/images/2026/10/29/20103cbcd1626d374df0ab5f2b146911.png">
-    <img src="https://s1.imagehub.cc/images/2026/10/29/20103cbcd1626d374df0ab5f2b146911.png" width="900" alt="宽版暗色角色练度卡：角色立绘、装备词条、技能与循环室">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/243e7149486a1e15ceabaa35480fe3cc.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/243e7149486a1e15ceabaa35480fe3cc.png" width="900" alt="横版亮色角色练度卡：爱丽丝立绘、装备词条、技能、收藏品、魔方与循环室">
   </a>
 </p>
 
-<p align="center"><strong>纵版暗色（窄版）</strong></p>
+<p align="center"><strong>横版暗色（兔女郎皮肤立绘示例）</strong></p>
 <p align="center">
-  <a href="https://s1.imagehub.cc/images/2026/10/29/27af72b039f827da4ec7a53de114463d.png">
-    <img src="https://s1.imagehub.cc/images/2026/10/29/27af72b039f827da4ec7a53de114463d.png" width="600" alt="纵版暗色角色练度卡：角色立绘、装备词条与技能养成">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/d0556f656cc2ae2ca1ab438b676372ba.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/d0556f656cc2ae2ca1ab438b676372ba.png" width="900" alt="横版暗色角色练度卡：兔女郎爱丽丝立绘、装备词条、技能、收藏品、魔方与循环室">
   </a>
 </p>
 
 </details>
 
 <details open>
-<summary><strong>图2 · 指挥官信息名片｜点击展开 / 收起</strong></summary>
+<summary><strong>纵版角色练度卡（手机单屏适配）· 亮色 &amp; 暗色｜点击展开 / 收起</strong></summary>
 
-使用 `nk信息` 或 `nk名片`，以横版名片展示指挥官资料、主页队伍、主推角色立绘、战役爬塔与前哨数据。
-
-<p align="center">
-  <a href="https://s1.imagehub.cc/images/2026/10/29/ad94378a318bc927b3302e2d86e2b15d.png">
-    <img src="https://s1.imagehub.cc/images/2026/10/29/ad94378a318bc927b3302e2d86e2b15d.png" width="900" alt="横版指挥官信息名片：指挥官资料、角色立绘、主页队伍、战役爬塔与前哨数据">
-  </a>
-</p>
-
-</details>
-
-<details open>
-<summary><strong>图3 · 资源查询与预计满仓时间 · 暗色主题｜点击展开 / 收起</strong></summary>
-
-使用 `nk资源查询`，查看核心资源、保管箱容量与预计回满时间；时间预估基于本次查询快照。
-
-<p align="center">
-  <a href="https://s1.imagehub.cc/images/2026/10/20/1b94addf6276f536bd6628aa8bd0c49e.png">
-    <img src="https://s1.imagehub.cc/images/2026/10/20/1b94addf6276f536bd6628aa8bd0c49e.png" width="900" alt="暗色主题资源查询：资源与保管箱容量、预计满仓时间">
-  </a>
-</p>
+<table>
+  <tr>
+    <th align="center">纵版亮色（玛丽安：女王皮肤）</th>
+    <th align="center">纵版暗色（莉贝雷利奥皮肤）</th>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="https://s1.imagehub.cc/images/2026/11/25/82b5b313dafa9dbaf2aa13c5d914bec0.png">
+        <img src="https://s1.imagehub.cc/images/2026/11/25/82b5b313dafa9dbaf2aa13c5d914bec0.png" width="430" alt="纵版亮色角色练度卡：玛丽安女王皮肤、装备词条、技能、收藏品与循环室">
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://s1.imagehub.cc/images/2026/11/25/2041c2cb28f5d957521f2137fbe15b40.png">
+        <img src="https://s1.imagehub.cc/images/2026/11/25/2041c2cb28f5d957521f2137fbe15b40.png" width="430" alt="纵版暗色角色练度卡：莉贝雷利奥皮肤、装备词条、技能、收藏品与循环室">
+      </a>
+    </td>
+  </tr>
+</table>
 
 </details>
 
-<details open>
-<summary><strong>图4 · 保管箱接近满仓的颜色提示 · 亮色主题｜点击展开 / 收起</strong></summary>
+---
 
-资源查询图中的保管箱提示条会随占用比例变色（>70% 橙色、>90% / MAX 红色）；这是查询图片内的状态提示，主动推送需另行开启收菜提醒。
+### 2. 指挥官名片、阵容图鉴与别名查询
 
-<p align="center">
-  <a href="https://s1.imagehub.cc/images/2026/10/20/a363a6f9c270f4fe24001417e8e0f7e3.png">
-    <img src="https://s1.imagehub.cc/images/2026/10/20/a363a6f9c270f4fe24001417e8e0f7e3.png" width="900" alt="亮色主题资源查询：保管箱接近满仓时，提示条变为红色警戒色">
-  </a>
-</p>
-
-</details>
+使用 `nk信息` / `nk名片` 生成 Bento v3 指挥官名片；使用 `nk卡片` 查看主力妮姬、`nk图鉴` 查看全量图鉴（含灰阶未解锁角色）；使用 `nk<角色>别名查询` 快速确认可用简称。
 
 <details open>
-<summary><strong>图5 · 个人出刀详情｜点击展开 / 收起</strong></summary>
-
-使用 `nk出刀详情`，查看本人或同联盟指定排名成员的会战队伍、伤害与击杀记录。
+<summary><strong>指挥官信息名片（Bento v3 · 暗色主题）｜点击展开 / 收起</strong></summary>
 
 <p align="center">
-  <a href="https://s1.imagehub.cc/images/2026/10/20/69d53dbc204a634d511d40c0e2cabb6d.png">
-    <img src="https://s1.imagehub.cc/images/2026/10/20/69d53dbc204a634d511d40c0e2cabb6d.png" width="900" alt="个人出刀详情示例：本人会战队伍、伤害及击杀信息">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/a0eb6c6866dab1dc664e616490dbda82.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/a0eb6c6866dab1dc664e616490dbda82.png" width="900" alt="指挥官信息名片暗色主题：主推立绘、核心 KPI、战役与四大企业塔、前哨基地及主页队伍">
   </a>
 </p>
 
 </details>
 
 <details>
-<summary><strong>图6 · Day2 联盟成员出刀总览 · 长图默认折叠｜点击展开 / 收起</strong></summary>
-
-使用 `nk出刀速查 Day2`，查看成员出刀总览、输出前三、击杀前三与未完成名单。
+<summary><strong>指挥官信息名片（Bento v3 · 亮色主题）｜点击展开</strong></summary>
 
 <p align="center">
-  <a href="https://s1.imagehub.cc/images/2026/10/20/c6214312dc66e19bf15358682e2ab903.png">
-    <img src="https://s1.imagehub.cc/images/2026/10/20/c6214312dc66e19bf15358682e2ab903.png" width="900" alt="Day2联盟出刀总览长图：成员出刀情况、输出前三、击杀前三与未完成名单">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/d819fc37efdfd8a12f58f5044426fd56.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/d819fc37efdfd8a12f58f5044426fd56.png" width="900" alt="指挥官信息名片亮色主题：主推立绘、反色企业塔图标、核心 KPI、前哨基地及主页队伍">
+  </a>
+</p>
+
+</details>
+
+<details>
+<summary><strong>主力妮姬卡片（<code>nk卡片</code> · 任一技能 ≥ Lv.7）｜点击展开</strong></summary>
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/ac997bf993504ad20ed1326de6beee5a.jpg">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/ac997bf993504ad20ed1326de6beee5a.jpg" width="900" alt="主力妮姬卡片：技能大于等于7级主力阵容、同步器等级与星级核心角标">
+  </a>
+</p>
+
+</details>
+
+<details>
+<summary><strong>完整妮姬图鉴（<code>nk图鉴</code> · 含灰阶未解锁展示）｜点击展开</strong></summary>
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/84ed5d8c071a4e4eebdabf91127b0868.jpg">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/84ed5d8c071a4e4eebdabf91127b0868.jpg" width="900" alt="完整妮姬图鉴：全量已持有角色与灰阶未解锁妮姬列表">
+  </a>
+</p>
+
+</details>
+
+<details>
+<summary><strong>角色别名查询卡片（<code>nk黑莲别名查询</code> · 亮色 &amp; 暗色）｜点击展开</strong></summary>
+
+<table>
+  <tr>
+    <th align="center">亮色主题（红莲：暗影）</th>
+    <th align="center">暗色主题（莉贝雷利奥）</th>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="https://s1.imagehub.cc/images/2026/11/25/5825d35c36ab05e44abed765ab064bc1.png">
+        <img src="https://s1.imagehub.cc/images/2026/11/25/5825d35c36ab05e44abed765ab064bc1.png" width="430" alt="角色别名卡片亮色主题：红莲暗影可用别名列表">
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://s1.imagehub.cc/images/2026/11/25/088eb3e492086485c1f8affdb5d7e9ae.png">
+        <img src="https://s1.imagehub.cc/images/2026/11/25/088eb3e492086485c1f8affdb5d7e9ae.png" width="430" alt="角色别名卡片暗色主题：莉贝雷利奥可用别名列表">
+      </a>
+    </td>
+  </tr>
+</table>
+
+</details>
+
+---
+
+### 3. 资源查询、联盟会战与个人突袭
+
+<details open>
+<summary><strong>资源查询与保管箱收菜估算（<code>nk资源查询</code>）｜点击展开 / 收起</strong></summary>
+
+展示 8 类核心资源、前哨保管箱动态警戒进度条（>70% 橙色、>90% / MAX 红色）及 90% 提醒线与满仓时间预估；主动推送需另行开启 `nk开启收菜提醒`。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/f8b36493a103be85473f65ddcfd7ed7b.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/f8b36493a103be85473f65ddcfd7ed7b.png" width="760" alt="资源查询卡片：8类核心资源、保管箱90%警戒刻度与满仓时间估算">
+  </a>
+</p>
+
+</details>
+
+<details open>
+<summary><strong>联盟突袭 · 个人出刀详情（<code>nk出刀详情</code>）｜点击展开 / 收起</strong></summary>
+
+查看本人或同联盟指定伤害排名成员的会战配队、角色练度角标、单刀伤害与尾刀击杀记录。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/e8492d9ea9802636392942ade204afb5.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/e8492d9ea9802636392942ade204afb5.png" width="900" alt="联盟突袭出刀详情：成员会战队伍、角色头像角标、单刀伤害与尾刀标记">
+  </a>
+</p>
+
+</details>
+
+<details>
+<summary><strong>联盟突袭 · 查刀概览与双列榜单（<code>nk出刀</code> / <code>nk查刀</code>）｜点击展开</strong></summary>
+
+包含左右双列「龙傲天 · 输出前三」与「活菩萨 · 击杀前三」榜单、Day2 出刀速查表、缺刀名单与尾刀统计。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/fc2b7a1cc95ffdd4f0539a03a71819c4.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/fc2b7a1cc95ffdd4f0539a03a71819c4.png" width="900" alt="联盟突袭查刀概览：龙傲天与活菩萨双列榜单、成员出刀速查与缺刀统计">
+  </a>
+</p>
+
+</details>
+
+<details>
+<summary><strong>联盟突袭 · BOSS 血量进度（<code>nk会战血量</code>）｜点击展开</strong></summary>
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/da6975173ec63e1980a3f22ea914eccd.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/da6975173ec63e1980a3f22ea914eccd.png" width="820" alt="联盟会战 BOSS 血量卡片：当前阶段、总削减进度与 5 位 BOSS 剩余血量">
+  </a>
+</p>
+
+</details>
+
+<details open>
+<summary><strong>DILDORO 个人突袭配队与伤害模拟（<code>nk个人突袭推荐</code>）｜点击展开 / 收起</strong></summary>
+
+自动识别当前弱点或按指定五属性导入本人养成，生成排行编队推荐与伤害模拟参考。
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/b123b0fb788248134887aa2eb9eab0ab.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/b123b0fb788248134887aa2eb9eab0ab.png" width="900" alt="个人突袭推荐卡片：查询弱点、赛季信息与 DILDORO 推荐编队伤害模拟">
+  </a>
+</p>
+
+</details>
+
+---
+
+### 4. 官网活动日历、社区攻略与帮助菜单（长图默认折叠）
+
+<details>
+<summary><strong>官网活动日历 · 亮色主题（<code>nk日历</code> · 无需登录）｜点击展开</strong></summary>
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/b15e363dc91aa3c83de5aa4240e4778b.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/b15e363dc91aa3c83de5aa4240e4778b.png" width="860" alt="官网活动日历亮色主题：队员招募、最新时装、版本活动奖励、模拟室倒计时与竞技场赛程">
+  </a>
+</p>
+
+</details>
+
+<details>
+<summary><strong>官网活动日历 · 暗色主题（<code>nk日历</code> · 无需登录）｜点击展开</strong></summary>
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/a0f572cb5e6d5939c4f4c793a2a24b55.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/a0f572cb5e6d5939c4f4c793a2a24b55.png" width="860" alt="官网活动日历暗色主题：队员招募、最新时装、版本活动奖励、模拟室倒计时与竞技场赛程">
+  </a>
+</p>
+
+</details>
+
+<details>
+<summary><strong>Blablalink 社区攻略长图（<code>nk&lt;角色&gt;攻略</code> · 含自动中文翻译与原帖二维码）｜点击展开</strong></summary>
+
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/da24e2d4240eeca29e0892553f4b36e8.jpg">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/da24e2d4240eeca29e0892553f4b36e8.jpg" width="860" alt="Blablalink 社区攻略长图示例：自动中文翻译、图文排版与原帖直达二维码">
+  </a>
+</p>
+
+</details>
+
+<details>
+<summary><strong>指令帮助菜单 · 普通用户版 &amp; Bot 主完整版（<code>nk帮助</code>）｜点击展开</strong></summary>
+
+<p align="center"><strong>普通用户指令指南</strong></p>
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/c8c6829ca0c7a5fcd2cbe8f5e09a7da9.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/c8c6829ca0c7a5fcd2cbe8f5e09a7da9.png" width="860" alt="帮助菜单普通用户版：三步快速上手与常用指令分组一览">
+  </a>
+</p>
+
+<p align="center"><strong>Bot 主完整指令指南（含运维自检、攻略重索引与四名单管理）</strong></p>
+<p align="center">
+  <a href="https://s1.imagehub.cc/images/2026/11/25/e7ed07285f61d25c24856321d9e659bd.png">
+    <img src="https://s1.imagehub.cc/images/2026/11/25/e7ed07285f61d25c24856321d9e659bd.png" width="860" alt="帮助菜单 Bot 主完整版：全量用户指令与 Bot 主运维管理指令">
   </a>
 </p>
 

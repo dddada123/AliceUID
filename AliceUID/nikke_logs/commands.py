@@ -44,3 +44,23 @@ async def export_logs(bot, ev):
         await bot.send('日志导出或文件发送失败，请检查接入端文件上传和路径权限。')
     finally:
         _busy.discard(owner)
+
+
+@sv_logs.on_command(('自检', '插件自检'), block=True)
+async def self_check_cmd(bot, ev):
+    if getattr(ev, 'user_pm', 6) != 0 and not is_master(ev.user_id):
+        await bot.send('仅Bot主可以执行插件自检。')
+        return
+    from .ops import run_self_check
+    report = await run_self_check()
+    await bot.send(report)
+
+
+@sv_logs.on_command('清理缓存', block=True)
+async def clean_cache_cmd(bot, ev):
+    if getattr(ev, 'user_pm', 6) != 0 and not is_master(ev.user_id):
+        await bot.send('仅Bot主可以清理插件缓存。')
+        return
+    from .ops import clean_cache
+    result = await asyncio.to_thread(clean_cache, (ev.text or '').strip())
+    await bot.send(result)

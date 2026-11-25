@@ -136,29 +136,37 @@
     {% endfor %}
   {% else %}
     {% if view == 'quick' %}
-    <section class="bento-card panel">
-      <div class="panel-head"><h2>龙傲天 · 输出前三</h2><span class="panel-head-sub">TOP DAMAGE</span></div>
-      <table class="rank-table">
-        <tr><th>排名</th><th>成员</th><th style="text-align:right">Day2总输出</th></tr>
-        {% for row in damage_leaders %}
-        <tr><td><span class="ui-pill rank-num{% if loop.index==1 %} top1{% endif %}">{{ loop.index }}</span></td><td>{{ row.name }}</td><td class="damage">{{ '{:,}'.format(row.damage) }}</td></tr>
-        {% else %}
-        <tr><td colspan="3" style="width:auto">暂无当前Day2输出记录</td></tr>
-        {% endfor %}
-      </table>
-    </section>
-    <section class="bento-card panel">
-      <div class="panel-head"><h2>活菩萨 · 击杀前三</h2><span class="panel-head-sub">TOP KILLS</span></div>
-      <table class="rank-table">
-        <tr><th>排名</th><th>成员</th><th>击杀</th><th style="text-align:right">尾刀输出</th></tr>
-        {% for row in kill_leaders %}
-        <tr><td><span class="ui-pill rank-num{% if loop.index==1 %} top1{% endif %}">{{ loop.index }}</span></td><td>{{ row.name }}</td><td>{{ row.tails }}</td><td class="damage">{{ '{:,}'.format(row.tail_damage) }}</td></tr>
-        {% else %}
-        <tr><td colspan="4" style="width:auto">暂无当前Day2击杀记录</td></tr>
-        {% endfor %}
-      </table>
-      <div style="font-size:11px;color:{{ palette.muted }}">同击杀按仅尾刀输出排序；完全相同按稳定顺序展示。</div>
-    </section>
+    <div class="leaders-grid">
+      <section class="bento-card panel leader-card">
+        <div class="panel-head"><h2>龙傲天 · 输出前三</h2><span class="panel-head-sub">TOP DAMAGE</span></div>
+        <div class="leader-list">
+          {% for row in damage_leaders %}
+          <div class="leader-row{{ ' own' if row.own else '' }}">
+            <span class="ui-pill rank-num{% if loop.index==1 %} top1{% endif %}">{{ loop.index }}</span>
+            <span class="leader-name"><span class="leader-name-text">{{ row.name }}</span>{% if row.own %}<span class="ui-pill own-pill">本人</span>{% endif %}</span>
+            <span class="leader-damage">{{ '{:,}'.format(row.damage) }}</span>
+          </div>
+          {% else %}
+          <div class="leader-empty">暂无当前Day2输出记录</div>
+          {% endfor %}
+        </div>
+      </section>
+      <section class="bento-card panel leader-card">
+        <div class="panel-head"><h2>活菩萨 · 击杀前三</h2><span class="panel-head-sub">TOP KILLS</span></div>
+        <div class="leader-list">
+          {% for row in kill_leaders %}
+          <div class="leader-row{{ ' own' if row.own else '' }}">
+            <span class="ui-pill rank-num{% if loop.index==1 %} top1{% endif %}">{{ loop.index }}</span>
+            <span class="leader-name"><span class="leader-name-text">{{ row.name }}</span></span>
+            <span class="ui-pill kill-pill">×{{ row.tails }} 杀</span>
+            <span class="leader-damage">{{ '{:,}'.format(row.tail_damage) }}</span>
+          </div>
+          {% else %}
+          <div class="leader-empty">暂无当前Day2击杀记录</div>
+          {% endfor %}
+        </div>
+      </section>
+    </div>
     <section class="bento-card panel">
       <div class="panel-head"><h2>Day2出刀速查</h2><span class="panel-head-sub">{{ completion }}</span></div>
       <table class="rank-table">

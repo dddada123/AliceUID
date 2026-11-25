@@ -8,9 +8,6 @@
 {% include 'character_compact_v2.css' %}
 .ordinary-note{font-size:10px;color:{{ palette.muted }};margin:auto 0;text-align:center}
 .avatar-empty{font-weight:800;color:{{ element_accent }};font-size:14px}
-.gear-icon{width:26px;height:26px;display:flex;align-items:center;justify-content:center}
-.gear-icon img{width:24px;height:24px;object-fit:contain}
-.preview-notice{font-size:9px;font-weight:600;color:{{ palette.credit_ink }};opacity:0.85}
 </style>
 </head>
 <body>
@@ -94,7 +91,12 @@
           <span>NIKKE // ARCHIVE</span>
         </div>
         {% if corp_watermark_url %}
-        <div class="portrait-corp-watermark"><img src="{{ corp_watermark_url }}" alt=""></div>
+        <div class="portrait-corp-watermark">
+          <span class="icon-stack" style="width:100%;height:100%">
+            {% if corp_watermark_shadow_url %}<img class="icon-shadow" src="{{ corp_watermark_shadow_url }}" alt="">{% endif %}
+            <img class="alpha-effect" src="{{ corp_watermark_url }}" alt="">
+          </span>
+        </div>
         {% endif %}
         <div class="portrait-art-wrap">
           {% if art_shadow_url %}

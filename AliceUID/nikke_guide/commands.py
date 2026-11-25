@@ -11,12 +11,36 @@ from .registry import CATEGORY_LABELS, SYUEN_AUTHOR
 from .service import EXPERIMENTAL_NOTICE, GuideService, get_guide_service
 from .source import GuideError
 
-SELECTION_TTL_SECONDS = 60
+SELECTION_TTL_SECONDS = 120
 _BJ_TZ = timezone(timedelta(hours=8))
 _RAID_RESERVED = ('会战', '联盟战', '工会战', '公会战')
 
 
-def _format_list_message(posts, authors_by_id, *, filter_text: str = '') -> str:
+def _parse_list_args(raw: str) -> tuple[str, int]:
+    text = str(raw or '').strip()
+    if not text:
+        return '', 1
+    m = re.match(r'^(.*?)(?:\s+|第)?([1-9]\d{0,2})页?$', text)
+    if m:
+        prefix_part = m.group(1).strip()
+        if prefix_part or re.fullmatch(r'(?:第?\s*[1-9]\d{0,2}\s*页?|[1-9]\d{0,2})', text):
+            return prefix_part, max(1, int(m.group(2)))
+    m_p = re.match(r'^(.*?)\s*[pP]([1-9]\d{0,2})$', text)
+    if m_p:
+        return m_p.group(1).strip(), max(1, int(m_p.group(2)))
+    return text, 1
+
+
+def _format_list_chunks(
+    posts,
+    authors_by_id,
+    *,
+    filter_text: str = '',
+    page: int = 1,
+    total_pages: int = 1,
+    total_count: int | None = None,
+    dual_bubble: bool = False,
+) -> list[str]:
     header_author = SYUEN_AUTHOR.display_name
     header_url = SYUEN_AUTHOR.homepage_url
     if posts:
@@ -24,21 +48,42 @@ def _format_list_message(posts, authors_by_id, *, filter_text: str = '') -> str:
         if a is not None:
             header_author = a.display_name
             header_url = a.homepage_url
-    lines = [
-        f'[AliceUID·攻略列表] 最近 {len(posts)} 篇攻略' + (f'（筛选：{filter_text}）' if filter_text else ''),
+    count_info = f'（共 {total_count} 篇，第 {page}/{total_pages} 页）' if total_count is not None and total_pages > 1 else ''
+    filter_info = f'（筛选：{filter_text}）' if filter_text else ''
+    prefix = command_prefix()
+    lines_head = [
+        f'[AliceUID·攻略列表] 本页 {len(posts)} 篇攻略{filter_info}{count_info}',
         f'作者：{header_author}',
         f'作者主页：{header_url}',
         EXPERIMENTAL_NOTICE,
         '',
     ]
-    for idx, p in enumerate(posts, 1):
+
+    def _entry_line(idx: int, p) -> str:
         cat = CATEGORY_LABELS.get(p.category, '攻略')
         dt = datetime.fromtimestamp(p.created_on, _BJ_TZ).strftime('%Y-%m-%d') if p.created_on else ''
         lang_tag = '' if str(p.original_language or '').lower().startswith('zh') else f' [{str(p.original_language).upper()}·可自动翻译]'
-        lines.append(f'{idx}. [{cat}] {p.title}{lang_tag}（{dt}）')
-    lines.append('')
-    lines.append(f'请在 {SELECTION_TTL_SECONDS} 秒内回复 {command_prefix()}查询1 ～ {command_prefix()}查询{len(posts)} 获取对应攻略。')
-    return '\n'.join(lines)
+        return f'{idx}. [{cat}] {p.title}{lang_tag}（{dt}）'
+
+    footer_lines = [
+        '',
+        f'请在 {SELECTION_TTL_SECONDS} 秒内回复 {prefix}查询1 ～ {prefix}查询{len(posts)} 获取对应攻略。',
+    ]
+    if total_pages > 1:
+        next_hint = f'{prefix}攻略查询 {filter_text} {page + 1}'.replace('  ', ' ').strip() if page < total_pages else f'{prefix}攻略查询 {filter_text} 1'.replace('  ', ' ').strip()
+        footer_lines.append(f'翻页查看：发送 {next_hint}')
+
+    if dual_bubble and len(posts) > 10:
+        b1 = lines_head + [_entry_line(idx, p) for idx, p in enumerate(posts[:10], 1)]
+        b2 = [f'[AliceUID·攻略列表（续）] 第 {page}/{total_pages} 页', ''] + [_entry_line(idx, p) for idx, p in enumerate(posts[10:], 11)] + footer_lines
+        return ['\n'.join(b1), '\n'.join(b2)]
+
+    body = lines_head + [_entry_line(idx, p) for idx, p in enumerate(posts, 1)] + footer_lines
+    return ['\n'.join(body)]
+
+
+def _format_list_message(posts, authors_by_id, *, filter_text: str = '') -> str:
+    return _format_list_chunks(posts, authors_by_id, filter_text=filter_text)[0]
 
 
 def _log_cmd_failure(stage: str, exc: BaseException):
@@ -132,6 +177,11 @@ class GuideCommands:
         self._sessions.move_to_end(key)
         while len(self._sessions) > 256:
             self._sessions.popitem(last=False)
+        try:
+            from ..nikke_commands.selection import register_selection
+            register_selection(ev, lambda b, e, idx: self.handle_pick(b, e, idx), ttl=SELECTION_TTL_SECONDS, clock=self.clock)
+        except Exception:
+            pass
 
     def _pop_or_get_session(self, ev) -> list | None:
         key = self._session_key(ev)
@@ -197,7 +247,12 @@ class GuideCommands:
             nonlocal notified
             if not notified:
                 notified = True
-                await self._send_text(bot, ev, '攻略索引正在初始化，请稍候…')
+                try:
+                    from ..nikke_message.persona import guide_init_wait_text
+                    msg = guide_init_wait_text()
+                except ImportError:
+                    msg = '攻略索引正在初始化，请稍候…'
+                await self._send_text(bot, ev, msg)
 
         if not service.is_initialized():
             await _notify_init()
@@ -222,12 +277,15 @@ class GuideCommands:
         if status == 'none' or not posts:
             _log_cmd_event('KEYWORD_MATCH', 'NONE')
             target_label = match_res.resolved_label or query
-            await self._send_text(
-                bot,
-                ev,
-                f'暂未在已收录作者（{SYUEN_AUTHOR.display_name}）的攻略中找到「{target_label}」相关文章。\n'
-                f'可发送 {command_prefix()}攻略查询 查看最近 10 篇攻略，或尝试更换角色名/关键词。',
-            )
+            try:
+                from ..nikke_message.persona import guide_not_found_text
+                msg = guide_not_found_text(SYUEN_AUTHOR.display_name, target_label, command_prefix())
+            except ImportError:
+                msg = (
+                    f'暂未在已收录作者（{SYUEN_AUTHOR.display_name}）的攻略中找到「{target_label}」相关文章。\n'
+                    f'可发送 {command_prefix()}攻略查询 查看最近攻略，或尝试更换角色名/关键词。'
+                )
+            await self._send_text(bot, ev, msg)
             return
 
         if status == 'suggest':
@@ -238,8 +296,8 @@ class GuideCommands:
 
         if status == 'multiple' and len(posts) > 1:
             _log_cmd_event('KEYWORD_MATCH', 'MULTIPLE', count=len(posts))
-            self._save_session(ev, posts[:10])
-            msg = _format_list_message(posts[:10], authors_by_id, filter_text=query)
+            self._save_session(ev, posts[:20])
+            msg = _format_list_message(posts[:20], authors_by_id, filter_text=query)
             sender = self.forward_sender
             if sender is None:
                 from ..nikke_message import send_with_forward
@@ -252,7 +310,12 @@ class GuideCommands:
         author = authors_by_id.get(post.author_id, SYUEN_AUTHOR)
 
         async def on_render(p):
-            await self._send_text(bot, ev, f'正在获取并生成《{p.title}》攻略长图，请稍候…')
+            try:
+                from ..nikke_message.persona import guide_render_wait_text
+                msg = guide_render_wait_text(p.title)
+            except ImportError:
+                msg = f'正在获取并生成《{p.title}》攻略长图，请稍候…'
+            await self._send_text(bot, ev, msg)
 
         try:
             result = await service.render_or_get(post, author, on_rendering=on_render)
@@ -267,11 +330,25 @@ class GuideCommands:
         if await self.allowed(ev):
             await self._deliver_guide(bot, ev, result)
 
+    def _use_forward_list(self, ev) -> bool:
+        try:
+            from ..nikke_config.config import AliceUIDConfig
+            if bool(AliceUIDConfig.get_config('AliceUID_GuideForward').data) is False:
+                return False
+        except Exception:
+            pass
+        if getattr(ev, 'bot_id', '') == 'onebot' and not getattr(ev, 'group_id', None):
+            return False
+        return True
+
     async def handle_list(self, bot, ev):
         if not await self.allowed(ev):
             await self._send_text(bot, ev, '本群或当前用户未开放妮姬查询，请联系管理员。')
             return
-        filter_text = str(getattr(ev, 'text', '') or '').strip()
+        raw_text = str(getattr(ev, 'text', '') or '').strip()
+        filter_text, page = _parse_list_args(raw_text)
+        forward_mode = self._use_forward_list(ev)
+        page_size = 20 if forward_mode else 10
         service: GuideService = self.service_factory()
         notified = False
 
@@ -279,7 +356,12 @@ class GuideCommands:
             nonlocal notified
             if not notified:
                 notified = True
-                await self._send_text(bot, ev, '攻略索引正在初始化，请稍候…')
+                try:
+                    from ..nikke_message.persona import guide_init_wait_text
+                    msg = guide_init_wait_text()
+                except ImportError:
+                    msg = '攻略索引正在初始化，请稍候…'
+                await self._send_text(bot, ev, msg)
 
         if not service.is_initialized():
             await _notify_init()
@@ -288,11 +370,20 @@ class GuideCommands:
             await _notify_init()
 
         try:
-            posts, authors_by_id = await service.recent_posts(
-                filter_text=filter_text,
-                limit=10,
-                on_first_index=on_first,
-            )
+            if hasattr(service, 'recent_posts_paged'):
+                posts, total_count, total_pages, authors_by_id = await service.recent_posts_paged(
+                    filter_text=filter_text,
+                    page=page,
+                    page_size=page_size,
+                    on_first_index=on_first,
+                )
+            else:
+                posts, authors_by_id = await service.recent_posts(
+                    filter_text=filter_text,
+                    limit=page_size,
+                    on_first_index=on_first,
+                )
+                total_count, total_pages = len(posts), 1
         except GuideError as exc:
             await self._send_text(bot, ev, str(exc))
             return
@@ -304,27 +395,39 @@ class GuideCommands:
         if not await self.allowed(ev):
             return
         if not posts:
-            await self._send_text(bot, ev, '暂未找到符合条件的攻略帖子，请尝试不带筛选发送。')
+            if page > 1 and total_count > 0:
+                await self._send_text(bot, ev, f'第 {page} 页暂无内容，当前共 {total_pages} 页（{total_count} 篇）。')
+            else:
+                await self._send_text(bot, ev, '暂未找到符合条件的攻略帖子，请尝试不带筛选发送。')
             return
 
         self._save_session(ev, posts)
-        msg = _format_list_message(posts, authors_by_id, filter_text=filter_text)
+        chunks = _format_list_chunks(
+            posts,
+            authors_by_id,
+            filter_text=filter_text,
+            page=page,
+            total_pages=total_pages,
+            total_count=total_count,
+            dual_bubble=forward_mode,
+        )
         sender = self.forward_sender
         if sender is None:
             from ..nikke_message import send_with_forward
             sender = send_with_forward
-        await sender(bot, ev, [msg], config_key='AliceUID_GuideForward', at_sender=False, preserve_order=True)
+        await sender(bot, ev, chunks, config_key='AliceUID_GuideForward', at_sender=False, preserve_order=True)
 
     async def handle_pick(self, bot, ev, index: int):
         if not await self.allowed(ev):
             return
         posts = self._pop_or_get_session(ev)
         if posts is None:
-            await self._send_text(
-                bot,
-                ev,
-                f'当前没有有效的新攻略列表或已超过 {SELECTION_TTL_SECONDS} 秒，请先发送 {command_prefix()}攻略查询。',
-            )
+            try:
+                from ..nikke_message.persona import guide_timeout_text
+                msg = guide_timeout_text(SELECTION_TTL_SECONDS, command_prefix())
+            except ImportError:
+                msg = f'当前没有有效的新攻略列表或已超过 {SELECTION_TTL_SECONDS} 秒，请先发送 {command_prefix()}攻略查询。'
+            await self._send_text(bot, ev, msg)
             return
         if not 1 <= index <= len(posts):
             await self._send_text(bot, ev, f'编号超出范围，请回复 {command_prefix()}查询1 ～ {command_prefix()}查询{len(posts)}。')
@@ -336,7 +439,12 @@ class GuideCommands:
         author = authors_by_id.get(post.author_id, SYUEN_AUTHOR)
 
         async def on_render(p):
-            await self._send_text(bot, ev, f'正在获取并生成《{p.title}》攻略长图，请稍候…')
+            try:
+                from ..nikke_message.persona import guide_render_wait_text
+                msg = guide_render_wait_text(p.title)
+            except ImportError:
+                msg = f'正在获取并生成《{p.title}》攻略长图，请稍候…'
+            await self._send_text(bot, ev, msg)
 
         try:
             result = await service.render_or_get(post, author, on_rendering=on_render)
@@ -417,7 +525,7 @@ def setup(policy=None):
                 bot,
                 ev,
                 f'用法：{command_prefix()}重白攻略 / {command_prefix()}神莲攻略 / {command_prefix()}魔方攻略\n'
-                f'查看最近10篇攻略：{command_prefix()}攻略查询（60秒内回复 {command_prefix()}查询1~10 获取）',
+                f'查看最近攻略：{command_prefix()}攻略查询 [筛选/页码]（{SELECTION_TTL_SECONDS}秒内回复 {command_prefix()}查询1~20 获取）',
             )
             return
         if text.startswith(('查询', '重索引')):
@@ -431,11 +539,15 @@ def setup(policy=None):
             return
         await commands.handle_keyword(bot, ev, text)
 
-    @_sv.on_regex(r'^查询\s*([1-9]|10)$')
+    @_sv.on_regex(r'^查询\s*([1-9]|1\d|20)$')
     async def guide_pick_cmd(bot, ev):
         raw = str(getattr(ev, 'raw_text', '') or getattr(ev, 'text', '') or '').strip()
-        m = re.search(r'([1-9]|10)$', raw)
+        m = re.search(r'([1-9]|1\d|20)$', raw)
         if m:
-            await commands.handle_pick(bot, ev, int(m.group(1)))
+            idx = int(m.group(1))
+            from ..nikke_commands.selection import dispatch_selection
+            if await dispatch_selection(bot, ev, idx, clock=commands.clock):
+                return
+            await commands.handle_pick(bot, ev, idx)
 
     return _sv

@@ -143,7 +143,7 @@ async def nikke_relogin_cmd(bot: Bot, ev: Event):
     method = "导入新Cookie" if AliceUIDConfig.get_config("AliceUID_LoginMode").data == "cookie" else "登录原blablalink账号或导入其Cookie"
     text = (f"[AliceUID·重新登录]\n区服：{REGIONS[bind.area_id].label}\n请在{ttl // 60}分钟内打开链接，{method}：\n{url}\n"
             "仅更新本人同账号同区服的Cookie；失败保留原绑定。链接仅供本人使用，请勿转发。\n"
-            "更新后自动社区授权需重新开启，每日预算不会重置。\n" + expiry_notice(bind.cookie_expire))
+            "同号更新后将自动尝试延续已开启的自动签到与自动兑换码；收菜提醒需按需重新开启，每日预算不会重置。")
     await _send_login_link(bot, text, url, ev=ev)
     asyncio.create_task(_notify_login(bot, ev, session.token))
 
@@ -183,11 +183,20 @@ async def _notify_login(bot: Bot, ev: Event, token: str):
         if not session:
             return
         if session.status == "success":
+            recovery_line = ""
+            if session.replace_revision:
+                try:
+                    from ..nikke_community.runtime import login_recovery_notice
+                    notice = await login_recovery_notice(ev.user_id, ev.bot_id)
+                    if notice:
+                        recovery_line = f"\n自动化状态：{notice}"
+                except Exception:
+                    pass
             text = (
                 f"[AliceUID·账号绑定]\n{'重新登录' if session.replace_revision else '绑定'}成功：{session.nickname or '未知'}（{session.area_label}）\n"
-                f"回到聊天窗口发送 {command_prefix()}我的账号 查看绑定。\n"
-                + _login_guidance() + "\n"
-                "正在后台准备本人资料、角色练度与皮肤缓存，完成后自动发送最新信息卡。\n" + expiry_notice(session.cookie_expire)
+                f"回到聊天窗口发送 {command_prefix()}我的账号 查看绑定与自动化状态。\n"
+                + _login_guidance() + recovery_line + "\n"
+                "正在后台准备本人资料、角色练度与皮肤缓存，完成后自动发送最新信息卡。"
             )
         elif session.status == "failed" and failed_generation != session.generation:
             failed_generation = session.generation
@@ -272,15 +281,16 @@ async def nikke_unbind_cmd(bot: Bot, ev: Event):
     await send_reply(bot, ev, titled('账号绑定', f"已解绑「{bind.nickname or '未知'}」，本地 Cookie 已删除。" + cache_notice), at_sender=True)
 
 
-@sv_account.on_fullmatch(("我的账号", "账号信息"))
+@sv_account.on_fullmatch(("我的账号", "账号信息", "我的状态", "账号状态"))
 @account_errors
 async def nikke_account_cmd(bot: Bot, ev: Event):
     from ..nikke_message.persona import send_reply, titled
+    from ..nikke_user.service import account_status_summary
     bind = await AliceBind.get_bind(ev.user_id, ev.bot_id)
     if not bind:
         await send_reply(bot, ev, f"还没有绑定登录账号。UID登记请发送 {command_prefix()}我的UID 查看；本人练度查询需先发送 {command_prefix()}登录 选择区服。", at_sender=True)
         return
-    await send_reply(bot, ev, titled('账号绑定', bind_summary(bind)), at_sender=True)
+    await send_reply(bot, ev, titled('账号状态', account_status_summary(bind, ev)), at_sender=True)
 
 
 @sv_account.on_command(("导入cookie", "导入Cookie", "绑定cookie"))

@@ -56,8 +56,17 @@ def mark_invalid(bind, code):
 
 
 def unavailable_message(bind):
+    prefix = command_prefix()
+    try:
+        from ..nikke_message.persona import broken_binding_text, need_login_text, relogin_text
+    except ImportError:
+        if bind is None:
+            return f'还没有绑定账号，请发送 {prefix}登录（或{prefix}登陆）选择区服。'
+        if expired(bind) or known_invalid(bind):
+            return RELOGIN
+        return f'绑定数据损坏或Cookie缺失/不可用，请发送 {prefix}重新登录（或{prefix}重新登陆）更新。'
     if bind is None:
-        return f'还没有绑定账号，请发送 {command_prefix()}登录（或{command_prefix()}登陆）选择区服。'
+        return need_login_text(prefix)
     if expired(bind) or known_invalid(bind):
-        return RELOGIN
-    return f'绑定数据损坏或Cookie缺失/不可用，请发送 {command_prefix()}重新登录（或{command_prefix()}重新登陆）更新。'
+        return relogin_text(prefix)
+    return broken_binding_text(prefix)

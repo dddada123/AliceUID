@@ -56,7 +56,7 @@ def style_version(*, dpi=None, theme=None):
                 templates=[(p.name, file_version(p)) for p in sorted((PACKAGE/'templates').iterdir())
                            if p.suffix in ('.html', '.css')],
                 renderer=[(n, file_version(PACKAGE/'nikke_render'/n))
-                          for n in ('theme.py', 'wallpaper.py', 'glass.py', 'render.py')],
+                          for n in ('theme.py', 'wallpaper.py', 'glass.py', 'render.py', 'icon_effects.py')],
                 painters=[(n, file_version(PACKAGE/n/'draw.py')) for n in
                           ('nikke_profile', 'nikke_character', 'nikke_union', 'nikke_status')],
                 alias_painter=file_version(PACKAGE/'nikke_character/alias_draw.py'))

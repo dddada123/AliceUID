@@ -23,7 +23,12 @@
     <span>NIKKE // CHARACTER ARCHIVE</span>
   </div>
   {% if corp_watermark_url %}
-  <div class="stage-corp-watermark"><img src="{{ corp_watermark_url }}" alt=""></div>
+  <div class="stage-corp-watermark">
+    <span class="icon-stack" style="width:100%;height:100%">
+      {% if corp_watermark_shadow_url %}<img class="icon-shadow" src="{{ corp_watermark_shadow_url }}" alt="">{% endif %}
+      <img class="alpha-effect" src="{{ corp_watermark_url }}" alt="">
+    </span>
+  </div>
   {% endif %}
 
   <div class="wide-art">

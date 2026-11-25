@@ -96,23 +96,23 @@ def solo_html(image, bind, region, theme=None):
     else:
         simulation_settings = '网站现有模拟配置'
     from ..nikke_render.fonts import apply_font_html
-    from ..nikke_render.icon_effects import icon_effect
+    from ..nikke_render.icon_effects import prepare_light_icon
     from ..nikke_render.theme import v2_theme_tokens
     theme_key = get_card_theme(theme if theme in ('light','dark','random') else get_solo_theme_mode())
-    elem_icon = presentation.get('element_icon') or ''
-    curr_icon = presentation.get('current_element_icon') or ''
-    ref_icon = presentation.get('reference_element_icon') or ''
+    elem_icon, elem_shadow = prepare_light_icon(presentation.get('element_icon') or '', theme_key)
+    curr_icon, curr_shadow = prepare_light_icon(presentation.get('current_element_icon') or '', theme_key)
+    ref_icon, ref_shadow = prepare_light_icon(presentation.get('reference_element_icon') or '', theme_key)
     ctx = apply_theme(dict(commander_name=bind.nickname or '昵称未知',commander_uid=bind.uid or '未知',
         commander_region=region.label,weakness=image.weakness,rank_season=image.rank_season,
         query_mode='自动跟随赛季' if image.site.get('mode', 'default') == 'default' else '手动指定',
         avatar_url=presentation.get('avatar_url') or PLACEHOLDER,
         avatar_hint=presentation.get('avatar_hint') or '头像暂不可用',
         element_icon=elem_icon,
-        element_shadow_url=icon_effect(elem_icon, theme_key) if elem_icon else '',
+        element_shadow_url=elem_shadow or '',
         current_element_icon=curr_icon,
-        current_element_shadow_url=icon_effect(curr_icon, theme_key) if curr_icon else '',
+        current_element_shadow_url=curr_shadow or '',
         reference_element_icon=ref_icon,
-        reference_element_shadow_url=icon_effect(ref_icon, theme_key) if ref_icon else '',
+        reference_element_shadow_url=ref_shadow or '',
         current_element_label=label(codes['current']) if codes['current'] else '属性未确认',
         reference_element_label=label(codes['reference']) if codes['reference'] else '属性未确认',
         season_notice=season_notice(image.site), simulation_settings=simulation_settings,

@@ -29,7 +29,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
     permission = 0 if permission == 0 else 6
     sections = [
         {'title': '账号与 UID', 'tag': '本人账号', 'description': '登录绑定、凭据维护与 UID 登记（仅操作本人）。', 'items': [
-            {'command': f'{command_prefix()}我的账号', 'description': '查看绑定区服与 Cookie 有效期'},
+            {'command': f'{command_prefix()}我的账号 / {command_prefix()}我的状态', 'description': '查看绑定区服、缓存与自动化状态总览'},
             {'command': f'{command_prefix()}重新登录 / {command_prefix()}重新登陆', 'description': '更新本人 Cookie 并在同步后自动发送名片'},
             {'command': f'{command_prefix()}导入cookie 日服 Cookie内容', 'description': '高级导入（仅限私聊，需指定区服）'},
             {'command': f'{command_prefix()}解绑', 'description': '退出登录绑定并停止自动社区'},
@@ -52,8 +52,8 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
         ]},
         {'title': '攻略查询', 'tag': '无需登录', 'description': 'Blablalink 攻略长图与联盟战攻略查询，支持自动中文翻译。', 'items': [
             {'command': f'{command_prefix()}<角色/关键词>攻略', 'description': '查询角色、单突或机制攻略并转发长图与正文'},
-            {'command': f'{command_prefix()}攻略查询 [筛选/全部]', 'description': '查看最新 10 篇攻略并检查新帖（可按分类筛选）'},
-            {'command': f'{command_prefix()}查询1 ～ {command_prefix()}查询10', 'description': '收到攻略列表后 60 秒内回复编号获取对应攻略'},
+            {'command': f'{command_prefix()}攻略查询 [筛选/页码]', 'description': '查看最新攻略（转发默认20篇）并检查新帖，支持翻页'},
+            {'command': f'{command_prefix()}查询1 ～ {command_prefix()}查询20', 'description': '收到攻略或角色候选列表后 120 秒内回复编号获取'},
             {'command': f'{command_prefix()}会战攻略 / {command_prefix()}会战阵容', 'description': '获取当期或最近一期联盟战攻略与阵容长图'},
         ]},
         {'title': '联盟查询', 'tag': '联盟与会战', 'description': '联盟突袭出刀统计、个人详情与 BOSS 血量。', 'items': [
@@ -100,6 +100,7 @@ def build_help_context(permission: int = 6, *, login_mode='browser') -> dict:
                 {'command': f'{command_prefix()}数据库更新 [状态/帮助]', 'description': '增量更新角色资料与图库，或查看日历调度状态'},
                 {'command': f'{command_prefix()}攻略重索引 [清空]', 'description': 'Bot主重新回溯全量攻略索引；追加“清空”可重置后重建'},
                 {'command': f'{command_prefix()}日志导出[分钟数]', 'description': f'导出最近 1～1440 分钟脱敏诊断日志（如 {command_prefix()}日志导出10）'},
+                {'command': f'{command_prefix()}自检 / {command_prefix()}清理缓存', 'description': '运行环境与配置体检，或清理可再生图片/攻略缓存'},
                 {'command': f'{command_prefix()}刷新兑换码', 'description': '立即检查并同步最新官方/第三方兑换码'},
                 {'command': f'{command_prefix()}启用自动兑换码 / {command_prefix()}停用自动兑换码', 'description': '控制全插件自动兑换码总开关'},
                 {'command': f'{command_prefix()}全员自动兑换码 / {command_prefix()}关闭全员自动兑换码', 'description': '批量开关全部已绑定用户的自动兑换'},

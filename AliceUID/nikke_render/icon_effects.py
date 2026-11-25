@@ -1,12 +1,37 @@
-"""Independent shadow layers; the foreground always uses the original image."""
+"""Independent shadow layers and light-theme monochrome icon inversion."""
 import base64
 import io
 from functools import lru_cache
-from PIL import Image, ImageFilter, ImageChops
+from PIL import Image, ImageFilter, ImageChops, ImageOps
+
+LIGHT_INVERT_KEYS = frozenset({'skills', 'role_icons', 'recycling_levels'})
 
 
 @lru_cache(maxsize=128)
-def icon_effect(source, theme='light', maxed=False):
+def invert_icon_light(source, floor=26):
+    """Invert white monochrome icon RGB to ~90% dark gray while preserving alpha."""
+    if not isinstance(source, str) or not source.startswith('data:image/png;base64,'):
+        return source
+    try:
+        data = base64.b64decode(source.split(',', 1)[1], validate=True)
+        with Image.open(io.BytesIO(data)) as original:
+            if original.width * original.height > 4_000_000:
+                return source
+            icon = original.convert('RGBA')
+        r, g, b, a = icon.split()
+        inv_rgb = ImageOps.invert(Image.merge('RGB', (r, g, b)))
+        soft_rgb = inv_rgb.point(lambda p: round(floor + p * (255 - floor) / 255))
+        result = soft_rgb.convert('RGBA')
+        result.putalpha(a)
+        out = io.BytesIO()
+        result.save(out, 'PNG')
+        return 'data:image/png;base64,' + base64.b64encode(out.getvalue()).decode('ascii')
+    except (ValueError, OSError):
+        return source
+
+
+@lru_cache(maxsize=128)
+def icon_effect(source, theme='light', maxed=False, *, light_glow=False):
     if not isinstance(source, str) or not source.startswith('data:image/png;base64,'):
         return None
     try:
@@ -20,15 +45,21 @@ def icon_effect(source, theme='light', maxed=False):
         px, py = round(w / 4), round(h / 4)
         size = (w + 2 * px, h + 2 * py)
         mask = Image.new('L', size)
-        shift = 0 if maxed or theme == 'dark' else max(1, round(h * .035))
-        mask.paste(icon.getchannel('A'), (px, py + shift))
-        color = (246, 193, 92) if (maxed and theme == 'dark') else (200, 12, 96) if maxed else (16, 57, 123) if theme == 'dark' else (0, 0, 0)
-        radius = min(w, h) * (.045 if maxed else .025)
-        alpha = mask.filter(ImageFilter.GaussianBlur(radius))
-        alpha = alpha.point(lambda a: round(a * (.90 if maxed else .65 if theme == 'dark' else .70)))
-        if maxed:
-            inner = mask.filter(ImageFilter.GaussianBlur(min(w, h) * .018))
-            alpha = ImageChops.lighter(alpha, inner.point(lambda a: round(a * .80)))
+        if light_glow and theme == 'light':
+            mask.paste(icon.getchannel('A'), (px, py))
+            color = (255, 255, 255)
+            radius = min(w, h) * 0.015
+            alpha = mask.filter(ImageFilter.GaussianBlur(radius)).point(lambda a: min(255, round(a * 0.92)))
+        else:
+            shift = 0 if maxed or theme == 'dark' else max(1, round(h * .035))
+            mask.paste(icon.getchannel('A'), (px, py + shift))
+            color = (246, 193, 92) if (maxed and theme == 'dark') else (200, 12, 96) if maxed else (16, 57, 123) if theme == 'dark' else (0, 0, 0)
+            radius = min(w, h) * (.045 if maxed else .025)
+            alpha = mask.filter(ImageFilter.GaussianBlur(radius))
+            alpha = alpha.point(lambda a: round(a * (.90 if maxed else .65 if theme == 'dark' else .70)))
+            if maxed:
+                inner = mask.filter(ImageFilter.GaussianBlur(min(w, h) * .018))
+                alpha = ImageChops.lighter(alpha, inner.point(lambda a: round(a * .80)))
         result = Image.new('RGBA', size, color + (0,))
         result.putalpha(alpha)
         out = io.BytesIO()
@@ -38,21 +69,40 @@ def icon_effect(source, theme='light', maxed=False):
         return None
 
 
+def prepare_light_icon(source, theme='light', *, maxed=False):
+    """Return (foreground_uri, shadow_uri) with 90% gray inversion + tight white glow on light theme."""
+    if not source:
+        return source, None
+    if theme == 'light':
+        return invert_icon_light(source), icon_effect(source, theme, maxed, light_glow=True)
+    return source, icon_effect(source, theme, maxed)
+
+
 def apply_icon_effects(context):
     result = dict(context)
     theme = result['card_theme']
     for key in ('gear', 'skills', 'role_icons', 'recycling_levels'):
         rows = []
+        invert_light = key in LIGHT_INVERT_KEYS
         for original in result.get(key) or []:
             row = dict(original)
             maxed = key == 'gear' and type(row.get('tier')) is int and row['tier'] == 10 and type(row.get('lv')) is int and row['lv'] == 5
-            row['icon_shadow_url'] = icon_effect(row.get('icon_url'), theme, maxed)
+            if invert_light and row.get('icon_url'):
+                fg, sh = prepare_light_icon(row.get('icon_url'), theme, maxed=maxed)
+                row['icon_url'] = fg
+                row['icon_shadow_url'] = sh
+            else:
+                row['icon_shadow_url'] = icon_effect(row.get('icon_url'), theme, maxed)
             rows.append(row)
         result[key] = rows
     for key in ('collection_display', 'cube_display'):
         row = dict(result[key])
         row['icon_shadow_url'] = icon_effect(row.get('icon_url'), theme)
         result[key] = row
+    if result.get('corp_watermark_url'):
+        fg, sh = prepare_light_icon(result.get('corp_watermark_url'), theme)
+        result['corp_watermark_url'] = fg
+        result['corp_watermark_shadow_url'] = sh
     return result
 
 

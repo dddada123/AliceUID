@@ -137,11 +137,31 @@ def setup(policy=None, scheduler=None):
     from ..nikke_permissions.policy import GroupPolicy
     policy = policy or GroupPolicy(MAIN_PATH / 'group_policy.json')
     sv = SV('妮姬完整阵容卡片', priority=3)
-    @sv.on_fullmatch(('卡片', '阵容卡片', '妮姬卡片'))
+    @sv.on_command(('卡片', '阵容卡片', '妮姬卡片'))
     async def card(bot, ev):
+        arg = (getattr(ev, 'text', '') or '').strip()
+        if arg == '刷新':
+            from ..nikke_user.panel_refresh import queue_refresh
+            await queue_refresh(bot, ev, policy)
+            return
+        if arg:
+            from ..nikke_commands import command_prefix
+            from ..nikke_message.persona import send_reply
+            await send_reply(bot, ev, f'用法：{command_prefix()}卡片 [刷新]', at_sender=True)
+            return
         await queue_roster(bot, ev, policy, mode='main')
-    @sv.on_fullmatch(('图鉴', '妮姬图鉴', '完整图鉴'))
+    @sv.on_command(('图鉴', '妮姬图鉴', '完整图鉴'))
     async def codex(bot, ev):
+        arg = (getattr(ev, 'text', '') or '').strip()
+        if arg == '刷新':
+            from ..nikke_user.panel_refresh import queue_refresh
+            await queue_refresh(bot, ev, policy)
+            return
+        if arg:
+            from ..nikke_commands import command_prefix
+            from ..nikke_message.persona import send_reply
+            await send_reply(bot, ev, f'用法：{command_prefix()}图鉴 [刷新]', at_sender=True)
+            return
         await queue_roster(bot, ev, policy, mode='codex')
     @sv.on_fullmatch(('刷新面板',))
     async def refresh(bot, ev):

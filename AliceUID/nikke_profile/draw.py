@@ -20,7 +20,7 @@ def render_profile_html(context: dict) -> str:
     from datetime import datetime, timedelta, timezone
     from ..nikke_render.card_background import wide_backdrop
     from ..nikke_character.draw import upper_body_placement, portrait_placement, _scale_placement
-    from ..nikke_render.icon_effects import portrait_shadow, icon_effect
+    from ..nikke_render.icon_effects import portrait_shadow, prepare_light_icon
     from ..nikke_render.fonts import apply_font_html
     from ..nikke_resource.cache import PLACEHOLDER
     result = apply_theme(context, context.get('card_theme'), with_wallpaper=False)
@@ -38,7 +38,11 @@ def render_profile_html(context: dict) -> str:
     team = [dict(row) for row in (result.get('top_nikke') or [])[:5]]
     lead_index = profile_lead_index(team)
     lead = dict(team[lead_index]) if team else dict(name='暂无展示角色', level='—', combat_text='—', rarity='—', role_icons=[], star_states=[], core_display='')
-    lead['role_icons'] = [dict(icon, icon_shadow_url=icon_effect(icon.get('icon_url'), result['card_theme'])) for icon in lead.get('role_icons') or []]
+    lead_role_icons = []
+    for icon in lead.get('role_icons') or []:
+        fg, sh = prepare_light_icon(icon.get('icon_url'), result['card_theme'])
+        lead_role_icons.append(dict(icon, icon_url=fg, icon_shadow_url=sh))
+    lead['role_icons'] = lead_role_icons
     result.update(top_nikke=team, lead=lead, squad_nikke=[row for index, row in enumerate(team) if index != lead_index])
     result['avatar_url'] = result.get('avatar_url') or PLACEHOLDER
     source = result.get('hero_art_url') or (lead.get('portrait_url') if not lead.get('portrait_missing', True) else lead.get('icon_url'))
@@ -84,16 +88,24 @@ def render_profile_html(context: dict) -> str:
     result['squad_fallback'] = bool(result.get('team_source')) and result.get('team_source') != '个人主页展示队伍'
     result['lead_name_font_size'] = 20 if len(str(lead.get('name') or '')) >= 8 else 23
     corp_icons = result.get('_corp_icons') or {}
-    result['corp_towers'] = [
-        dict(t, icon_url=t.get('icon_url') or corp_icons.get(t.get('label'), ''),
-             icon_shadow_url=icon_effect(t.get('icon_url') or corp_icons.get(t.get('label'), ''), color))
-        for t in (result.get('corp_towers') or [])
-    ]
+    towers = []
+    for t in (result.get('corp_towers') or []):
+        fg, sh = prepare_light_icon(t.get('icon_url') or corp_icons.get(t.get('label'), ''), color)
+        towers.append(dict(t, icon_url=fg, icon_shadow_url=sh))
+    result['corp_towers'] = towers
     if not result.get('lead_corp_watermark_url'):
         result['lead_corp_watermark_url'] = next(
             (r.get('icon_url') for r in (lead.get('role_icons') or []) if isinstance(r, dict) and r.get('kind') == 'corporation' and r.get('icon_url')),
             '',
         )
+        result['lead_corp_watermark_shadow_url'] = next(
+            (r.get('icon_shadow_url') for r in (lead.get('role_icons') or []) if isinstance(r, dict) and r.get('kind') == 'corporation' and r.get('icon_url')),
+            '',
+        )
+    else:
+        wm_fg, wm_sh = prepare_light_icon(result.get('lead_corp_watermark_url'), color)
+        result['lead_corp_watermark_url'] = wm_fg
+        result['lead_corp_watermark_shadow_url'] = wm_sh
     result['font_family'] = 'MiSans'
     return apply_font_html(_env.get_template('profile.html').render(**result), embed=False)
 

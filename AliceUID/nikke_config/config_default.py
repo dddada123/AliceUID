@@ -18,15 +18,6 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         '高速：1秒，速度最快，报错时建议降至中速或缓速重试；中速：2秒，速度与稳定性较平衡（默认推荐）；缓速：5秒，等待较长。三档均串行，保存后新查询任务生效。适用于游戏查询及收菜复核；个人突袭、签到、兑换和数据库策略独立。旧极速自动转为中速。',
         '中速（推荐）', options=['高速', '中速（推荐）', '缓速'],
     ),
-    'AliceUID_CacheTTL': GsIntConfig(
-        "查询缓存（秒）",
-        "同一账号的角色列表/资料缓存时间，避免触发上游限流",
-        600,
-        3600,
-    ),
-    'AliceUID_ResourceCacheSeconds': GsIntConfig(
-        "资源查询刷新间隔（固定300秒）", "按用户独立限频5分钟；期间复用已渲染图片，显式刷新也不绕过。兼容旧配置键，实际固定300秒。", 300, 300,
-    ),
     'AliceUID_UnionCacheSeconds': GsIntConfig(
         "联盟查询缓存秒数", "出刀与会战血量共用同联盟快照并合并在途请求；默认180秒，可设60秒，0表示不缓存。", 180, 3600,
     ),
@@ -63,12 +54,6 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         "登录链接用转发消息（实验性）",
         "实验性功能，默认开启，首次登录/重新登录共用，二维码独立。NapCat未确认发送时自动回退一次普通消息，并暂停本连接转发60秒。开启后若看不到消息，请关闭此功能回退普通模式。保留已有配置值。",
         True,
-    ),
-    'AliceUID_DefaultArea': GsIntConfig(
-        "默认区服（旧版兼容）",
-        f"仅保留兼容旧配置。新登录须用 {command_prefix()}登录日服/国际服/北美服/韩服/东南亚服 选择；不会自动切换区服。港澳台登录暂未支持",
-        81,
-        91,
     ),
     'AliceUID_BrowserAutoInstall': GsBoolConfig(
         "自动准备浏览器组件",
@@ -298,6 +283,26 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
     ),
     'AliceUID_AIQueryEnabled': GsBoolConfig(
         "允许AI调用只读查询", "默认关闭；开启后须同时启用Core AI并重启完成注册。开放帮助、本人资料、角色练度和角色别名查询；始终遵守Core与AliceUID权限。关闭后立即拒绝AI调用，普通命令不受影响。", False,
+    ),
+
+    # 兼容保留项（一般无需修改）
+    'AliceUID_CacheTTL': GsIntConfig(
+        "【旧版兼容】查询缓存（秒）",
+        "旧版兼容键，持久面板快照不依此过期，一般无需修改。",
+        600,
+        3600,
+    ),
+    'AliceUID_ResourceCacheSeconds': GsIntConfig(
+        "【旧版兼容】资源查询刷新间隔（固定300秒）",
+        "兼容旧配置键，实际固定300秒，一般无需修改。",
+        300,
+        300,
+    ),
+    'AliceUID_DefaultArea': GsIntConfig(
+        "【旧版兼容】默认区服",
+        f"仅保留兼容旧配置。新登录须用 {command_prefix()}登录日服/国际服/北美服/韩服/东南亚服 选择；不会自动切换区服。",
+        81,
+        91,
     ),
 
 }

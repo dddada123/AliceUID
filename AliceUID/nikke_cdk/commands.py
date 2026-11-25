@@ -284,7 +284,7 @@ class Commands:
             return
         try:
             if not self.enabled():
-                notice = 'CDK兑换尚未由Bot主开启，本次未兑换；列表与只读查询仍可使用'
+                notice = 'Bot主尚未在 GsCore 后台开启「允许本人CDK兑换」（AliceUID_EnableWriteOps），本次仅展示列表，未执行兑换。'
                 if combined:
                     await self.send_detail(bot, ev, listing(report, self.prefix()), '兑换码查询详情', bind,
                                            header_note=notice, quiet=True)

@@ -22,12 +22,15 @@ class CharacterLookupError(ValueError):
 
 
 class CharacterNotFound(CharacterLookupError):
-    pass
+    def __init__(self, message: str, suggestions: list[int] | None = None):
+        self.suggestions = list(suggestions or [])
+        super().__init__(message)
 
 
 class CharacterAmbiguous(CharacterLookupError):
-    def __init__(self, candidates: list[str]):
+    def __init__(self, candidates: list[str], codes: list[int] | None = None):
         self.candidates = candidates
+        self.codes = list(codes or [])
         super().__init__('角色名不唯一，请使用完整名称：' + '、'.join(candidates[:12]))
 
 
@@ -66,7 +69,7 @@ def resolve_character(query: str, static: StaticData, *, convert: Callable[[str]
     if len(exact) == 1:
         return exact[0]
     if len(exact) > 1:
-        raise CharacterAmbiguous([f'{names[code]}（{code}）' for code in exact])
+        raise CharacterAmbiguous([f'{names[code]}（{code}）' for code in exact], codes=exact[:10])
     convert = convert or _converter()
     key = _name_key(query, convert)
     normalized = {code: _name_key(name, convert) for code, name in names.items()}
@@ -79,8 +82,47 @@ def resolve_character(query: str, static: StaticData, *, convert: Callable[[str]
     if len(matches) == 1:
         return matches[0]
     if len(matches) > 1:
-        raise CharacterAmbiguous([f'{names[code]}（{code}）' for code in matches])
-    raise CharacterNotFound(f'未找到角色「{query}」，请使用完整角色名。')
+        raise CharacterAmbiguous([f'{names[code]}（{code}）' for code in matches], codes=matches[:10])
+    suggestions = _fuzzy_suggestions(key, normalized, aliases, convert)
+    raise CharacterNotFound(f'未找到角色「{query}」，请使用完整角色名。', suggestions=suggestions)
+
+
+def _fuzzy_suggestions(key: str, normalized: dict[int, str], aliases: dict | None, convert: Callable[[str], str]) -> list[int]:
+    if not key:
+        return []
+    import difflib
+    term_to_codes: dict[str, list[int]] = {}
+    for code, norm_name in normalized.items():
+        if norm_name:
+            term_to_codes.setdefault(norm_name, []).append(code)
+    if aliases:
+        for alias, code in aliases.items():
+            cid = int(code)
+            if cid in normalized:
+                ak = _name_key(alias, convert)
+                if ak:
+                    term_to_codes.setdefault(ak, []).append(cid)
+    hits: list[int] = []
+    for m in difflib.get_close_matches(key, list(term_to_codes), n=8, cutoff=0.45):
+        for cid in term_to_codes[m]:
+            if cid not in hits:
+                hits.append(cid)
+                if len(hits) >= 5:
+                    return hits
+    if len(key) >= 2:
+        key_chars = set(key)
+        scored = []
+        for code, norm_name in normalized.items():
+            if code in hits or not norm_name:
+                continue
+            overlap = len(key_chars & set(norm_name))
+            if overlap >= max(2, len(key_chars) - 1):
+                scored.append((overlap / max(len(norm_name), len(key)), code))
+        for _, code in sorted(scored, reverse=True):
+            hits.append(code)
+            if len(hits) >= 5:
+                break
+    return hits
 
 
 def integer(value) -> int | None:

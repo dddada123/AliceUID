@@ -21,7 +21,12 @@
       <span>NIKKE // FEATURED</span>
     </div>
     {% if lead_corp_watermark_url %}
-    <div class="lead-corp-watermark"><img src="{{ lead_corp_watermark_url }}" alt=""></div>
+    <div class="lead-corp-watermark">
+      <span class="icon-stack" style="width:100%;height:100%">
+        {% if lead_corp_watermark_shadow_url %}<img class="icon-shadow" src="{{ lead_corp_watermark_shadow_url }}" alt="">{% endif %}
+        <img class="alpha-effect" src="{{ lead_corp_watermark_url }}" alt="">
+      </span>
+    </div>
     {% endif %}
     <div class="lead-art-wrap">
       {% if hero_shadow_url %}

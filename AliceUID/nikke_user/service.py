@@ -234,20 +234,112 @@ async def load_client(user_id: str, bot_id: str, *, community=False) -> tuple[Op
 
 def bind_summary(bind: AliceBind) -> str:
     from ..nikke_api.auth import mask
-
-    expiry = "未知（手动导入未提供有效期）"
-    if bind.cookie_expire:
-        import time
-        seconds = int(bind.cookie_expire) - int(time.time())
-        expiry = f"约 {max(1, (seconds + 86399) // 86400)} 天" if seconds > 0 else "已过期，请重新登录"
     from .auth_state import known_invalid
-    if known_invalid(bind):
-        expiry = '已失效，请重新登录'
+
+    cred_state = '已失效，请重新登录' if known_invalid(bind) else '本地可用'
     region = REGIONS.get(int(bind.area_id or 0))
     return (
         f"昵称：{bind.nickname or '未知'}\n"
         f"UID：{bind.uid or '当前区服尚未取得'}\n"
         f"区服：{region.label if region else '不受支持，请重新登录'}\n"
         f"openid：{mask(bind.intl_open_id or '')}\n"
-        f"Cookie 有效期：{expiry}"
+        f"凭据状态：{cred_state}"
     )
+
+
+def account_status_summary(bind: AliceBind, ev=None) -> str:
+    """Aggregate local account, panel cache, automation toggles and privacy status (0 network)."""
+    from ..nikke_time import beijing_text
+    lines = [bind_summary(bind)]
+
+    # 1. Local panel & profile cache
+    try:
+        from ..nikke_character.cache import PanelCache, panel_identity
+        store = PanelCache(MAIN_PATH / 'cache/panels')
+        ident = panel_identity(bind)
+        prof = store.read_profile(ident)
+        snap = store.read(ident)
+        p_time = beijing_text(prof['_checked_at']) if prof and prof.get('_checked_at') else '未缓存'
+        if snap and snap.get('roster_checked_at'):
+            r_count = len(snap.get('characters') or {})
+            r_time = f'已缓存 {r_count} 名（{beijing_text(snap["roster_checked_at"])}）'
+        else:
+            r_time = '未缓存'
+        lines.append(f'名片资料：{p_time}')
+        lines.append(f'全量练度：{r_time}')
+    except Exception:
+        pass
+
+    # 2. Community auto sign-in
+    try:
+        from ..nikke_community.runtime import recovery_store, configured_sign_time
+        from ..nikke_community.notifications import identity as comm_identity
+        from ..nikke_community.service import CommunityService
+        account, owner = comm_identity(CommunityService, bind)
+        st = recovery_store().state(account)
+        if st.get('owner') == owner and st.get('enabled'):
+            like_tag = '含点赞' if st.get('likes') else '不含点赞'
+            fail_tag = f'｜连续失败{st["fail_count"]}/3' if st.get('fail_count') else ''
+            lines.append(f'自动签到：开启（{like_tag}，每日 {configured_sign_time()}{fail_tag}）')
+        elif st.get('owner') == owner and st.get('auto_disabled'):
+            lines.append('自动签到：已因连续失败自动暂停')
+        else:
+            lines.append('自动签到：未开启')
+    except Exception:
+        pass
+
+    # 3. Auto CDK
+    try:
+        from ..nikke_cdk.store import Store as CdkStore
+        from ..nikke_cdk.models import identity as cdk_identity
+        cdk_db = MAIN_PATH / 'cdk.sqlite3'
+        user_on = False
+        if cdk_db.is_file():
+            cstore = CdkStore(cdk_db)
+            acct_key = cdk_identity(bind)
+            meta_val = cstore.meta(f'auto_user:{acct_key}')
+            if meta_val is None:
+                # Check automatic_users table if present
+                with cstore.tx() as db:
+                    row = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='automatic_users'").fetchone()
+                    if row:
+                        rec = db.execute('SELECT enabled FROM automatic_users WHERE account=?', (acct_key,)).fetchone()
+                        user_on = bool(rec and rec['enabled'])
+            else:
+                user_on = bool(meta_val)
+        sys_on = AliceUIDConfig.get_config('AliceUID_AutoCDKEnabled').data is True
+        write_on = AliceUIDConfig.get_config('AliceUID_EnableWriteOps').data is True
+        if user_on and sys_on and write_on:
+            lines.append('自动兑换码：开启（系统已就绪）')
+        elif user_on:
+            lines.append('自动兑换码：个人已开启（等待后台开启兑换权限/总开关）')
+        else:
+            lines.append('自动兑换码：未开启')
+    except Exception:
+        pass
+
+    # 4. Harvest reminder for current conversation
+    if ev is not None:
+        try:
+            from ..nikke_harvest.planner import route_from_event
+            from ..nikke_harvest.runtime import get_runtime
+            route = route_from_event(ev)
+            sub = get_runtime().store.sub(route['id'])
+            if sub and sub.get('enabled'):
+                quiet = sub.get('quiet') or '关闭'
+                lines.append(f'收菜提醒：本会话已开启（免打扰：{quiet}）')
+            else:
+                lines.append('收菜提醒：本会话未开启')
+        except Exception:
+            pass
+
+    # 5. Official privacy pending restore
+    try:
+        from ..nikke_privacy.service import PrivacyService, account_key as priv_key
+        psvc = PrivacyService(MAIN_PATH / 'privacy_restore')
+        if psvc.pending(priv_key(bind)) is not None:
+            lines.append('官网隐私：个人突袭临时公开中（后台将自动恢复）')
+    except Exception:
+        pass
+
+    return '\n'.join(lines)

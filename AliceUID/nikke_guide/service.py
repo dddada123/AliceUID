@@ -271,6 +271,22 @@ class GuideService:
         limit: int = 10,
         on_first_index=None,
     ) -> tuple[list[IndexedPost], dict[str, GuideAuthor]]:
+        posts, _, _, authors_by_id = await self.recent_posts_paged(
+            filter_text=filter_text,
+            page=1,
+            page_size=limit,
+            on_first_index=on_first_index,
+        )
+        return posts, authors_by_id
+
+    async def recent_posts_paged(
+        self,
+        *,
+        filter_text: str = '',
+        page: int = 1,
+        page_size: int = 10,
+        on_first_index=None,
+    ) -> tuple[list[IndexedPost], int, int, dict[str, GuideAuthor]]:
         # `nk攻略查询` always performs a lightweight incremental check for newly published posts.
         authors = await self.ensure_indexed(
             on_first_index=on_first_index,
@@ -302,9 +318,13 @@ class GuideService:
                 break
 
         rows = self.store.list_posts(author_id=author_id, categories=cat_filter, limit=200)
-        if include_all:
-            return rows[:limit], authors_by_id
-        return dedupe_recent_guides(rows, limit=limit), authors_by_id
+        ordered = rows if include_all else dedupe_recent_guides(rows, limit=200)
+        total_count = len(ordered)
+        size = max(1, int(page_size))
+        total_pages = max(1, (total_count + size - 1) // size)
+        cur_page = max(1, int(page))
+        start = (cur_page - 1) * size
+        return ordered[start:start + size], total_count, total_pages, authors_by_id
 
     async def search(
         self,

@@ -195,8 +195,8 @@ html,body{width:570px;height:1048px;overflow:hidden}
 .compact-right .gear{width:248px;height:146px;padding:10px 10px;display:flex;flex-direction:column;justify-content:space-between}
 .compact-gear-head{display:flex;align-items:center;justify-content:space-between;height:28px}
 .compact-gear-left{display:flex;align-items:center;gap:6px}
-.compact-gear-icon{width:26px;height:26px;display:flex;align-items:center;justify-content:center}
-.compact-gear-icon img{width:24px;height:24px;object-fit:contain}
+.gear-icon{width:26px;height:26px;display:flex;align-items:center;justify-content:center}
+.gear-icon img{width:24px;height:24px;object-fit:contain}
 .compact-gear-name{font-size:12px;font-weight:800;color:{{ palette.ink }}}
 .gear-tier-pill{
   height:18px;padding:2px 6px 0;border-radius:5px;
@@ -215,4 +215,4 @@ html,body{width:570px;height:1048px;overflow:hidden}
   position:absolute;left:16px;right:16px;top:982px;height:54px;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;z-index:4;
 }
-.compact-preview-note{font-size:9px;font-weight:600;color:{{ palette.credit_ink }};opacity:0.85}
+.preview-notice{font-size:9px;font-weight:600;color:{{ palette.credit_ink }};opacity:0.85}

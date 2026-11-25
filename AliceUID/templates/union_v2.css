@@ -48,15 +48,46 @@ html,body{width:1000px;margin:0;padding:0}
 .panel-head h2{margin:0;font-size:19px;line-height:24px;font-weight:800;color:{{ palette.ink }}}
 .panel-head-sub{font-size:11px;font-weight:700;color:{{ palette.muted }}}
 
+/* 龙傲天 / 活菩萨 双列榜单（Flex 严格垂直居中） */
+.leaders-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:stretch}
+.leader-card{padding:16px 18px;gap:10px}
+.leader-card .panel-head h2{font-size:17px;line-height:22px}
+.leader-list{display:flex;flex-direction:column;gap:7px}
+.leader-row{
+  display:flex;align-items:center;gap:9px;height:40px;padding:0 12px;border-radius:10px;
+  background:{{ palette.line_normal_bg }};border:1px solid {{ palette.line_normal_border }};
+}
+.leader-row.own{background:{{ element_accent_soft }};border-color:{{ element_accent_border }}}
+.leader-name{
+  flex:1;min-width:0;display:flex;align-items:center;gap:6px;
+  font-size:13px;font-weight:700;line-height:18px;color:{{ palette.ink }};
+}
+.leader-name-text{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leader-name .own-pill{margin-left:0;flex:none}
+.kill-pill{
+  flex:none;height:18px;padding:2px 7px 0;border-radius:6px;
+  background:{{ element_accent_soft }};border:1px solid {{ element_accent_border }};
+  color:{{ element_accent }};font-size:10px;font-weight:800;
+}
+.leader-damage{
+  flex:none;font-size:13px;font-weight:800;line-height:18px;color:{{ palette.ink }};
+  font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;
+}
+.leader-empty{
+  display:flex;align-items:center;justify-content:center;height:40px;padding:0 12px;border-radius:10px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  font-size:12px;color:{{ palette.muted }};
+}
+
 .rank-table{width:100%;border-collapse:separate;border-spacing:0 5px}
 .rank-table th{
-  text-align:left;font-size:11px;font-weight:800;color:{{ palette.muted }};
-  padding:6px 12px;background:{{ palette.slot_bg }};
+  text-align:left;vertical-align:middle;font-size:11px;font-weight:800;color:{{ palette.muted }};
+  padding:7px 12px;background:{{ palette.slot_bg }};
 }
 .rank-table th:first-child{border-radius:8px 0 0 8px}
 .rank-table th:last-child{border-radius:0 8px 8px 0}
 .rank-table td{
-  padding:9px 12px;font-size:13px;color:{{ palette.ink }};
+  padding:9px 12px;vertical-align:middle;font-size:13px;line-height:18px;color:{{ palette.ink }};
   background:{{ palette.line_normal_bg }};border-top:1px solid {{ palette.line_normal_border }};border-bottom:1px solid {{ palette.line_normal_border }};
 }
 .rank-table td:first-child{border-left:1px solid {{ palette.line_normal_border }};border-radius:8px 0 0 8px;width:46px}

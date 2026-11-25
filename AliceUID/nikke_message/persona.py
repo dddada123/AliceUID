@@ -370,3 +370,59 @@ def alias_export_notice(kind: str, *, style: str | None = None) -> str:
         'failed': '别名表导出或文件发送失败，请检查本地别名文件与接入端权限。',
     }
     return titled('别名导出', mapping[kind])
+
+
+# --- 6. 通用账号、权限与攻略提示 ---
+
+def need_login_text(prefix: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return f'兔子先生还没有绑定账号呢，快发送 {prefix}登录（或{prefix}登陆）选择区服绑定吧～'
+    return f'还没有绑定账号，请发送 {prefix}登录（或{prefix}登陆）选择区服。'
+
+
+def relogin_text(prefix: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return f'啊，兔子先生的登录凭据失效啦！请发送 {prefix}重新登录（或{prefix}重新登陆）更新一下，原绑定会一直保留的，不用先解绑哦～'
+    return f'Cookie 已失效或登录凭据不可用，请发送 {prefix}重新登录（或{prefix}重新登陆）更新；原绑定已保留，无需先解绑。'
+
+
+def broken_binding_text(prefix: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return f'唔……兔子先生的绑定数据好像不太完整，请发送 {prefix}重新登录（或{prefix}重新登陆）修复一下吧。'
+    return f'绑定数据损坏或Cookie缺失/不可用，请发送 {prefix}重新登录（或{prefix}重新登陆）更新。'
+
+
+def permission_denied_text(scope: str = '妮姬查询', *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return f'唔……当前群聊或账号还没有开放{scope}权限哦，请联系群管理员或 Bot 主开启。'
+    return f'本群或当前用户未开放{scope}，请联系管理员。'
+
+
+def guide_init_wait_text(*, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return '爱丽丝正在帮兔子先生初始化攻略索引，首次加载会稍微慢一点点，请稍候哦～'
+    return '攻略索引正在初始化，请稍候…'
+
+
+def guide_render_wait_text(title: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return f'遵命！爱丽丝正在获取并绘制《{title}》攻略长图，稍微等我一下哦～'
+    return f'正在获取并生成《{title}》攻略长图，请稍候…'
+
+
+def guide_not_found_text(author_name: str, target_label: str, prefix: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return (
+            f'唔……爱丽丝在已收录作者（{author_name}）的攻略里没找到「{target_label}」相关文章呢。\n'
+            f'可以发 {prefix}攻略查询 看看最近攻略，或者换个角色名/关键词试试哦～'
+        )
+    return (
+        f'暂未在已收录作者（{author_name}）的攻略中找到「{target_label}」相关文章。\n'
+        f'可发送 {prefix}攻略查询 查看最近攻略，或尝试更换角色名/关键词。'
+    )
+
+
+def guide_timeout_text(ttl: int, prefix: str, *, style: str | None = None) -> str:
+    if is_alice_style(style):
+        return f'唔……攻略列表已经超过 {ttl} 秒失效啦，兔子先生请重新发送 {prefix}攻略查询 获取最新列表哦～'
+    return f'当前没有有效的新攻略列表或已超过 {ttl} 秒，请先发送 {prefix}攻略查询。'

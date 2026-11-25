@@ -38,22 +38,30 @@ class CompactGeometry:
     gear_height: int
 
 
-COMPACT_WIDTH=660
+COMPACT_WIDTH = 570
+COMPACT_HEIGHT = 1048
 
 
 def compact_geometry(aggregate_count=0):
-    # Exact 1:2 portrait; five equal data panels. Content is centered inside
-    # each panel instead of stretching only the blank area below its rows.
-    aggregate_height=gear_height=144
-    portrait_height=640
-    main_height=760  # 640 portrait + 16 gap + 104 tools; 5*144 + 4*10.
-    top=172
-    tools_top=top+portrait_height+16
-    boxes=[(16,16,628,144),(16,top,320,portrait_height),(16,tools_top,320,104),
-           (348,top,296,aggregate_height)]
-    gear_top=top+10+aggregate_height
-    boxes.extend((348,gear_top+i*(gear_height+10),296,gear_height) for i in range(4))
-    return CompactGeometry(COMPACT_WIDTH,top+main_height+50,aggregate_height,main_height,tuple(boxes),portrait_height,tools_top,gear_top,gear_height)
+    # v2 compact layout is 570x1048; glass panels are rendered by CSS Bento cards
+    # so the backdrop must not bake misaligned v1 frost boxes onto the scene.
+    aggregate_height = 196
+    portrait_height = 556
+    main_height = 820
+    top = 154
+    tools_top = top + portrait_height + 10
+    gear_top = top + aggregate_height + 10
+    gear_height = 146
+    boxes = (
+        (16, 16, 538, 126),
+        (16, top, 280, portrait_height),
+        (16, tools_top, 280, 114),
+        (16, tools_top + 124, 280, 78),
+        (16, tools_top + 212, 280, 42),
+        (306, top, 248, aggregate_height),
+        *((306, gear_top + i * (gear_height + 10), 248, gear_height) for i in range(4)),
+    )
+    return CompactGeometry(COMPACT_WIDTH, COMPACT_HEIGHT, aggregate_height, main_height, boxes, portrait_height, tools_top, gear_top, gear_height)
 
 
 @lru_cache(maxsize=18)
@@ -68,10 +76,10 @@ def _backdrop(path_string,mtime_ns,size,width,height,boxes,theme,strength):
     y=max(0,round((source.height-height)*.46))
     scene=source.crop((x,y,x+width,y+height))
     scene=scene.filter(ImageFilter.GaussianBlur(blur_radius(strength)))
-    # Only a light veil; the actual photo remains visible between glass modules.
+    # Only a light veil; CSS .bento-card/.gear draws the glass panels cleanly.
     veil=(4,10,22,22) if theme=='dark' else (250,253,255,18)
     scene=Image.alpha_composite(scene,Image.new('RGBA',scene.size,veil))
-    return image_uri(compose_frost(scene,boxes,theme=theme,blur=0))
+    return image_uri(scene)
 
 
 def compact_backdrop(theme,geometry,strength=10):

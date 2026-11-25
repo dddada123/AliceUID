@@ -166,7 +166,7 @@ async def send_profile_image(bot, ev, client, bind, data, *, policy=None):
     return False
 
 
-@sv_profile.on_fullmatch(("信息", "名片", "个人资料"),
+@sv_profile.on_command(("信息", "名片", "个人资料"),
     to_ai=ai_description("""查询当前用户本人绑定的妮姬个人资料，复用插件缓存；不接受他人UID或账号。
     当用户询问我的指挥官等级、推图进度、同步等级时调用。
     Args:
@@ -177,6 +177,13 @@ async def send_profile_image(bot, ev, client, bind, data, *, policy=None):
 @profile_errors
 async def nikke_profile_cmd(bot: Bot, ev: Event):
     from ..nikke_message.persona import send_reply
+    arg = (ev.text or '').strip()
+    if arg == '刷新':
+        await nikke_profile_refresh_cmd(bot, ev)
+        return
+    if arg:
+        await send_reply(bot, ev, f'用法：{command_prefix()}信息 [刷新] / {command_prefix()}刷新信息', at_sender=True)
+        return
     if not await get_policy().query_allowed(ev.group_id):
         await send_reply(bot, ev, '本群未开放妮姬查询，请联系群管理员或 Bot 主。', at_sender=True)
         return
