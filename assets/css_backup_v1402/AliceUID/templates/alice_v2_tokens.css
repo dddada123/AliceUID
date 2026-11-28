@@ -1,0 +1,108 @@
+/* AliceUID v2 公共视觉体系与光学对齐规范 (双引擎兼容：无伪元素/无backdrop-filter依赖) */
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:'{{ font_family }}','Microsoft YaHei','MiSans',sans-serif}
+
+.bento-card,.gear{
+  position:relative;
+  background:{{ palette.glass_bg }};
+  border:1px solid {{ palette.glass_border }};
+  border-radius:20px;
+  box-shadow:{{ palette.glass_shadow }};
+}
+
+/* 图标 Alpha 阴影堆叠 */
+.icon-stack{
+  position:relative;display:inline-flex;flex:none;
+  vertical-align:middle;line-height:0;z-index:0;overflow:visible;
+}
+.page img.alpha-effect{
+  position:relative;z-index:1;
+  filter:none!important;transform:none;background:transparent;box-shadow:none;
+}
+.page .icon-stack img.icon-shadow{
+  position:absolute;z-index:0;
+  left:-25%;top:-25%;width:150%;height:150%;
+  max-width:none;max-height:none;
+  filter:none!important;transform:none;pointer-events:none;background:transparent;box-shadow:none;
+}
+
+/* 统一玻璃头像外框 */
+.avatar-glass{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  flex:none;overflow:hidden;
+  background:{{ 'rgba(255,255,255,.28)' if card_theme=='light' else 'rgba(5,13,25,.35)' }};
+  box-shadow:0 4px 14px rgba(8,18,32,.14);
+}
+.avatar-glass>img{display:block;object-fit:cover}
+.avatar-glass-edge{
+  position:absolute;left:0;top:0;width:100%;height:100%;border-radius:inherit;
+  z-index:5;pointer-events:none;
+  border:1px solid {{ 'rgba(255,255,255,.90)' if card_theme=='light' else 'rgba(156,185,215,.54)' }};
+  box-shadow:inset 0 1px 1px {{ 'rgba(255,255,255,.60)' if card_theme=='light' else 'rgba(255,255,255,.26)' }},inset 0 -1px 2px {{ 'rgba(19,37,56,.12)' if card_theme=='light' else 'rgba(0,0,0,.24)' }};
+}
+
+/* 光学纵向居中胶囊 (修复 pytakumi + AaZongYiYuan-2.ttf 基线偏上) */
+.ui-pill{
+  display:inline-flex;align-items:center;justify-content:center;
+  line-height:1;
+  padding-top:2px;
+  padding-bottom:0;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+
+/* 词条 3 级视觉梯度 */
+.line{
+  position:relative;
+  border-radius:7px;
+  display:grid;align-items:center;
+  background:{{ palette.line_normal_bg }};
+  border:1px solid {{ palette.line_normal_border }};
+}
+.line-name{
+  font-weight:700;color:{{ palette.ink }};
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.line-value{
+  font-weight:800;color:{{ palette.ink }};
+  text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+.line-level{
+  font-weight:700;color:{{ palette.muted }};
+  text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+.line.rare{
+  background:{{ 'rgba(22,104,184,0.10)' if card_theme=='light' else 'rgba(107,196,255,0.12)' }};
+  border-color:{{ 'rgba(22,104,184,0.28)' if card_theme=='light' else 'rgba(107,196,255,0.30)' }};
+}
+.line-rare-bar{
+  position:absolute;left:0;top:4px;bottom:4px;width:3px;border-radius:0 3px 3px 0;
+  background:{{ '#1668B8' if card_theme=='light' else '#6BC4FF' }};
+}
+.line.rare .line-value{color:{{ '#125396' if card_theme=='light' else '#81D0FF' }}}
+.line.rare .line-level{color:{{ '#1668B8' if card_theme=='light' else '#9DD8FF' }}}
+
+.line.max{
+  background:{{ 'linear-gradient(105deg,#122035,#1B2F4D)' if card_theme=='light' else 'linear-gradient(105deg,#050911,#0D1524)' }};
+  border:1px solid {{ '#CFA148' if card_theme=='light' else '#D5A94E' }};
+  box-shadow:{{ '0 2px 6px rgba(18,32,53,0.20)' if card_theme=='light' else '0 2px 6px rgba(0,0,0,0.55), 0 0 8px rgba(235,178,65,0.22)' }};
+}
+.line-max-bar{
+  position:absolute;left:0;top:3px;bottom:3px;width:3px;border-radius:0 3px 3px 0;
+  background:#F0C362;
+}
+.line.max .line-name{color:#FFF6DF}
+.line.max .line-value{color:#8AD4FF}
+.line.max .line-level{color:#F0C76B}
+
+.brand-credit-pill{
+  display:inline-flex;align-items:center;justify-content:center;
+  height:22px;line-height:1;padding:2px 14px 0;
+  border-radius:999px;
+  background:{{ 'rgba(252,254,255,0.72)' if card_theme=='light' else 'rgba(8,16,30,0.62)' }};
+  border:1px solid {{ 'rgba(255,255,255,0.85)' if card_theme=='light' else 'rgba(166,198,232,0.20)' }};
+  font-size:10px;font-weight:600;letter-spacing:0.2px;
+  color:{{ palette.credit_ink }};
+  text-shadow:none;
+}

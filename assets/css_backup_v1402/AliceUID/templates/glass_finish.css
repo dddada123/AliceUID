@@ -1,0 +1,14 @@
+/* Common sharp foreground treatment; the photo blur remains behind content. */
+.eyebrow{color:{{ theme.accent }};letter-spacing:1.8px;font-weight:700}
+.hero,.panel,.section,.notice,.stat,.step{box-shadow:0 6px 20px rgba(8,18,32,.10),inset 0 1px rgba(255,255,255,{{ '.12' if card_theme=='dark' else '.65' }})}
+.hero,.panel,.section,.notice,.step{border-radius:20px}
+.power strong,.line-value,.aggregate-row b,.damage,.stat .value,.progression{font-variant-numeric:tabular-nums}
+.line.max .line-level{color:#c7d5e8}
+.line.normal .line-value{color:{{ theme.ink }}}
+.line.rare .line-value{color:{{ theme.accent }}}
+.line.max .line-value{color:#81c8ff}
+.commander-banner strong{color:{{ theme.ink }}}
+
+.brand-credit{display:block;text-align:center;margin:10px 0 4px;font-size:10px;line-height:14px;color:{{ theme.muted }};font-weight:500;letter-spacing:.15px}
+
+.brand-credit,.credit{text-shadow:none}

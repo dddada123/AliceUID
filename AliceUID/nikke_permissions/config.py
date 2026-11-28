@@ -171,9 +171,11 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
                         from ..nikke_community.schedule import valid_time
                         if not valid_time(value):
                             return False
-                    if key in ('AliceUID_GlassStrength', 'AliceUID_ForwardJpegQuality'):
+                    if key in ('AliceUID_GlassStrength', 'AliceUID_CardOpacity', 'AliceUID_ForwardJpegQuality'):
                         if type(value) is not int or not 0<=value<=100:
                             return False
+                    if key == 'AliceUID_ResourceCardLayout' and value not in ('紧凑', '详细'):
+                        return False
                     from ..nikke_render.theme import WIDE_ART_SCALE_KEY, parse_wide_art_scale_offset
                     if key == WIDE_ART_SCALE_KEY:
                         try:
@@ -275,4 +277,17 @@ def ValidatedStringConfig(config_name, CONFIG_PATH, config_list, *, legacy_path=
     instance = _VALIDATED_TYPE(config_name, CONFIG_PATH, defaults)
     if not isinstance(instance, _VALIDATED_TYPE):
         raise GroupPolicyError("此配置已由原生StringConfig初始化；必须先使用ValidatedStringConfig")
+    glass_marker = path.with_name('glass_migration_v1403.json')
+    if source.exists() and not glass_marker.exists():
+        try:
+            original = json.loads(source.read_text('utf-8'))
+            old_glass = original.get('AliceUID_GlassStrength', {}).get('data')
+            migrated = False
+            if old_glass == 20 and 'AliceUID_GlassStrength' in instance.config:
+                instance.config['AliceUID_GlassStrength'].data = 0
+                instance.write_config()
+                migrated = True
+            glass_marker.write_text(json.dumps({'migrated_from': old_glass, 'migrated_to': 0 if migrated else old_glass}, ensure_ascii=False), encoding='utf-8')
+        except Exception:
+            pass
     return instance

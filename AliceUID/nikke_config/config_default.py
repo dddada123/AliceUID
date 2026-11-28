@@ -123,7 +123,13 @@ CONFIG_DEFAULT: Dict[str, GSC] = {
         "卡片字体", "读取插件formts目录；新字体放入后刷新本页。字体不可读自动用黑体，列表保留显式兜底项。", factory_default(), options=font_options(),
     ),
     'AliceUID_GlassStrength': GsIntConfig(
-        "竖版卡片毛玻璃强度（%）", "仅对竖版/窄版毛玻璃卡片生效；新版横版nk信息和横版角色练度不受影响。0～100%，默认20%，只调整背景模糊，保留已有自定义值。", 20, 100,
+        "背景与卡片模糊强度（%）", "控制全部卡片的背景与面板模糊强度（0～100%），默认 0%（高清通透原图），调高可开启毛玻璃效果；保存后新渲染生效。", 0, 100,
+    ),
+    'AliceUID_CardOpacity': GsIntConfig(
+        "卡片面板不透明度（%）", "控制全部卡片玻璃面板与底部 Powered By 胶囊的不透明度（0～100%，0=全透明，100=纯实心），默认 64%（与 nk别名查询 一致：亮色 72%→56%、暗色 80%→68%）；保存后新渲染生效。", 64, 100,
+    ),
+    'AliceUID_ResourceCardLayout': GsStrConfig(
+        "资源查询卡片布局", "控制 nk资源查询 默认展示样式：紧凑（默认，730px 精简大圆环版）或 详细（全信息网格+进度条）。查询时可用 nk资源查询 紧凑 / nk资源查询 详细 临时指定。", "紧凑", options=["紧凑", "详细"],
     ),
     'AliceUID_RenderDpi': GsIntConfig(
         "渲染分辨率 DPI",

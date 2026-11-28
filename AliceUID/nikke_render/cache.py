@@ -32,7 +32,7 @@ def file_version(path):
 def style_version(*, dpi=None, theme=None):
     from .fonts import resolve_font
     from .language import get_card_language
-    from .glass_settings import get_glass_strength
+    from .glass_settings import get_glass_strength, get_card_opacity
     from .theme import get_card_theme_mode
     from .background_sources import get_background_provider
     provider = get_background_provider()
@@ -52,7 +52,7 @@ def style_version(*, dpi=None, theme=None):
                 bundled_assets=[(str(p.relative_to(media_path('assets'))), file_version(p))
                                 for p in sorted(media_path('assets').rglob('*'))
                                 if p.is_file() and p.suffix.lower() in ('.png', '.jpg', '.svg', '.webp')],
-                glass=get_glass_strength(), theme=theme or get_card_theme_mode(), dpi=dpi,
+                glass=get_glass_strength(), opacity=get_card_opacity(), theme=theme or get_card_theme_mode(), dpi=dpi,
                 templates=[(p.name, file_version(p)) for p in sorted((PACKAGE/'templates').iterdir())
                            if p.suffix in ('.html', '.css')],
                 renderer=[(n, file_version(PACKAGE/'nikke_render'/n))

@@ -1,0 +1,49 @@
+/* nk别名查询 Bento v2 样式 (640px 紧凑宽度) */
+html,body{width:640px;margin:0;padding:0}
+.page{
+  width:640px;padding:20px;color:{{ palette.ink }};
+  background:{{ palette.page_bg }} url('{{ frost_scene_uri }}') center top/100% auto no-repeat;
+  display:flex;flex-direction:column;gap:12px;
+}
+.hero{padding:16px 18px;display:flex;align-items:center;gap:16px}
+.hero .avatar-glass,.hero .avatar-glass>img{width:96px;height:96px;border-radius:16px}
+.hero-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;position:relative;padding-left:12px}
+.hero-bar{position:absolute;left:0;top:4px;bottom:4px;width:4px;border-radius:4px;background:{{ element_accent }}}
+.eyebrow-row{display:flex;align-items:center;gap:8px}
+.eyebrow{font-size:10px;font-weight:800;letter-spacing:1.4px;color:{{ element_accent }}}
+.count-pill{
+  height:18px;padding:2px 7px 0;border-radius:6px;
+  background:{{ element_accent_soft }};border:1px solid {{ element_accent_border }};
+  color:{{ element_accent }};font-size:10px;font-weight:800;
+}
+.hero h1{margin:0;font-size:24px;line-height:30px;font-weight:800;color:{{ palette.ink }};overflow-wrap:anywhere}
+.muted{font-size:11px;color:{{ palette.muted }};line-height:16px}
+
+.panel{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.group-block{display:flex;flex-direction:column;gap:8px}
+.group-head{display:flex;align-items:center;justify-content:space-between}
+.group-head h2{margin:0;font-size:14px;font-weight:800;color:{{ palette.ink }}}
+.group-sub{font-size:10px;font-weight:700;color:{{ palette.muted }}}
+.aliases{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.alias-pill{
+  height:28px;padding:2px 12px 0;border-radius:9px;
+  background:{{ element_accent_soft }};border:1px solid {{ element_accent_border }};
+  color:{{ element_accent }};font-size:12px;font-weight:800;
+}
+.auto-pill{
+  height:26px;padding:2px 11px 0;border-radius:8px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  color:{{ palette.ink }};font-size:11px;font-weight:700;
+}
+.tip-box{
+  padding:9px 12px;border-radius:10px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  font-size:11px;line-height:17px;color:{{ palette.muted }};
+}
+.credit-row{display:flex;justify-content:center}
+.brand-credit-pill{
+  display:inline-flex;align-items:center;justify-content:center;line-height:1;
+  height:22px;padding:2px 14px 0;border-radius:999px;
+  background:{{ palette.pill_bg }};border:1px solid {{ palette.glass_border }};
+  font-size:10px;font-weight:600;color:{{ palette.credit_ink }};
+}

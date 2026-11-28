@@ -1,0 +1,235 @@
+/* 指挥官名片 v3 样式 (1280 x 740 CSS px) */
+html,body{width:1280px;height:740px;overflow:hidden}
+.page{
+  position:relative;width:1280px;height:740px;overflow:hidden;
+  color:{{ palette.ink }};
+  background:{{ palette.page_bg }} url('{{ wide_background_uri }}') center/100% 100% no-repeat;
+}
+
+/* 左侧：主推展示角色视窗 (x:24, y:24, 424 x 672，高透玻璃底) */
+.lead-pane{
+  position:absolute;left:24px;top:24px;width:424px;height:672px;
+  overflow:hidden;
+  background:{{ 'rgba(255,255,255,0.22)' if card_theme=='light' else 'rgba(5,13,25,0.28)' }};
+  z-index:2;
+}
+.lead-archive-tag{
+  position:absolute;left:16px;top:16px;
+  display:flex;align-items:center;gap:6px;
+  font-size:9px;font-weight:800;letter-spacing:1.8px;
+  color:{{ palette.stage_tag }};z-index:3;
+}
+.lead-archive-dot{width:6px;height:6px;border-radius:50%;background:{{ lead_accent }}}
+.lead-corp-watermark{
+  position:absolute;right:14px;top:14px;width:82px;height:82px;
+  opacity:{{ '0.16' if card_theme=='light' else '0.22' }};
+  z-index:1;pointer-events:none;
+}
+.lead-corp-watermark img{width:100%;height:100%;object-fit:contain}
+.lead-art-wrap{
+  position:absolute;inset:0;overflow:hidden;border-radius:19px;z-index:2;
+}
+.lead-art-wrap img{position:absolute;display:block;object-fit:contain}
+.portrait-shadow{filter:none!important;transform:none;pointer-events:none;z-index:0}
+.lead-art-wrap img[data-kind]{z-index:1}
+
+.lead-caption{
+  position:absolute;left:14px;right:14px;bottom:14px;
+  padding:12px 14px 11px 16px;border-radius:15px;
+  background:{{ palette.glass_bg }};
+  border:1px solid {{ palette.glass_border }};
+  box-shadow:{{ palette.glass_shadow }};
+  z-index:4;
+}
+.lead-accent-bar{
+  position:absolute;left:0;top:13px;bottom:13px;width:4px;border-radius:0 4px 4px 0;
+  background:{{ lead_accent }};
+}
+.lead-top-line{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.lead-name-group{display:flex;align-items:center;gap:7px;min-width:0;flex:1}
+.lead-name-group h1{
+  margin:0;font-size:{{ lead_name_font_size }}px;line-height:26px;font-weight:800;
+  color:{{ palette.ink }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
+}
+.lead-rarity-pill{
+  height:18px;padding:2px 7px 0;border-radius:5px;
+  background:{{ lead_accent_soft }};border:1px solid {{ lead_accent_border }};
+  font-size:10px;font-weight:800;color:{{ lead_accent }};flex:none;
+}
+.lead-lv-pill{
+  height:22px;padding:2px 8px 0;border-radius:7px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  font-size:12px;font-weight:800;color:{{ palette.ink }};flex:none;
+}
+.lead-power-pill{
+  display:inline-flex;align-items:center;gap:5px;height:22px;padding:2px 8px 0;border-radius:7px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  font-size:12px;font-weight:800;color:{{ palette.ink }};font-variant-numeric:tabular-nums;flex:none;
+}
+.lead-power-pill img{width:13px;height:13px;object-fit:contain}
+.lead-meta-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.lead-icons-left{display:flex;align-items:center;gap:6px}
+.lead-role-icon{width:20px;height:20px;flex:none;overflow:visible;display:flex;align-items:center;justify-content:center}
+.lead-role-icon img{width:19px;height:19px;object-fit:contain}
+.lead-meta-row .progress-badges{height:20px;gap:2px}
+.lead-meta-row .core-emblem{width:21px;height:21px;margin-left:2px}
+.lead-meta-row .core-emblem img{width:21px;height:21px}
+.lead-meta-row .core-emblem b{font-size:9px;line-height:11px}
+
+/* 右侧 Bento 三层非对称主区 (x:462, y:24, 794 x 672) */
+.profile-right{
+  position:absolute;left:462px;top:24px;width:794px;height:672px;
+  display:flex;flex-direction:column;gap:12px;z-index:3;
+}
+
+/* 1. 顶部融合档案卡 (794 x 162) */
+.prof-hero-card{
+  width:794px;height:162px;padding:14px 18px 12px;
+  display:flex;flex-direction:column;justify-content:space-between;flex:none;
+}
+.prof-hero-top{display:flex;align-items:center;gap:14px}
+.prof-hero-top .avatar-glass,.prof-hero-top .avatar-glass>img{width:64px;height:64px;border-radius:15px}
+.prof-id-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.prof-eyebrow{font-size:9px;font-weight:800;letter-spacing:1.6px;color:{{ accent }}}
+.prof-name-row{display:flex;align-items:center;gap:8px}
+.prof-name-row h2{margin:0;font-size:23px;font-weight:800;line-height:27px;color:{{ palette.ink }};white-space:nowrap}
+.prof-lv-pill{
+  height:20px;padding:2px 8px 0;border-radius:6px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  font-size:11px;font-weight:800;color:{{ palette.ink }};
+}
+.prof-guild-pill{
+  height:20px;padding:2px 8px 0;border-radius:6px;
+  background:{{ lead_accent_soft }};border:1px solid {{ lead_accent_border }};
+  font-size:10px;font-weight:700;color:{{ accent }};
+}
+.prof-meta{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
+.prof-power-box{
+  position:relative;width:236px;height:64px;flex:none;
+  padding:0 14px 0 18px;border-left:1px solid {{ palette.line }};
+  display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:1px;
+}
+.prof-power-bar{position:absolute;right:0;top:5px;bottom:5px;width:4px;border-radius:4px;background:{{ accent }}}
+.prof-power-label{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:{{ palette.muted }}}
+.prof-power-label img{width:14px;height:14px;object-fit:contain}
+.prof-power-val{font-size:31px;font-weight:800;line-height:34px;color:{{ palette.ink }};font-variant-numeric:tabular-nums}
+
+.prof-kpi-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
+.kpi-cell{
+  height:54px;padding:6px 8px;border-radius:11px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+}
+.kpi-cell span{font-size:9px;font-weight:700;color:{{ palette.muted }};line-height:11px}
+.kpi-cell b{font-size:19px;font-weight:800;color:{{ palette.ink }};line-height:22px;font-variant-numeric:tabular-nums}
+.kpi-cell.date b{font-size:14px}
+
+/* 2. 中段非对称双卡 (794 x 208) */
+.prof-mid{width:794px;height:208px;display:flex;gap:12px;flex:none}
+.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.panel-head-left{display:flex;align-items:center;gap:8px}
+.panel-head h3{margin:0;font-size:15px;font-weight:800;color:{{ palette.ink }}}
+.head-tag{font-size:9px;font-weight:800;letter-spacing:1px;color:{{ accent }}}
+.synchro-pill{
+  height:20px;padding:2px 9px 0;border-radius:7px;
+  background:{{ lead_accent_soft }};border:1px solid {{ lead_accent_border }};
+  font-size:10px;font-weight:800;color:{{ accent }};
+}
+.fallback-pill{
+  height:20px;padding:2px 8px 0;border-radius:7px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  font-size:10px;font-weight:700;color:{{ palette.muted }};
+}
+
+.prof-campaign{width:496px;height:208px;padding:13px 16px;display:flex;flex-direction:column;justify-content:space-between}
+.campaign-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.camp-slot{
+  position:relative;height:52px;padding:0 14px 0 16px;border-radius:11px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;align-items:center;justify-content:space-between;
+}
+.camp-bar{position:absolute;left:0;top:10px;bottom:10px;width:4px;border-radius:0 4px 4px 0;background:{{ accent }}}
+.camp-copy{display:flex;flex-direction:column;gap:1px}
+.camp-copy span{font-size:10px;font-weight:700;color:{{ palette.muted }}}
+.camp-copy small{font-size:8px;font-weight:800;letter-spacing:0.8px;color:{{ accent }}}
+.camp-slot b{font-size:22px;font-weight:800;color:{{ palette.ink }};font-variant-numeric:tabular-nums}
+
+.tower-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.tower-slot{
+  height:82px;padding:7px 4px;border-radius:11px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+}
+.tower-icon-box{height:28px;display:flex;align-items:center;justify-content:center}
+.tower-icon-box img{width:26px;height:26px;object-fit:contain}
+.tower-all-badge{
+  height:20px;padding:2px 8px 0;border-radius:6px;
+  background:{{ palette.slot_bg }};border:1px solid {{ lead_accent_border }};
+  font-size:10px;font-weight:800;color:{{ accent }};
+}
+.tower-slot span{font-size:9px;font-weight:700;color:{{ palette.muted }};line-height:11px}
+.tower-slot b{font-size:15px;font-weight:800;color:{{ accent }};line-height:17px;font-variant-numeric:tabular-nums}
+
+.prof-outpost{width:286px;height:208px;padding:13px 16px;display:flex;flex-direction:column;justify-content:space-between}
+.outpost-hero-slot{
+  position:relative;height:66px;padding:0 14px 0 16px;border-radius:12px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;align-items:center;justify-content:space-between;
+}
+.outpost-hero-bar{position:absolute;left:0;top:12px;bottom:12px;width:4px;border-radius:0 4px 4px 0;background:{{ accent }}}
+.outpost-hero-copy{display:flex;flex-direction:column;gap:1px}
+.outpost-hero-copy span{font-size:10px;font-weight:700;color:{{ palette.muted }}}
+.outpost-hero-copy small{font-size:8px;font-weight:800;letter-spacing:0.8px;color:{{ accent }}}
+.outpost-hero-slot b{font-size:26px;font-weight:800;color:{{ palette.ink }};font-variant-numeric:tabular-nums}
+.outpost-sub-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.outpost-sub-slot{
+  height:72px;padding:8px 6px;border-radius:11px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+}
+.outpost-sub-slot span{font-size:10px;font-weight:700;color:{{ palette.muted }};text-align:center}
+.outpost-sub-slot b{font-size:20px;font-weight:800;color:{{ palette.ink }};font-variant-numeric:tabular-nums}
+
+/* 3. 主页展示队伍 (794 x 278) */
+.prof-squad{width:794px;height:278px;padding:13px 16px;display:flex;flex-direction:column;justify-content:space-between}
+.squad-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+.squad-member{
+  position:relative;height:212px;padding:10px 10px 11px;border-radius:14px;overflow:hidden;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+}
+.squad-member .avatar-glass,.squad-member .avatar-glass>img{width:124px;height:124px;border-radius:14px}
+.squad-member .game-left-badges,.squad-member .game-element,.squad-member .corner-rank,.squad-member .member-level{z-index:4}
+.member-name{
+  font-size:12px;font-weight:800;color:{{ palette.ink }};
+  line-height:15px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:162px;
+}
+.member-power{
+  width:100%;height:26px;padding:0 10px;border-radius:8px;
+  background:{{ 'rgba(18,38,68,0.065)' if card_theme=='light' else 'rgba(8,16,30,0.26)' }};
+  border:1px solid {{ 'rgba(25,50,82,0.13)' if card_theme=='light' else 'rgba(170,200,235,0.16)' }};
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:10px;font-weight:700;color:{{ palette.muted }};font-variant-numeric:tabular-nums;
+}
+.member-power-lbl{display:inline-flex;align-items:center;gap:4px}
+.member-power-lbl img{width:12px;height:12px;object-fit:contain}
+.member-power b{color:{{ palette.ink }};font-size:12px}
+.member-bottom-accent{
+  position:absolute;left:18px;right:18px;bottom:0;height:3px;
+  border-radius:3px 3px 0 0;background:{{ accent }};opacity:0.78;
+}
+
+/* 底部条 */
+.prof-bottom-left{
+  position:absolute;left:24px;top:706px;width:424px;height:24px;
+  display:flex;align-items:center;justify-content:center;z-index:4;
+}
+.prof-preview-pill{
+  height:22px;padding:2px 12px 0;border-radius:999px;
+  background:{{ palette.pill_bg }};border:1px solid {{ palette.glass_border }};
+  font-size:9px;font-weight:600;color:{{ palette.muted }};
+}
+.prof-bottom-right{
+  position:absolute;left:462px;top:706px;width:794px;height:24px;
+  display:flex;align-items:center;justify-content:center;z-index:4;
+}

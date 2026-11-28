@@ -1,0 +1,158 @@
+/* Liquid 资源查询 · 紧凑版 (730 x 492 CSS px · 光学圆环 + 1:1 锐利图标) */
+*{box-sizing:border-box}
+html,body{width:730px;height:492px;margin:0;padding:0;overflow:hidden}
+body{font-family:'{{ font_family }}','Microsoft YaHei','MiSans',sans-serif}
+
+.page{
+  position:relative;width:730px;height:492px;padding:20px 20px 14px;
+  color:{{ lq.ink }};
+  background:{{ lq.page_bg }} url('{{ background_uri }}') center/100% 100% no-repeat;
+  display:flex;flex-direction:column;gap:12px;
+}
+
+.bento-card{
+  position:relative;
+  background:{{ lq.glass_grad }};
+  border:1px solid {{ lq.glass_border }};
+  border-radius:20px;
+  box-shadow:{{ lq.glass_shadow }};
+}
+
+.ui-pill{
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  line-height:1;padding-top:2px;padding-bottom:0;
+  white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+
+/* 1. 顶部指挥官档案卡 (690 x 84，无状态圆点) */
+.res-hero{width:690px;height:84px;padding:12px 18px;display:flex;align-items:center;gap:13px;flex:none}
+.avatar-glass{
+  position:relative;display:flex;align-items:center;justify-content:center;flex:none;
+  width:58px;height:58px;border-radius:14px;overflow:hidden;
+  background:{{ lq.avatar_bg }};box-shadow:0 4px 14px rgba(8,18,32,0.16);
+}
+.avatar-glass>img{display:block;width:58px;height:58px;object-fit:cover;border-radius:14px}
+.avatar-glass-edge{
+  position:absolute;left:0;top:0;width:100%;height:100%;border-radius:14px;
+  z-index:5;pointer-events:none;border:1px solid {{ lq.avatar_border }};
+  box-shadow:inset 0 1px 1px {{ lq.avatar_inset_top }},inset 0 -1px 2px rgba(0,0,0,0.16);
+}
+.avatar-empty{font-weight:800;color:{{ accent }};font-size:19px}
+
+.res-id-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.res-eyebrow{font-size:8.5px;font-weight:800;letter-spacing:1.5px;color:{{ accent }}}
+.res-name{font-size:19px;font-weight:800;color:{{ lq.ink }};line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res-meta-pills{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+.meta-micro-pill{
+  height:18px;padding:2px 7px 0;border-radius:6px;
+  background:{{ lq.micro_pill_bg }};border:1px solid {{ lq.micro_pill_border }};
+  font-size:9.5px;font-weight:700;color:{{ lq.ink_soft }};
+}
+.meta-micro-pill img.micro-icon{width:10px;height:10px;flex:none;margin-top:-1px;display:block}
+
+.res-summary{
+  display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:2px;
+  padding-left:18px;height:50px;flex:none;border-left:1px dashed {{ lq.dashed_line }};
+}
+.res-summary h1{margin:0;font-size:21px;font-weight:800;color:{{ lq.ink }};line-height:24px}
+.res-brand{font-size:9.5px;font-weight:800;letter-spacing:1.2px;color:{{ accent }}}
+
+/* 2. 中段：左侧单列 5 项 + 右侧保管箱与产出融合卡 (690 x 272) */
+.mid-bento{width:690px;height:272px;display:flex;gap:12px;flex:none}
+
+.res-col{width:276px;height:272px;flex:none;display:flex;flex-direction:column;gap:8px}
+.res-row-card{
+  width:276px;height:48px;padding:0 14px 0 13px;border-radius:14px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  position:relative;overflow:hidden;flex:none;
+}
+.res-side-bar{position:absolute;left:0;top:11px;bottom:11px;width:3.5px;border-radius:0 3px 3px 0}
+.res-side-bar.blue{background:{{ '#1565B4' if card_theme=='light' else '#6BC4FF' }}}
+.res-side-bar.red{background:{{ '#D43D51' if card_theme=='light' else '#FF6E7A' }}}
+.res-side-bar.gold{background:{{ '#D4941A' if card_theme=='light' else '#F0C362' }}}
+.res-side-bar.silver{background:{{ '#6E7B8C' if card_theme=='light' else '#B4C2D4' }}}
+.res-side-bar.rainbow{background:linear-gradient(180deg,#FF5E7E 0%,#FFAE42 25%,#4CD97B 50%,#38BDF8 75%,#A855F7 100%)}
+
+.res-left{display:flex;align-items:center;gap:9px;min-width:0;flex:1}
+.res-icon-stage{
+  width:30px;height:30px;flex:none;border-radius:8px;
+  background:{{ lq.icon_stage_bg }};border:1px solid {{ lq.icon_stage_border }};
+  display:flex;align-items:center;justify-content:center;
+}
+.res-icon-stage img{width:24px;height:24px;display:block}
+.res-item-name{font-size:12.5px;font-weight:800;color:{{ lq.ink }};line-height:15px;white-space:nowrap}
+.res-amount{font-size:18px;font-weight:800;line-height:20px;color:{{ lq.ink }};font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right;flex:none}
+
+/* 右侧保管箱容量 + 前哨基地产出融合卡 (402 x 272) */
+.storage-card{
+  width:402px;height:272px;padding:14px 16px 13px;border-radius:20px;
+  display:flex;flex-direction:column;justify-content:space-between;flex:none;overflow:hidden;
+}
+.storage-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:8px;border-bottom:1px dashed {{ lq.dashed_line }};
+}
+.storage-title-left{display:flex;align-items:center;gap:7px}
+.storage-title-icon{width:15px;height:15px;flex:none;display:block}
+.storage-title-left h2{margin:0;font-size:15px;font-weight:800;color:{{ lq.ink }};line-height:17px}
+.storage-state-pill{height:19px;padding:2px 7px 0;border-radius:6px;font-size:9.5px;font-weight:800}
+.storage-eyebrow{font-size:8.5px;font-weight:800;letter-spacing:1.1px;color:{{ lq.muted }}}
+
+/* 中段：左光学圆环 + 右 3 项保管箱产出 */
+.storage-mid{height:132px;display:flex;align-items:center;gap:14px;flex:none}
+.ring-wrap{position:relative;width:112px;height:112px;flex:none;display:flex;align-items:center;justify-content:center}
+.ring-img{position:absolute;left:0;top:0;width:112px;height:112px;display:block}
+.ring-center{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;line-height:1}
+.ring-pct{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:20px}
+.ring-sub{font-size:9px;font-weight:700;color:{{ lq.muted }};margin-top:3px}
+
+.outpost-yields{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+.yield-row{
+  position:relative;height:38px;padding:0 11px;border-radius:10px;
+  background:{{ lq.est_glass_bg }};border:1px solid {{ lq.est_glass_border }};
+  display:flex;align-items:center;justify-content:space-between;gap:6px;overflow:hidden;
+}
+.yield-bar{position:absolute;left:0;top:8px;bottom:8px;width:2.5px;border-radius:0 3px 3px 0}
+.yield-bar.red{background:{{ '#D43D51' if card_theme=='light' else '#FF6E7A' }}}
+.yield-bar.gold{background:{{ '#D4941A' if card_theme=='light' else '#F0C362' }}}
+.yield-bar.blue{background:{{ '#1565B4' if card_theme=='light' else '#6BC4FF' }}}
+.yield-left{display:flex;align-items:center;gap:7px;min-width:0;flex:1}
+.yield-icon{width:22px;height:22px;flex:none;display:flex;align-items:center;justify-content:center}
+.yield-icon img{width:22px;height:22px;display:block}
+.yield-name{font-size:12px;font-weight:800;color:{{ lq.ink }};white-space:nowrap}
+.yield-val{font-size:15.5px;font-weight:800;color:{{ lq.ink }};font-variant-numeric:tabular-nums;white-space:nowrap;flex:none}
+
+/* 底段：90% / 100% 预估双格 */
+.storage-estimates{
+  padding-top:8px;border-top:1px dashed {{ lq.dashed_line }};
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;flex:none;
+}
+.est-slot{
+  height:42px;padding:4px 10px;border-radius:10px;
+  background:{{ lq.est_glass_bg }};border:1px solid {{ lq.est_glass_border }};
+  display:flex;flex-direction:column;justify-content:center;gap:2px;
+}
+.est-label{font-size:9px;font-weight:700;color:{{ lq.muted }};line-height:11px}
+.est-val{font-size:11.5px;font-weight:800;color:{{ lq.ink }};line-height:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.storage-unknown-msg{
+  height:50px;padding-top:8px;border-top:1px dashed {{ lq.dashed_line }};
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:{{ lq.muted }};
+}
+
+/* 3. 底部精简单列尾注 (690 x 44) */
+.footer-card{
+  width:690px;height:44px;padding:6px 16px;border-radius:15px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:none;text-align:center;
+}
+.footer-line-1{font-size:9.5px;line-height:13px;color:{{ lq.ink_soft }};font-weight:600;white-space:nowrap}
+.footer-line-2{font-size:9.5px;line-height:13px;color:{{ lq.muted }};font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* 4. 底部品牌胶囊 */
+.credit-row{height:22px;display:flex;align-items:center;justify-content:center;flex:none}
+.brand-credit-pill{
+  display:inline-flex;align-items:center;justify-content:center;line-height:1;
+  height:22px;padding:2px 14px 0;border-radius:999px;
+  background:{{ lq.glass_grad }};border:1px solid {{ lq.glass_border }};
+  box-shadow:{{ lq.glass_shadow }};
+  font-size:10px;font-weight:700;color:{{ lq.ink_soft }};
+}

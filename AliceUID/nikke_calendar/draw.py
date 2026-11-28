@@ -11,7 +11,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from ..nikke_render.fonts import apply_font_html
 from ..nikke_render.language import get_card_language, localize_html
-from ..nikke_render.theme import get_card_theme, v2_theme_tokens
+from ..nikke_render.theme import apply_theme, get_card_theme, v2_theme_tokens
 from ..nikke_resource.media import media_path
 from ..version import VERSION
 from .assets import avatar_url, banner_url, prepare_calendar_assets, reward_icon_url
@@ -251,6 +251,7 @@ def build_calendar_context(
 
     resolved_theme = get_card_theme(theme, default='random')
     resolved_lang = language or get_card_language()
+    themed = apply_theme({}, resolved_theme, scene_width=960, scene_height=2400)
     return {
         'char_items': char_items,
         'skin_items': skin_items,
@@ -266,6 +267,7 @@ def build_calendar_context(
         'hero_art': _alice_icon_uri(),
         'app_version': VERSION,
         'card_theme': resolved_theme,
+        'frost_scene_uri': themed.get('frost_scene_uri', ''),
         'palette': v2_theme_tokens(None, resolved_theme)['palette'],
         'html_lang': resolved_lang,
         'font_family': 'MiSans',

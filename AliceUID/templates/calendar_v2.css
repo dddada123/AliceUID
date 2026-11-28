@@ -9,12 +9,12 @@
 }
 
 .cal-root-light {
-  background-color: #eef3f9;
+  background: {{ palette.page_bg }} url('{{ frost_scene_uri }}') center top/100% auto no-repeat;
   color: #182234;
 }
 
 .cal-root-dark {
-  background-color: #0b101a;
+  background: {{ palette.page_bg }} url('{{ frost_scene_uri }}') center top/100% auto no-repeat;
   color: #e6edf8;
 }
 
@@ -30,14 +30,16 @@
 }
 
 .cal-hero-card-light {
-  background-color: #ffffff;
-  border: 1px solid #dbe3ef;
+  background: {{ palette.glass_bg }};
+  border: 1px solid {{ palette.glass_border }};
+  box-shadow: {{ palette.glass_shadow }};
   color: #182234;
 }
 
 .cal-hero-card-dark {
-  background-color: #151c2b;
-  border: 1px solid #28344c;
+  background: {{ palette.glass_bg }};
+  border: 1px solid {{ palette.glass_border }};
+  box-shadow: {{ palette.glass_shadow }};
   color: #e6edf8;
 }
 
@@ -166,6 +168,10 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 12px 14px;
+  border-radius: 20px;
+  background: {{ 'rgba(255,255,255,0.34)' if card_theme=='light' else 'rgba(10,18,34,0.42)' }};
+  border: 1px solid {{ 'rgba(255,255,255,0.68)' if card_theme=='light' else 'rgba(176,208,242,0.20)' }};
 }
 
 .sec-bar {
@@ -173,6 +179,8 @@
   flex-direction: row;
   align-items: center;
   gap: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed {{ 'rgba(25,50,82,0.16)' if card_theme=='light' else 'rgba(176,208,242,0.22)' }};
 }
 
 .sec-tag {
@@ -265,15 +273,17 @@
 }
 
 .cal-card-light {
-  background-color: #ffffff;
-  border: 1px solid #dbe3ef;
+  background: {{ palette.glass_bg }};
+  border: 1px solid {{ palette.glass_border }};
+  box-shadow: {{ palette.glass_shadow }};
   border-radius: 14px;
   color: #182234;
 }
 
 .cal-card-dark {
-  background-color: #151c2b;
-  border: 1px solid #28344c;
+  background: {{ palette.glass_bg }};
+  border: 1px solid {{ palette.glass_border }};
+  box-shadow: {{ palette.glass_shadow }};
   border-radius: 14px;
   color: #e6edf8;
 }
@@ -353,14 +363,13 @@
 }
 
 .sub-grid {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 .sub-card {
-  width: 449px;
+  width: auto;
   padding: 10px 12px;
   display: flex;
   flex-direction: row;

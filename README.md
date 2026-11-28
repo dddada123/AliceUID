@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://github.com/Genshin-bots/gsuid_core"><img src="https://img.shields.io/badge/Framework-GsCore-8A2BE2?style=flat-square" alt="Framework: GsCore"></a>
   <a href="https://github.com/dddada123/AliceUID/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License: MIT"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.4.02-ff69b4?style=flat-square" alt="Version: 1.4.02"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/Version-1.4.03-ff69b4?style=flat-square" alt="Version: 1.4.03"></a>
   <a href="pyproject.toml"><img src="https://img.shields.io/badge/Python-%E2%89%A53.10-3776AB?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python: ≥3.10"></a>
   <a href="https://github.com/dddada123/AliceUID/stargazers"><img src="https://img.shields.io/github/stars/dddada123/AliceUID?style=flat-square" alt="GitHub Stars"></a>
 </p>
@@ -37,7 +37,7 @@
 
 ---
 
-> **当前版本：1.4.02**
+> **当前版本：1.4.03**
 >
 > - **全新 Bento 视觉体系与亮暗双主题精调**：全面升级 `nk信息`（Bento v3 非对称名片）、横/纵版角色练度卡（支持亮色图标 90% 深灰反色与低扩散白外发光、通透玻璃衬底）及 `nk出刀` 双列「龙傲天 / 活菩萨」榜单；拆分 `nk卡片`（主力妮姬）与 `nk图鉴`（含灰阶未解锁角色）。
 > - **Blablalink 通用攻略查询与官网活动日历**：无需登录即可查询 `nk<角色/别名/关键词>攻略`、`nk攻略查询`（支持翻页、默认双气泡 20 条与 120 秒 `nk查询1~20` 点选，与角色歧义/拼写相近候选共用点选路由）、`nk会战攻略` 与高还原 `nk日历`，全面迁移至 GsCore 内置原生渲染引擎。

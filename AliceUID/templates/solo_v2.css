@@ -59,6 +59,6 @@ html,body{width:1072px;margin:0;padding:0}
 .brand-credit-pill{
   display:inline-flex;align-items:center;justify-content:center;line-height:1;
   height:24px;padding:2px 16px 0;border-radius:999px;
-  background:{{ palette.pill_bg }};border:1px solid {{ palette.glass_border }};
-  font-size:11px;font-weight:600;color:{{ palette.credit_ink }};
+  background:{{ palette.glass_bg }};border:1px solid {{ palette.glass_border }};box-shadow:{{ palette.glass_shadow }};
+  font-size:11px;font-weight:700;color:{{ palette.credit_ink }};
 }

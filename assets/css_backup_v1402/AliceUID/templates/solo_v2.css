@@ -1,0 +1,64 @@
+/* nk个人突袭推荐 Bento v2 样式 (1072px，保留 960px 网站截图宽度) */
+html,body{width:1072px;margin:0;padding:0}
+.solo-page{
+  width:1072px;padding:28px 40px;color:{{ palette.ink }};
+  background:{{ palette.page_bg }} url('{{ frost_scene_uri }}') center top/cover no-repeat;
+  display:flex;flex-direction:column;gap:16px;
+}
+.hero{padding:22px 24px;display:flex;flex-direction:column;gap:14px}
+.hero-top{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.hero-title{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.eyebrow{font-size:11px;font-weight:800;letter-spacing:1.6px;color:{{ element_accent }}}
+.title-line{display:flex;align-items:center;gap:10px}
+.hero-title h1{margin:0;font-size:28px;line-height:34px;font-weight:800;color:{{ palette.ink }}}
+.exp-pill{
+  height:22px;padding:2px 10px 0;border-radius:7px;
+  background:{{ element_accent_soft }};border:1px solid {{ element_accent_border }};
+  color:{{ element_accent }};font-size:11px;font-weight:800;
+}
+.source{font-size:12px;font-weight:700;color:{{ element_accent }};overflow-wrap:anywhere}
+
+.identity{display:flex;align-items:center;justify-content:flex-end;gap:12px;width:300px;flex:none}
+.identity-copy{min-width:0;text-align:right;flex:1;display:flex;flex-direction:column;gap:2px}
+.identity-copy strong{color:{{ palette.ink }};font-size:16px;line-height:20px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.identity-id{font-size:11px;line-height:15px;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
+.identity .avatar-glass,.identity .avatar-glass>img{width:64px;height:64px;border-radius:15px}
+
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.metric-slot{
+  border-radius:13px;padding:12px 15px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;flex-direction:column;gap:5px;min-width:0;
+}
+.metric-label{font-size:10px;font-weight:800;letter-spacing:0.8px;color:{{ palette.muted }}}
+.metric-value{display:flex;align-items:center;gap:8px;font-size:22px;font-weight:800;line-height:28px;color:{{ palette.ink }}}
+.element-icon-box{position:relative;width:26px;height:26px;display:flex;align-items:center;justify-content:center;flex:none}
+.element-icon-box img.alpha-effect{width:24px;height:24px;object-fit:contain}
+.metric-detail{font-size:11px;line-height:16px;color:{{ palette.muted }};overflow-wrap:anywhere}
+
+.season-warning{
+  padding:10px 14px;border-radius:11px;
+  border:1px solid {{ element_accent_border }};background:{{ element_accent_soft }};
+  color:{{ element_accent }};font-size:12px;font-weight:700;line-height:18px;
+}
+.times-row{
+  display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;
+  padding-top:10px;border-top:1px solid {{ palette.line }};
+  font-size:11px;line-height:16px;color:{{ palette.muted }};font-variant-numeric:tabular-nums;
+}
+
+.shot-panel{width:992px;padding:15px;border-radius:24px}
+.shot{width:960px;border-radius:18px;overflow:hidden;line-height:0}
+.shot img{display:block;width:960px;height:{{ image_height }}px;border-radius:18px;object-fit:contain}
+
+.notes-card{padding:16px 20px;font-size:12px;line-height:19px;color:{{ palette.muted }}}
+.notes-card p{margin:3px 0}
+.disclaimer{color:{{ palette.ink }};font-weight:800}
+
+.credit-row{display:flex;justify-content:center}
+.brand-credit-pill{
+  display:inline-flex;align-items:center;justify-content:center;line-height:1;
+  height:24px;padding:2px 16px 0;border-radius:999px;
+  background:{{ palette.pill_bg }};border:1px solid {{ palette.glass_border }};
+  font-size:11px;font-weight:600;color:{{ palette.credit_ink }};
+}

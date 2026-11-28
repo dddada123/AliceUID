@@ -12,7 +12,7 @@ from ..nikke_user.auth_state import RELOGIN, is_login_error, unavailable_message
 from ..nikke_union.service import union_queries,UnionCooldown
 from ..nikke_union.builder import UnionDataError
 from ..nikke_roster.service import RosterCooldown
-from .builder import StatusDataError
+from .builder import StatusDataError, parse_status_args
 from .service import resource_status,binding_key
 
 sv_status=SV('妮姬资源与会战状态',pm=6,priority=3)
@@ -43,9 +43,10 @@ async def _query(bot,ev,kind):
     result=None
     bind=None
     try:
-        text=(ev.text or '').strip()
-        if text not in ('','刷新'):
-            result=f'用法：{command_prefix()}{"资源查询" if kind=="resources" else "会战血量"} [刷新]。'
+        refresh,layout,valid_args=parse_status_args(ev.text,kind)
+        if not valid_args:
+            result=(f'用法：{command_prefix()}资源查询 [紧凑/详细] [刷新]。'
+                    if kind=='resources' else f'用法：{command_prefix()}会战血量 [刷新]。')
         elif not await _allowed(ev):
             result='当前未开放妮姬查询，请联系管理员。'
         else:
@@ -55,12 +56,12 @@ async def _query(bot,ev,kind):
             else:
                 if not await _current(ev,bind):return
                 if kind=='resources':
-                    prepared=await resource_status.prepare_image(client,bind,refresh=text=='刷新',
+                    prepared=await resource_status.prepare_image(client,bind,refresh=refresh,layout=layout,
                         actor=(ev.user_id,ev.bot_id),still_current=lambda:_current(ev,bind),
                         on_snapshot=lambda context:_observe_harvest(bind,context))
                     result=[MessageSegment.image(prepared.image)]
                 else:
-                    context=await union_queries.query_bosses(client,bind,refresh=text=='刷新')
+                    context=await union_queries.query_bosses(client,bind,refresh=refresh)
                     if not await _current(ev,bind):return
                     from ..nikke_resource.identity_card import decorate_identity
                     await decorate_identity(context,bind)

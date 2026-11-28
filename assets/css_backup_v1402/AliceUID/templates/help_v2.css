@@ -1,0 +1,103 @@
+/* nk帮助 Bento v2 样式 (1000px) */
+html,body{width:1000px;margin:0;padding:0}
+.help-page{
+  width:1000px;padding:24px;color:{{ palette.ink }};
+  background:{{ palette.page_bg }} url('{{ frost_scene_uri }}') center top/100% auto no-repeat;
+}
+.hero{
+  padding:22px 26px;display:flex;align-items:center;gap:24px;margin-bottom:14px;
+}
+.hero .avatar-glass,.hero .avatar-glass>img{width:142px;height:142px;border-radius:18px}
+.hero-content{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.eyebrow-row{display:flex;align-items:center;gap:8px}
+.eyebrow{font-size:11px;font-weight:800;letter-spacing:2px;color:{{ element_accent }};line-height:14px}
+.ver-pill{
+  height:20px;padding:2px 9px 0;border-radius:6px;
+  background:{{ element_accent_soft }};border:1px solid {{ element_accent_border }};
+  color:{{ element_accent }};font-size:10px;font-weight:800;
+}
+.hero h1{margin:0;font-size:32px;line-height:38px;font-weight:800;color:{{ palette.ink }}}
+.hero-sub{margin:0;font-size:14px;line-height:20px;color:{{ palette.muted }}}
+.hero-badges{display:flex;align-items:center;gap:8px;margin-top:2px}
+.role-pill{
+  height:24px;padding:2px 11px 0;border-radius:8px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  color:{{ palette.ink }};font-size:11px;font-weight:700;
+}
+.prefix-pill{
+  height:24px;padding:2px 11px 0;border-radius:8px;
+  background:{{ element_accent_soft }};border:1px solid {{ element_accent_border }};
+  color:{{ element_accent }};font-size:11px;font-weight:800;
+}
+
+/* Quick Start 整合卡 */
+.quick-card{padding:16px 20px;margin-bottom:14px;display:flex;flex-direction:column;gap:12px}
+.panel-head{display:flex;align-items:center;justify-content:space-between}
+.panel-title{font-size:14px;font-weight:800;color:{{ palette.ink }};display:flex;align-items:center;gap:8px}
+.title-dot{width:7px;height:7px;border-radius:50%;background:{{ element_accent }}}
+.panel-en{font-size:10px;font-weight:800;letter-spacing:1.4px;color:{{ palette.muted }}}
+.steps-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.step-slot{
+  border-radius:13px;background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  padding:12px 14px;display:flex;flex-direction:column;gap:4px;
+}
+.step-num{font-size:10px;font-weight:800;letter-spacing:1.5px;color:{{ element_accent }}}
+.step-cmd{font-size:18px;font-weight:800;color:{{ palette.ink }};line-height:24px}
+.step-desc{font-size:11px;color:{{ palette.muted }};line-height:17px;margin:0}
+.regions-bar{
+  padding:10px 12px;border-radius:12px;background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+}
+.regions-list{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+.region-pill{
+  height:26px;padding:2px 12px 0;border-radius:8px;
+  background:{{ palette.pill_inner_bg }};border:1px solid {{ palette.sub_border }};
+  font-size:11px;font-weight:700;color:{{ palette.ink }};
+}
+.region-note{font-size:11px;color:{{ palette.muted }};line-height:16px;text-align:center}
+
+/* 模块双列/通栏 Bento */
+.sections{display:flex;flex-direction:column;gap:14px}
+.section-band{display:flex;align-items:stretch;gap:14px;width:952px}
+.section{flex:none;min-width:0;padding:18px 20px}
+.section.half{width:469px}
+.section.wide{width:952px}
+.section-header{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:5px}
+.section h2{margin:0;font-size:18px;line-height:24px;font-weight:800;color:{{ palette.ink }}}
+.tag-pill{
+  height:20px;padding:2px 8px 0;border-radius:6px;
+  background:{{ element_accent_soft }};border:1px solid {{ element_accent_border }};
+  color:{{ element_accent }};font-size:10px;font-weight:800;
+}
+.description{font-size:11px;color:{{ palette.muted }};line-height:17px;margin:0 0 11px}
+.section-items{display:flex;flex-direction:column;gap:7px}
+.item-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%}
+.section.half .item-row{grid-template-columns:minmax(0,1fr)}
+.section.wide .item-row.single{grid-template-columns:minmax(0,1fr)}
+.item-slot{
+  position:relative;border-radius:11px;padding:9px 11px 9px 14px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;flex-direction:column;gap:3px;min-width:0;
+}
+.item-bar{
+  position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;
+  background:{{ element_accent }};opacity:0.82;
+}
+.command{font-size:13px;font-weight:800;color:{{ palette.ink }};line-height:19px;overflow-wrap:anywhere}
+.explain{font-size:11px;color:{{ palette.muted }};line-height:16px;overflow-wrap:anywhere}
+
+/* 底部提示与署名 */
+.notice-card{margin-top:14px;padding:15px 20px;display:flex;flex-direction:column;gap:5px}
+.notice-title{font-size:12px;font-weight:800;color:{{ element_accent }};margin-bottom:2px}
+.notice-card p{margin:0;font-size:11px;line-height:17px;color:{{ palette.muted }}}
+.help-footer{
+  margin-top:12px;display:flex;align-items:center;justify-content:center;
+  font-size:10px;color:{{ palette.credit_ink }};
+}
+.help-footer b{color:{{ palette.ink }}}
+.brand-credit-pill{
+  display:inline-flex;align-items:center;justify-content:center;line-height:1;
+  height:24px;padding:2px 14px 0;border-radius:999px;
+  background:{{ palette.pill_bg }};border:1px solid {{ palette.glass_border }};
+  font-size:10px;font-weight:600;color:{{ palette.credit_ink }};
+}

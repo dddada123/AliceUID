@@ -55,9 +55,28 @@ def identity(bind, region, fetched_at, ttl):
 
 
 def compact_number(value):
+    if value>=1000000000:
+        return f'{Decimal(value)/1000000000:.2f}B'
     if value>=1000000:
         return f'{Decimal(value)/1000000:.2f}M'
+    if value>=100000:
+        return f'{value//1000}K'
     return f'{value:,}'
+
+
+def parse_status_args(text, kind):
+    tokens = [part for part in (text or '').strip().split() if part]
+    refresh = False
+    layout = None
+    allowed_layouts = ('紧凑', '详细') if kind == 'resources' else ()
+    for tok in tokens:
+        if tok == '刷新':
+            refresh = True
+        elif tok in allowed_layouts:
+            layout = tok
+        else:
+            return None, None, False
+    return refresh, layout, True
 
 
 def storage_estimates(storage, fetched_at):

@@ -90,9 +90,9 @@ class ResourceStatusService:
         self._failure_codes[key] = getattr(exc, 'code', None)
 
     @staticmethod
-    def _style_key():
+    def _style_key(layout=None):
         from .draw import status_style_key
-        return status_style_key()
+        return status_style_key(layout=layout)
 
     def _prune_ready(self):
         for key,(created,_,_) in list(self._ready.items()):
@@ -101,7 +101,7 @@ class ResourceStatusService:
         while sum(len(value[1]) for value in self._ready.values())>self.MAX_IMAGE_BYTES:
             self._ready.popitem(last=False)
 
-    async def prepare_image(self,client,bind,*,refresh=False,actor=None,renderer=None,still_current=None,on_snapshot=None):
+    async def prepare_image(self,client,bind,*,refresh=False,layout=None,actor=None,renderer=None,still_current=None,on_snapshot=None):
         """Single-flight fetch -> render -> ready. Missing images always fetch anew.
 
         A send failure keeps the successfully rendered image for the next send;
@@ -114,7 +114,9 @@ class ResourceStatusService:
             if still_current is not None and not await still_current():
                 raise StatusDataError('绑定或查询权限已变化，已停止查询。')
             self._prune_ready()
-            style=self._style_key()
+            from ..nikke_render.glass_settings import get_resource_card_layout
+            resolved_layout=get_resource_card_layout(layout)
+            style=self._style_key(layout=resolved_layout)
             ready=self._ready.get(key)
             if ready is not None and ready[2]==style:
                 self._ready.move_to_end(key)
@@ -127,6 +129,7 @@ class ResourceStatusService:
             cached = self._cache.get(key) if ready is not None else None
             context = (copy.deepcopy(cached[1]) if cached is not None else
                        await self.query(client,bind,refresh=refresh,actor=actor,still_current=still_current))
+            context['resource_layout']=resolved_layout
             try:
                 if still_current is not None and not await still_current():
                     raise StatusDataError('绑定或查询权限已变化，已停止生成图片。')

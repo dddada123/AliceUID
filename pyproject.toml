@@ -1,6 +1,6 @@
 [project]
 name = "AliceUID"
-version = "1.4.02"
+version = "1.4.03"
 description = "GsCore NIKKE 插件：账号绑定、个人名片与角色练度、图鉴与导出、联盟会战、活动日历、通用攻略查询与个人突袭推荐"
 requires-python = ">=3.10"
 dependencies = [

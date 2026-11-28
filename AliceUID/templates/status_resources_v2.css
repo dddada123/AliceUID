@@ -1,95 +1,142 @@
-/* 资源查询 Bento v2 样式 (730 x 680 CSS px，8色条纹 + 保管箱充能箭头) */
-html,body{width:730px;margin:0;padding:0}
-.page{
-  position:relative;width:730px;padding:22px;color:{{ palette.ink }};
-  background:{{ palette.page_bg }} url('{{ background_uri }}') center/cover no-repeat;
-  display:flex;flex-direction:column;gap:14px;
-}
-.page-scrim{
-  position:absolute;inset:0;
-  background:{{ 'rgba(240,246,255,0.16)' if card_theme=='light' else 'rgba(4,10,20,0.34)' }};
-  z-index:0;pointer-events:none;
-}
-.page>.bento-card,.page>.res-grid,.page>.credit-row{position:relative;z-index:2}
+/* Liquid 资源查询 · 详细版 (730 x 626 CSS px · 1:1 锐利图标) */
+*{box-sizing:border-box}
+html,body{width:730px;height:626px;margin:0;padding:0;overflow:hidden}
+body{font-family:'{{ font_family }}','Microsoft YaHei','MiSans',sans-serif}
 
-.res-hero{width:686px;height:94px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex:none}
-.res-hero .avatar-glass,.res-hero .avatar-glass>img{width:64px;height:64px;border-radius:15px}
+.page{
+  position:relative;width:730px;height:626px;padding:22px 22px 16px;
+  color:{{ lq.ink }};
+  background:{{ lq.page_bg }} url('{{ background_uri }}') center/100% 100% no-repeat;
+  display:flex;flex-direction:column;gap:12px;
+}
+
+.bento-card{
+  position:relative;
+  background:{{ lq.glass_grad }};
+  border:1px solid {{ lq.glass_border }};
+  border-radius:20px;
+  box-shadow:{{ lq.glass_shadow }};
+}
+
+.ui-pill{
+  display:inline-flex;align-items:center;justify-content:center;gap:4px;
+  line-height:1;padding-top:2px;padding-bottom:0;
+  white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+
+/* 1. 顶部指挥官档案卡 (686 x 92，无状态圆点) */
+.res-hero{width:686px;height:92px;padding:14px 18px;display:flex;align-items:center;gap:14px;flex:none}
+.avatar-glass{
+  position:relative;display:flex;align-items:center;justify-content:center;flex:none;
+  width:62px;height:62px;border-radius:15px;overflow:hidden;
+  background:{{ lq.avatar_bg }};box-shadow:0 4px 14px rgba(8,18,32,0.16);
+}
+.avatar-glass>img{display:block;width:62px;height:62px;object-fit:cover;border-radius:15px}
+.avatar-glass-edge{
+  position:absolute;left:0;top:0;width:100%;height:100%;border-radius:15px;
+  z-index:5;pointer-events:none;border:1px solid {{ lq.avatar_border }};
+  box-shadow:inset 0 1px 1px {{ lq.avatar_inset_top }},inset 0 -1px 2px rgba(0,0,0,0.16);
+}
+.avatar-empty{font-weight:800;color:{{ accent }};font-size:20px}
+
 .res-id-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.res-eyebrow{font-size:9px;font-weight:800;letter-spacing:1.4px;color:{{ accent }}}
-.res-name{font-size:21px;font-weight:800;color:{{ palette.ink }};line-height:25px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.res-meta{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
-.res-summary{display:flex;flex-direction:column;align-items:flex-end;gap:3px;padding-left:16px;border-left:1px solid {{ palette.line }}}
-.res-summary h1{margin:0;font-size:23px;font-weight:800;color:{{ palette.ink }};line-height:27px}
+.res-eyebrow{font-size:9px;font-weight:800;letter-spacing:1.5px;color:{{ accent }}}
+.res-name{font-size:20px;font-weight:800;color:{{ lq.ink }};line-height:24px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res-meta-pills{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+.meta-micro-pill{
+  height:19px;padding:2px 8px 0;border-radius:6px;
+  background:{{ lq.micro_pill_bg }};border:1px solid {{ lq.micro_pill_border }};
+  font-size:10px;font-weight:700;color:{{ lq.ink_soft }};
+}
+.meta-micro-pill img.micro-icon{width:11px;height:11px;flex:none;margin-top:-1px;display:block}
+
+.res-summary{
+  display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:3px;
+  padding-left:18px;height:54px;flex:none;border-left:1px dashed {{ lq.dashed_line }};
+}
+.res-summary h1{margin:0;font-size:22px;font-weight:800;color:{{ lq.ink }};line-height:26px}
 .res-brand{font-size:10px;font-weight:800;letter-spacing:1.2px;color:{{ accent }}}
 
-.res-grid{width:686px;display:grid;grid-template-columns:repeat(4,164px);gap:10px}
+/* 2. 8 格资源网格 (686 x 226) */
+.res-grid{width:686px;height:226px;display:grid;grid-template-columns:repeat(4,164px);grid-template-rows:repeat(2,108px);gap:10px;flex:none}
 .res-card{
-  width:164px;height:120px;padding:13px 10px 11px;
-  display:flex;flex-direction:column;align-items:center;justify-content:space-between;
-  position:relative;overflow:hidden;
+  width:164px;height:108px;padding:11px 10px 10px;border-radius:18px;
+  display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;
 }
-.res-top-bar{position:absolute;left:14px;right:14px;top:0;height:3px;border-radius:0 0 3px 3px}
+.res-top-bar{position:absolute;left:16px;right:16px;top:0;height:3px;border-radius:0 0 3px 3px}
 .res-top-bar.blue{background:{{ '#1565B4' if card_theme=='light' else '#6BC4FF' }}}
 .res-top-bar.red{background:{{ '#D43D51' if card_theme=='light' else '#FF6E7A' }}}
 .res-top-bar.gold{background:{{ '#D4941A' if card_theme=='light' else '#F0C362' }}}
 .res-top-bar.silver{background:{{ '#6E7B8C' if card_theme=='light' else '#B4C2D4' }}}
 .res-top-bar.rainbow{background:linear-gradient(90deg,#FF5E7E 0%,#FFAE42 25%,#4CD97B 50%,#38BDF8 75%,#A855F7 100%)}
 
-.res-card-head{display:flex;align-items:center;justify-content:center;gap:8px;max-width:146px;margin:0 auto}
+.res-card-head{display:flex;align-items:center;gap:8px;height:36px;flex:none}
 .res-icon-stage{
-  width:36px;height:36px;flex:none;border-radius:9px;
-  background:{{ palette.icon_stage_bg }};border:1px solid {{ palette.sub_border }};
+  width:32px;height:32px;flex:none;border-radius:9px;
+  background:{{ lq.icon_stage_bg }};border:1px solid {{ lq.icon_stage_border }};
   display:flex;align-items:center;justify-content:center;
 }
-.res-icon-stage img{width:28px;height:28px;object-fit:contain}
-.res-head-copy{min-width:0;display:flex;flex-direction:column;gap:1px;text-align:left}
-.res-item-name{font-size:12px;font-weight:800;color:{{ palette.ink }};line-height:14px;white-space:nowrap}
-.res-item-tag{font-size:8px;font-weight:700;color:{{ palette.muted }};line-height:11px;white-space:nowrap}
-.res-amount-wrap{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center}
-.res-amount{font-size:24px;font-weight:800;line-height:27px;color:{{ palette.ink }};font-variant-numeric:tabular-nums;white-space:nowrap}
-.res-subnote{font-size:10px;font-weight:600;line-height:13px;color:{{ palette.muted }};font-variant-numeric:tabular-nums;white-space:nowrap}
+.res-icon-stage img{width:24px;height:24px;display:block}
+.res-head-copy{min-width:0;display:flex;flex-direction:column;gap:2px;text-align:left}
+.res-item-name{font-size:12px;font-weight:800;color:{{ lq.ink }};line-height:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.res-item-tag{font-size:8.5px;font-weight:700;color:{{ lq.muted }};line-height:11px;white-space:nowrap}
+.res-divider{height:1px;border-bottom:1px dashed {{ lq.dashed_soft }};flex:none}
+.res-amount-wrap{width:100%;height:42px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center}
+.res-amount{font-size:23px;font-weight:800;line-height:26px;color:{{ lq.ink }};font-variant-numeric:tabular-nums;white-space:nowrap}
+.res-subnote{font-size:10px;font-weight:600;line-height:13px;color:{{ lq.muted }};font-variant-numeric:tabular-nums;white-space:nowrap;max-width:144px;overflow:hidden;text-overflow:ellipsis}
 
-.storage-card{width:686px;height:158px;padding:14px 18px;display:flex;flex-direction:column;justify-content:space-between;flex:none}
+/* 3. 保管箱长条通透卡 (686 x 142) */
+.storage-card{
+  width:686px;height:142px;padding:13px 18px 14px;
+  display:flex;flex-direction:column;justify-content:space-between;flex:none;overflow:hidden;
+}
 .storage-head{display:flex;align-items:center;justify-content:space-between}
 .storage-left{display:flex;flex-direction:column;gap:3px}
-.storage-eyebrow{font-size:9px;font-weight:800;letter-spacing:1.3px;color:{{ palette.muted }}}
+.storage-eyebrow{font-size:9px;font-weight:800;letter-spacing:1.3px;color:{{ lq.muted }}}
 .storage-title-row{display:flex;align-items:center;gap:8px}
-.storage-title-row h2{margin:0;font-size:18px;font-weight:800;color:{{ palette.ink }}}
+.storage-title-icon{width:16px;height:16px;flex:none;display:block}
+.storage-title-row h2{margin:0;font-size:16px;font-weight:800;color:{{ lq.ink }};line-height:19px}
 .storage-state-pill{height:20px;padding:2px 8px 0;border-radius:6px;font-size:10px;font-weight:800}
-.storage-percent{font-size:32px;font-weight:800;line-height:34px;font-variant-numeric:tabular-nums}
+.storage-percent{font-size:28px;font-weight:800;line-height:30px;font-variant-numeric:tabular-nums}
 
-.track-outer{position:relative;padding-top:4px;padding-bottom:2px}
+.track-outer{position:relative;padding-top:10px;padding-bottom:1px}
+.mark-90-label{
+  position:absolute;left:90%;top:-2px;width:28px;margin-left:-14px;text-align:center;
+  font-size:9px;font-weight:800;color:{{ lq.muted }};font-variant-numeric:tabular-nums;
+}
 .track{
   position:relative;width:100%;height:14px;border-radius:999px;overflow:hidden;
-  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  background:{{ lq.track_bg }};border:1px solid {{ lq.est_glass_border }};
 }
 .fill{position:relative;height:100%;border-radius:999px;overflow:hidden}
-.fill-chevrons{position:absolute;inset:0;opacity:0.42}
+.fill-chevrons{position:absolute;inset:0;opacity:0.44}
 .mark-90{
   position:absolute;left:90%;top:0;bottom:0;width:2px;
-  background:{{ 'rgba(21,34,51,0.42)' if card_theme=='light' else 'rgba(255,255,255,0.55)' }};
+  background:{{ 'rgba(21,34,51,0.45)' if card_theme=='light' else 'rgba(255,255,255,0.58)' }};
   z-index:3;
 }
-.mark-90-label{
-  position:absolute;left:90%;top:-12px;width:28px;margin-left:-14px;text-align:center;
-  font-size:9px;font-weight:800;color:{{ palette.muted }};font-variant-numeric:tabular-nums;
-}
-.storage-estimates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+
+.storage-estimates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .est-slot{
-  height:36px;padding:0 12px;border-radius:10px;
-  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  height:34px;padding:0 13px;border-radius:10px;
+  background:{{ lq.est_glass_bg }};border:1px solid {{ lq.est_glass_border }};
   display:flex;align-items:center;justify-content:space-between;
 }
-.est-label{font-size:10px;font-weight:700;color:{{ palette.muted }}}
-.est-val{font-size:12px;font-weight:800;color:{{ palette.ink }};font-variant-numeric:tabular-nums}
+.est-label{font-size:10.5px;font-weight:700;color:{{ lq.muted }}}
+.est-val{font-size:12px;font-weight:800;color:{{ lq.ink }};font-variant-numeric:tabular-nums}
+.storage-unknown-msg{font-size:12px;font-weight:600;color:{{ lq.muted }};margin:auto 0}
 
-.footer-card{width:686px;height:62px;padding:9px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex:none}
-.footer-notes{flex:1;min-width:0;font-size:10px;line-height:15px;color:{{ palette.muted }}}
-.footer-snap{flex:none;text-align:right;font-size:10px;line-height:15px;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
-.credit-row{display:flex;align-items:center;justify-content:center}
+/* 4. 底部说明 (686 x 58) */
+.footer-card{width:686px;height:58px;padding:8px 16px;border-radius:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex:none}
+.footer-notes{flex:1;min-width:0;font-size:10px;line-height:15px;color:{{ lq.ink_soft }};font-weight:600}
+.footer-snap{flex:none;text-align:right;font-size:10px;line-height:15px;color:{{ lq.ink_soft }};font-weight:600;font-variant-numeric:tabular-nums}
+
+/* 5. 底部品牌胶囊 */
+.credit-row{height:22px;display:flex;align-items:center;justify-content:center;flex:none}
 .brand-credit-pill{
   display:inline-flex;align-items:center;justify-content:center;line-height:1;
   height:22px;padding:2px 14px 0;border-radius:999px;
-  background:{{ palette.pill_bg }};border:1px solid {{ palette.glass_border }};
-  font-size:10px;font-weight:600;color:{{ palette.credit_ink }};
+  background:{{ lq.glass_grad }};border:1px solid {{ lq.glass_border }};
+  box-shadow:{{ lq.glass_shadow }};
+  font-size:10px;font-weight:700;color:{{ lq.ink_soft }};
 }

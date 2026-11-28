@@ -198,56 +198,81 @@ V2_UNIFIED_ACCENTS = {
 
 V2_PALETTES = {
     'light': {
-        'page_bg': '#E9EFF6',
-        'ink': '#152233',
-        'muted': '#4A5E78',
-        'line': 'rgba(30,52,82,0.14)',
-        'glass_bg': 'rgba(252,254,255,0.78)',
+        'page_bg': '#E6EEF8',
+        'ink': '#142234',
+        'muted': '#465B75',
+        'line': 'rgba(25,50,82,0.18)',
+        'glass_bg': 'linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.56) 100%)',
         'glass_border': 'rgba(255,255,255,0.92)',
-        'glass_shadow': '0 6px 20px rgba(15,35,62,0.11)',
-        'inner_top': 'rgba(255,255,255,0.75)',
-        'slot_bg': 'rgba(18,38,68,0.055)',
-        'empty_slot_bg': 'rgba(18,38,68,0.025)',
-        'icon_stage_bg': 'rgba(255,255,255,0.22)',
-        'portrait_stage_bg': 'rgba(252,254,255,0.52)',
-        'sub_border': 'rgba(25,50,82,0.11)',
-        'pill_bg': 'rgba(252,254,255,0.82)',
-        'pill_inner_bg': 'rgba(18,38,68,0.065)',
-        'line_normal_bg': 'rgba(255,255,255,0.58)',
-        'line_normal_border': 'rgba(25,50,82,0.09)',
+        'glass_shadow': '0 8px 24px rgba(14,34,62,0.14), inset 0 1px 1px rgba(255,255,255,0.96)',
+        'inner_top': 'rgba(255,255,255,0.88)',
+        'slot_bg': 'rgba(255,255,255,0.44)',
+        'empty_slot_bg': 'rgba(255,255,255,0.22)',
+        'icon_stage_bg': 'rgba(255,255,255,0.48)',
+        'portrait_stage_bg': 'rgba(255,255,255,0.42)',
+        'sub_border': 'rgba(255,255,255,0.78)',
+        'pill_bg': 'rgba(255,255,255,0.82)',
+        'pill_inner_bg': 'rgba(255,255,255,0.52)',
+        'line_normal_bg': 'rgba(255,255,255,0.46)',
+        'line_normal_border': 'rgba(255,255,255,0.78)',
         'stage_tag': '#1C304A',
-        'credit_ink': '#364A63',
+        'credit_ink': '#2D4159',
     },
     'dark': {
-        'page_bg': '#0B1320',
-        'ink': '#F1F6FD',
-        'muted': '#A6BCD4',
-        'line': 'rgba(170,200,235,0.18)',
-        'glass_bg': 'rgba(8,16,30,0.78)',
-        'glass_border': 'rgba(166,198,232,0.28)',
-        'glass_shadow': '0 8px 24px rgba(2,6,14,0.42)',
-        'inner_top': 'rgba(255,255,255,0.14)',
-        'slot_bg': 'rgba(255,255,255,0.06)',
-        'empty_slot_bg': 'rgba(255,255,255,0.025)',
-        'icon_stage_bg': 'rgba(255,255,255,0.075)',
-        'portrait_stage_bg': 'rgba(8,16,30,0.56)',
-        'sub_border': 'rgba(170,200,235,0.16)',
-        'pill_bg': 'rgba(8,16,30,0.76)',
-        'pill_inner_bg': 'rgba(255,255,255,0.08)',
-        'line_normal_bg': 'rgba(255,255,255,0.055)',
-        'line_normal_border': 'rgba(170,200,235,0.12)',
+        'page_bg': '#0A1220',
+        'ink': '#F2F7FF',
+        'muted': '#B2C6DE',
+        'line': 'rgba(176,208,242,0.24)',
+        'glass_bg': 'linear-gradient(180deg, rgba(16,28,48,0.80) 0%, rgba(10,18,34,0.68) 100%)',
+        'glass_border': 'rgba(176,208,242,0.36)',
+        'glass_shadow': '0 10px 28px rgba(2,6,14,0.46), inset 0 1px 1px rgba(255,255,255,0.18)',
+        'inner_top': 'rgba(255,255,255,0.18)',
+        'slot_bg': 'rgba(255,255,255,0.08)',
+        'empty_slot_bg': 'rgba(255,255,255,0.035)',
+        'icon_stage_bg': 'rgba(255,255,255,0.11)',
+        'portrait_stage_bg': 'rgba(10,18,34,0.52)',
+        'sub_border': 'rgba(176,208,242,0.22)',
+        'pill_bg': 'rgba(10,18,34,0.80)',
+        'pill_inner_bg': 'rgba(255,255,255,0.10)',
+        'line_normal_bg': 'rgba(255,255,255,0.065)',
+        'line_normal_border': 'rgba(176,208,242,0.18)',
         'stage_tag': '#DCE8F7',
-        'credit_ink': '#BDCCE0',
+        'credit_ink': '#C9D8EB',
     },
 }
 
 
-def v2_theme_tokens(element_key: str | None = None, theme: str = 'light') -> dict:
+def _scale_alpha(base_alpha: float, opacity: int) -> float:
+    from .glass_settings import OPACITY_DEFAULT
+    op = max(0, min(100, int(opacity)))
+    if op == OPACITY_DEFAULT:
+        return base_alpha
+    if op < OPACITY_DEFAULT:
+        return base_alpha * (op / OPACITY_DEFAULT)
+    return base_alpha + (1.0 - base_alpha) * ((op - OPACITY_DEFAULT) / (100 - OPACITY_DEFAULT))
+
+
+def glass_gradient(theme: str = 'light', opacity: int | None = None) -> str:
+    """Return unified glass panel & Powered By pill background gradient for the configured opacity."""
+    from .glass_settings import get_card_opacity, valid_opacity
+    op = opacity if valid_opacity(opacity) else get_card_opacity()
+    if theme == 'dark':
+        a_top = _scale_alpha(0.80, op)
+        a_bot = _scale_alpha(0.68, op)
+        return f'linear-gradient(180deg, rgba(16,28,48,{a_top:.2f}) 0%, rgba(10,18,34,{a_bot:.2f}) 100%)'
+    a_top = _scale_alpha(0.72, op)
+    a_bot = _scale_alpha(0.56, op)
+    return f'linear-gradient(180deg, rgba(255,255,255,{a_top:.2f}) 0%, rgba(255,255,255,{a_bot:.2f}) 100%)'
+
+
+def v2_theme_tokens(element_key: str | None = None, theme: str = 'light', *, opacity: int | None = None) -> dict:
     """Return unified Bento v2 palette and theme accent tokens (gold on dark, crimson on light)."""
     color = 'dark' if theme == 'dark' else 'light'
     acc = V2_UNIFIED_ACCENTS
+    palette = dict(V2_PALETTES[color])
+    palette['glass_bg'] = glass_gradient(color, opacity=opacity)
     return {
-        'palette': V2_PALETTES[color],
+        'palette': palette,
         'element_accent': acc[color],
         'element_accent_soft': acc[f'soft_{color}'],
         'element_accent_border': acc[f'border_{color}'],

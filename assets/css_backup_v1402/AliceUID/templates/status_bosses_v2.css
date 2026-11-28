@@ -1,0 +1,65 @@
+/* nk会战血量 Bento v2 样式 (800px) */
+html,body{width:800px;margin:0;padding:0}
+.page{
+  width:800px;padding:22px;color:{{ palette.ink }};
+  background:{{ palette.page_bg }} url('{{ frost_scene_uri }}') center top/100% auto no-repeat;
+  display:flex;flex-direction:column;gap:12px;
+}
+.hero{padding:18px 20px;display:flex;flex-direction:column;gap:12px}
+.hero-top{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.hero-id{display:flex;align-items:center;gap:14px;min-width:0;flex:1}
+.hero-id .avatar-glass,.hero-id .avatar-glass>img{width:64px;height:64px;border-radius:15px}
+.id-copy{min-width:0;display:flex;flex-direction:column;gap:3px}
+.eyebrow-row{display:flex;align-items:center;gap:8px}
+.eyebrow{font-size:10px;font-weight:800;letter-spacing:1.5px;color:{{ element_accent }}}
+.state-pill{
+  height:18px;padding:2px 8px 0;border-radius:6px;
+  background:{{ element_accent_soft }};border:1px solid {{ element_accent_border }};
+  color:{{ element_accent }};font-size:10px;font-weight:800;
+}
+.state-pill.active{
+  background:{{ 'rgba(20,125,100,0.12)' if card_theme=='light' else 'rgba(92,224,184,0.16)' }};
+  border-color:{{ 'rgba(20,125,100,0.34)' if card_theme=='light' else 'rgba(92,224,184,0.38)' }};
+  color:{{ '#147D64' if card_theme=='light' else '#5CE0B8' }};
+}
+.hero h1{margin:0;font-size:23px;line-height:28px;font-weight:800;color:{{ palette.ink }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero-meta{font-size:11px;font-weight:600;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
+.brand-right{text-align:right;flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.brand-right strong{font-size:13px;font-weight:800;color:{{ element_accent }};letter-spacing:1px}
+.brand-right span{font-size:10px;font-weight:700;color:{{ palette.muted }}}
+
+.phase-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.phase-slot{
+  border-radius:11px;padding:9px 13px;
+  background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+}
+.phase-slot span{font-size:11px;font-weight:700;color:{{ palette.muted }}}
+.phase-slot b{font-size:13px;font-weight:800;color:{{ palette.ink }};font-variant-numeric:tabular-nums}
+
+.boss-list{display:flex;flex-direction:column;gap:10px}
+.boss-card{padding:14px 18px;display:flex;flex-direction:column;gap:8px}
+.boss-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.boss-title-wrap{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+.boss-idx{
+  height:24px;padding:2px 9px 0;border-radius:7px;flex:none;
+  background:{{ element_accent_soft }};border:1px solid {{ element_accent_border }};
+  color:{{ element_accent }};font-size:11px;font-weight:800;
+}
+.boss-head h2{margin:0;font-size:17px;line-height:22px;font-weight:800;color:{{ palette.ink }};overflow-wrap:anywhere}
+.boss-pct{font-size:22px;font-weight:800;line-height:26px;color:{{ element_accent }};font-variant-numeric:tabular-nums;flex:none}
+.track{height:10px;border-radius:999px;background:{{ palette.slot_bg }};border:1px solid {{ palette.sub_border }};overflow:hidden}
+.fill{height:100%;border-radius:999px;background:{{ element_accent }}}
+.boss-foot{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
+.boss-foot b{color:{{ palette.ink }};font-weight:700}
+
+.footer-card{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.footer-notes{flex:1;min-width:0;font-size:10px;line-height:16px;color:{{ palette.muted }}}
+.footer-snap{flex:none;text-align:right;font-size:10px;line-height:16px;color:{{ palette.muted }};font-variant-numeric:tabular-nums}
+.credit-row{display:flex;justify-content:center}
+.brand-credit-pill{
+  display:inline-flex;align-items:center;justify-content:center;line-height:1;
+  height:22px;padding:2px 14px 0;border-radius:999px;
+  background:{{ palette.pill_bg }};border:1px solid {{ palette.glass_border }};
+  font-size:10px;font-weight:600;color:{{ palette.credit_ink }};
+}

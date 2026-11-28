@@ -44,7 +44,10 @@ html,body{width:1000px;margin:0;padding:0}
 .stat-slot span{font-size:12px;font-weight:700;color:{{ palette.muted }}}
 
 .panel{padding:18px 22px;display:flex;flex-direction:column;gap:12px}
-.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding-bottom:8px;border-bottom:1px dashed {{ 'rgba(25,50,82,0.16)' if card_theme=='light' else 'rgba(176,208,242,0.22)' }};
+}
 .panel-head h2{margin:0;font-size:19px;line-height:24px;font-weight:800;color:{{ palette.ink }}}
 .panel-head-sub{font-size:11px;font-weight:700;color:{{ palette.muted }}}
 
@@ -82,7 +85,7 @@ html,body{width:1000px;margin:0;padding:0}
 .rank-table{width:100%;border-collapse:separate;border-spacing:0 5px}
 .rank-table th{
   text-align:left;vertical-align:middle;font-size:11px;font-weight:800;color:{{ palette.muted }};
-  padding:7px 12px;background:{{ palette.slot_bg }};
+  padding:7px 12px;background:{{ 'rgba(255,255,255,0.42)' if card_theme=='light' else 'rgba(255,255,255,0.08)' }};
 }
 .rank-table th:first-child{border-radius:8px 0 0 8px}
 .rank-table th:last-child{border-radius:0 8px 8px 0}
@@ -147,6 +150,6 @@ html,body{width:1000px;margin:0;padding:0}
 .brand-credit-pill{
   display:inline-flex;align-items:center;justify-content:center;line-height:1;
   height:22px;padding:2px 14px 0;border-radius:999px;
-  background:{{ palette.pill_bg }};border:1px solid {{ palette.glass_border }};
-  font-size:10px;font-weight:600;color:{{ palette.credit_ink }};
+  background:{{ palette.glass_bg }};border:1px solid {{ palette.glass_border }};box-shadow:{{ palette.glass_shadow }};
+  font-size:10px;font-weight:700;color:{{ palette.credit_ink }};
 }

@@ -2,14 +2,14 @@
 {% if kind == 'resources' %}
 <title>{{ title }} · AliceUID</title>
 <style>
-{% include 'alice_v2_tokens.css' %}
+{% if resource_layout == '详细' %}
 {% include 'status_resources_v2.css' %}
-.avatar-empty{font-weight:800;color:{{ accent }};font-size:20px}
+{% else %}
+{% include 'status_resources_compact_v2.css' %}
+{% endif %}
 </style>
 </head><body>
 <div class="page {{ card_theme }}">
-  <div class="page-scrim"></div>
-
   <header class="bento-card res-hero hero">
     <div class="avatar-glass">
       {% if commander_avatar_url %}
@@ -22,10 +22,15 @@
     <div class="res-id-copy">
       <span class="res-eyebrow">COMMANDER</span>
       <div class="res-name">{{ commander_name }}</div>
-      <div class="res-meta">
-        <span>{{ commander_region }}</span>
-        <span>·</span>
-        <span>UID {{ commander_uid }}</span>
+      <div class="res-meta-pills">
+        <span class="ui-pill meta-micro-pill">
+          {% if icon_region_uri %}<img class="micro-icon" src="{{ icon_region_uri }}" alt="">{% endif %}
+          <span>{{ commander_region }}</span>
+        </span>
+        <span class="ui-pill meta-micro-pill">
+          {% if icon_uid_uri %}<img class="micro-icon" src="{{ icon_uid_uri }}" alt="">{% endif %}
+          <span>UID {{ commander_uid }}</span>
+        </span>
       </div>
     </div>
     <div class="res-summary">
@@ -34,6 +39,7 @@
     </div>
   </header>
 
+  {% if resource_layout == '详细' %}
   <section class="res-grid resource-grid">
     {% for item in items %}
     <div class="bento-card res-card resource">
@@ -42,16 +48,14 @@
       {% endif %}
       <div class="res-card-head">
         <div class="res-icon-stage">
-          <span class="icon-stack">
-            {% if item.icon_shadow_url %}<img class="icon-shadow" src="{{ item.icon_shadow_url }}" alt="">{% endif %}
-            <img class="alpha-effect" src="{{ item.icon_url }}" alt="{{ item.name }}图标">
-          </span>
+          <img src="{{ item.crisp_24_url or item.icon_url }}" alt="{{ item.name }}图标">
         </div>
         <div class="res-head-copy">
           <div class="res-item-name">{{ item.name }}</div>
           <div class="res-item-tag">{{ item.category }}</div>
         </div>
       </div>
+      <div class="res-divider"></div>
       <div class="res-amount-wrap">
         <div class="res-amount amount">{{ item.value }}</div>
         <div class="res-subnote exact">{{ item.exact }}</div>
@@ -65,11 +69,12 @@
       <div class="storage-left">
         <span class="storage-eyebrow">OUTPOST BATTLE STORAGE</span>
         <div class="storage-title-row">
+          {% if icon_battery_uri %}<img class="storage-title-icon" src="{{ icon_battery_uri }}" alt="">{% endif %}
           <h2>保管箱容量</h2>
           <span class="ui-pill storage-state-pill" style="background:{{ storage_badge_bg }};border:1px solid {{ storage_badge_border }};color:{{ storage_badge_color }}">{{ storage_badge_text }}</span>
         </div>
       </div>
-      <div class="storage-percent percent" style="color:{{ storage_badge_color }}">{{ storage_text }}</div>
+      <div class="storage-percent percent" style="color:{{ storage_badge_color if storage_known else lq.muted }}">{{ storage_text }}</div>
     </div>
 
     {% if storage_known %}
@@ -87,15 +92,15 @@
     <div class="storage-estimates">
       <div class="est-slot">
         <span class="est-label">90% 收菜提醒线</span>
-        <span class="est-val">{{ storage_90_text }}</span>
+        <span class="est-val" style="color:{{ est_90_color }}">{{ storage_90_text }}</span>
       </div>
       <div class="est-slot">
         <span class="est-label">100% 满仓预估</span>
-        <span class="est-val">{{ storage_full_text }}</span>
+        <span class="est-val" style="color:{{ est_full_color }}">{{ storage_full_text }}</span>
       </div>
     </div>
     {% else %}
-    <div style="font-size:12px;color:{{ palette.muted }};margin:auto 0">社区未提供或已隐藏，未按0%显示。</div>
+    <div class="storage-unknown-msg">社区未提供或已隐藏，未按 0% 显示。</div>
     {% endif %}
   </section>
 
@@ -108,6 +113,82 @@
       <div>数据时间 {{ fetched_at }} · 缓存 {{ cache_seconds }} 秒{% if preview_notice %} · {{ preview_notice }}{% endif %}</div>
     </div>
   </footer>
+  {% else %}
+  <section class="mid-bento">
+    <div class="res-col resource-grid">
+      {% for item in left_items %}
+      <div class="bento-card res-row-card resource">
+        {% if item.highlight %}
+        <div class="res-side-bar {{ item.highlight }}"></div>
+        {% endif %}
+        <div class="res-left">
+          <div class="res-icon-stage">
+            <img src="{{ item.crisp_24_url or item.icon_url }}" alt="{{ item.name }}图标">
+          </div>
+          <div class="res-item-name">{{ item.name }}</div>
+        </div>
+        <div class="res-amount amount">{{ item.compact_game_value }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <aside class="bento-card storage-card storage">
+      <div class="storage-head">
+        <div class="storage-title-left">
+          {% if icon_battery_uri %}<img class="storage-title-icon" src="{{ icon_battery_uri }}" alt="">{% endif %}
+          <h2>保管箱容量</h2>
+          <span class="ui-pill storage-state-pill" style="background:{{ storage_badge_bg }};border:1px solid {{ storage_badge_border }};color:{{ storage_badge_color }}">{{ storage_badge_text }}</span>
+        </div>
+        <span class="storage-eyebrow">OUTPOST STORAGE</span>
+      </div>
+
+      <div class="storage-mid">
+        <div class="ring-wrap">
+          <img class="ring-img" src="{{ storage_ring_uri }}" alt="保管箱容量圆环">
+          <div class="ring-center">
+            <span class="ring-pct percent" style="color:{{ storage_badge_color if storage_known else lq.muted }}">{{ storage_text }}</span>
+            <span class="ring-sub">{{ ring_sub_text }}</span>
+          </div>
+        </div>
+
+        <div class="outpost-yields">
+          {% for item in outpost_items %}
+          <div class="yield-row resource">
+            {% if item.highlight %}<div class="yield-bar {{ item.highlight }}"></div>{% endif %}
+            <div class="yield-left">
+              <div class="yield-icon">
+                <img src="{{ item.crisp_22_url or item.icon_url }}" alt="{{ item.name }}图标">
+              </div>
+              <span class="yield-name">{{ item.name }}</span>
+            </div>
+            <span class="yield-val amount">{{ item.compact_game_value }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% if storage_known %}
+      <div class="storage-estimates">
+        <div class="est-slot">
+          <span class="est-label">90% 收菜提醒线</span>
+          <span class="est-val" style="color:{{ est_90_color }}">{{ storage_90_text }}</span>
+        </div>
+        <div class="est-slot">
+          <span class="est-label">100% 满仓预估</span>
+          <span class="est-val" style="color:{{ est_full_color }}">{{ storage_full_text }}</span>
+        </div>
+      </div>
+      {% else %}
+      <div class="storage-unknown-msg">社区未提供或已隐藏，未按 0% 显示。</div>
+      {% endif %}
+    </aside>
+  </section>
+
+  <footer class="bento-card footer-card notice">
+    <div class="footer-line-1">钻石含付费与免费 · 保管箱按 24h 线性估算 · 缺失或隐藏显示「—」</div>
+    <div class="footer-line-2 snapshot">{{ source }} · 数据时间 {{ fetched_at }} · 缓存 {{ cache_seconds }} 秒{% if preview_notice %} · {{ preview_notice }}{% endif %}</div>
+  </footer>
+  {% endif %}
 
   <div class="credit-row">
     <span class="brand-credit-pill">Powered By GsCore &amp; Created By AliceUID · {{ credit_timestamp }}（北京时间）</span>
